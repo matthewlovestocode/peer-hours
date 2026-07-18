@@ -40,6 +40,12 @@ This is an early, working foundation—not yet a production timebank. The deskto
 
 For the living technical direction, see [network architecture](docs/network-architecture.md). For the active record-core topology, see [record replication](docs/record-replication.md). For the package map and dependency direction, see [package architecture](docs/package-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
 
+## Learn the architecture
+
+New to peer-to-peer or local-first systems? [Learn Peer Hours](docs/education/README.md) is a junior-friendly, diagram-led course that explains the project in short lessons. It starts with timebank communities and member roles, then builds toward community nodes, local data, Hypercore, append-only records, and replication. The course deliberately separates what is implemented today from the future design work still ahead.
+
+Start with [Lesson 1: What Is a Timebank?](docs/education/01-what-is-a-timebank.md).
+
 ## Repository
 
 Peer Hours is maintained as an npm workspaces monorepo for applications and only those shared packages that have a concrete reuse case.

@@ -1,0 +1,41 @@
+# Lesson 2: What Is a Peer Hours Community?
+
+A Peer Hours community is the group of people who agree to exchange time together. It might be a neighborhood, a city-wide timebank, a mutual-aid group, or an online group with a shared purpose.
+
+## What you already know
+
+In a traditional application, this is close to an organization, tenant, or workspace. A user signs into the application and works inside one organization’s data. In Peer Hours, a community defines the boundary for its members, exchanges, and records.
+
+```mermaid
+flowchart TB
+  E["peer-hours/earth"] --> US["peer-hours/earth/US"]
+  US --> CA["peer-hours/earth/US/CA"]
+  CA --> EB["peer-hours/earth/US/CA/east-bay"]
+  EB --> O["peer-hours/earth/US/CA/east-bay/oakland"]
+```
+
+The identifier is hierarchical. Each additional segment narrows the scope. Online communities can use an `online` branch instead, such as `peer-hours/earth/online/language-exchange`.
+
+## A small example
+
+Two records can look similar but belong to different communities:
+
+```json
+{ "communityId": "peer-hours/earth/US/CA/east-bay", "minutes": 60 }
+```
+
+```json
+{ "communityId": "peer-hours/earth/online/language-exchange", "minutes": 60 }
+```
+
+**Expected observation:** they must not be mixed together. A member’s East Bay balance is not automatically a balance in the language-exchange community.
+
+## Peer Hours connection
+
+Peer Hours includes `communityId` on important records. That lets the software reject an otherwise valid record if it belongs to the wrong community. It also gives communities room to choose their own membership, moderation, and exchange policies later.
+
+A community is not necessarily a company running a central app. It is the shared social and data boundary that participating computers recognize.
+
+## Next lesson
+
+Continue to [Lesson 3: Desktop App vs Community Node](./03-desktop-app-and-community-node.md)

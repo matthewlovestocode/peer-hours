@@ -1,0 +1,39 @@
+# Lesson 10: What a Community Node Does
+
+A community node is always-available infrastructure operated for one Peer Hours community. It helps the community's records remain reachable when individual members close their desktop apps.
+
+## What you already know
+
+In client/server development, a server usually accepts requests, runs business logic, writes to a database, and returns responses. It is tempting to call a community node “the server.”
+
+## One new idea
+
+A community node is availability and replication infrastructure, not automatically the sole authority over timebank truth. It keeps durable local storage, participates in peer discovery and replication, publishes bootstrap metadata, and reports health.
+
+```mermaid
+flowchart LR
+  A["Alice's desktop"] <-->|"replication"| N["Community node"]
+  B["Bob's desktop"] <-->|"replication"| N
+  N --> S["Durable community records"]
+  N --> H["Health and bootstrap metadata"]
+```
+
+The node makes the network more dependable. It does not make a participant signature valid by itself, and it should not silently rewrite an exchange record.
+
+## Small example
+
+At midnight, no member desktop is open. The East Bay community node can still keep its record core on disk and remain discoverable. When Alice opens her app in the morning, her runtime can learn how to find the community's record core and synchronize records that are available.
+
+If the node is temporarily unavailable, Alice's existing local records still exist on her device. She simply cannot use that node as a currently reachable synchronization partner.
+
+## Peer Hours connection
+
+The `apps/node` application is the current community-node implementation. It publishes bootstrap information, maintains persistent Hypercore/Corestore data, and has read-only status and record endpoints for development and diagnostics.
+
+Today, it owns the writable shared record core. That is a temporary, deliberately limited model. It is not yet the finished design for member-originated writes or community governance.
+
+Use the precise term **community node**: it describes its role in supporting a timebank community. A **peer** is any connected runtime, including a member desktop and the community node itself.
+
+## Next lesson
+
+Continue with [Lesson 11: What the bootstrap endpoint is for](11-bootstrap-endpoint.md).

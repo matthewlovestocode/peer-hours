@@ -3,7 +3,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { join } from "node:path";
 import { safeStorage } from "electron";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { memberFeedDeclarationToRecord } from "@peer-hours/timebank-records";
+import { MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord } from "@peer-hours/timebank-records";
 import type { JsonValue, PeerRuntime } from "@peer-hours/peer-runtime";
 
 type StoredIdentity = { privateKeyCiphertext: string; publicKeyPem: string };
@@ -29,8 +29,9 @@ export class MemberIdentityService {
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before creating an identity.");
     if (!safeStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");
     const stored = await this.readStoredIdentity() ?? await this.createStoredIdentity();
-    const declaration = this.createDeclaration(stored, communityId);
-    await this.runtime.appendMemberRecord(memberFeedDeclarationToRecord(declaration) as unknown as JsonValue);
+    const existingDeclaration = await this.existingDeclaration(communityId);
+    const declaration = existingDeclaration ?? this.createDeclaration(stored, communityId);
+    if (existingDeclaration === null) await this.runtime.appendMemberRecord(memberFeedDeclarationToRecord(declaration) as unknown as JsonValue);
     this.runtime.publishMemberFeedAnnouncement(this.createAnnouncement(stored, declaration));
     return this.status();
   }
@@ -57,6 +58,18 @@ export class MemberIdentityService {
     const identity = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem });
     const unsigned = { schema: "peer-hours/member-feed-declaration/v1" as const, memberId: identity.memberId, communityId, feedPublicKey: this.runtime.memberRecordFeedKey, occurredAt: new Date().toISOString(), rootPublicKeyPem: stored.publicKeyPem };
     return createMemberFeedDeclaration({ ...unsigned, signature: this.sign(stored, canonicalMemberFeedDeclarationPayload(unsigned)) });
+  }
+
+  /** Finds this feed's valid earlier declaration so retrying an announcement never appends a duplicate identity record. */
+  private async existingDeclaration(communityId: string): Promise<MemberFeedDeclaration | null> {
+    for (const record of await this.runtime.readMemberRecords()) {
+      if (typeof record !== "object" || record === null || (record as { kind?: unknown }).kind !== MEMBER_FEED_DECLARATION_RECORD_KIND) continue;
+      try {
+        const declaration = memberFeedDeclarationFromRecord(record as never);
+        if (declaration.communityId === communityId && declaration.feedPublicKey === this.runtime.memberRecordFeedKey) return declaration;
+      } catch { /* Invalid local data must not become an identity declaration. */ }
+    }
+    return null;
   }
 
   /** Builds and signs a short-lived, explicit discovery announcement for a valid local declaration. */

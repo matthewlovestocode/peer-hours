@@ -13,7 +13,7 @@ export type RecordsWorkspaceStatusProps = {
 export function RecordsWorkspaceStatus({ phase, hasSnapshot, error, onRefresh }: RecordsWorkspaceStatusProps) {
   if (phase === "ready") {
     return (
-      <div className="records-workspace-status" role="status">
+      <div className="records-workspace-status" role="status" aria-live="polite">
         <span>Local snapshot is current.</span>
         <button className="secondary-button" type="button" onClick={onRefresh}>Refresh records</button>
       </div>
@@ -21,11 +21,11 @@ export function RecordsWorkspaceStatus({ phase, hasSnapshot, error, onRefresh }:
   }
 
   if (phase === "loading") {
-    return <p className="empty-state" role="status">Opening your local member feed and verifying its records…</p>;
+    return <p className="empty-state" role="status" aria-live="polite">Opening your local member feed and verifying its records…</p>;
   }
 
   if (phase === "refreshing") {
-    return <p className="empty-state" role="status">Refreshing the local member feed…</p>;
+    return <p className="empty-state" role="status" aria-live="polite">Refreshing the local member feed. Your last usable snapshot remains visible…</p>;
   }
 
   return (

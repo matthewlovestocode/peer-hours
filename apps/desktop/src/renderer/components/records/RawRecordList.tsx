@@ -1,6 +1,6 @@
 /** Renders immutable feed entries strictly as raw inspection data. */
 export function RawRecordList({ records }: { records: readonly unknown[] }) {
-  if (!records.length) return <section className="raw-records" aria-labelledby="raw-records-heading"><h2 id="raw-records-heading">Raw feed history</h2><p className="empty-state">No records have been added to this member feed yet.</p></section>;
+  if (!records.length) return <section className="raw-records" aria-labelledby="raw-records-heading"><h2 id="raw-records-heading">Raw feed history</h2><p className="empty-state">No records have been added to this member feed yet. This does not rule out records from other discovered community feeds.</p></section>;
 
   return (
     <section className="raw-records" aria-labelledby="raw-records-heading">
@@ -11,12 +11,12 @@ export function RawRecordList({ records }: { records: readonly unknown[] }) {
         </div>
         <span className="count-badge" aria-label={`${records.length} raw records`}>{records.length}</span>
       </div>
-      <p className="muted">Raw entries are immutable feed data. Their presence does not mean this device accepted them or that an exchange is settled.</p>
+      <p className="muted">Raw entries are immutable feed data from this local member feed. Their presence does not mean this device accepted them, replicated them to another peer, or settled an exchange.</p>
       <ol className="record-list">
         {records.map((record, index) => (
           <li key={index}>
             <details>
-              <summary>Raw record {index + 1}</summary>
+              <summary>Inspect raw record {index + 1}</summary>
               <pre>{formatRawRecord(record)}</pre>
             </details>
           </li>

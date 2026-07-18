@@ -11,6 +11,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; }
 button { border: 1px solid #3b4248; border-radius: 8px; background: #20252a; color: #f5f5f5; padding: 0.65rem 0.9rem; cursor: pointer; }
 button:hover { background: #2a3137; }
 button:disabled { cursor: wait; opacity: 0.58; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid #a3e635; outline-offset: 3px; }
 .app-shell { min-height: 100vh; background: radial-gradient(circle at 80% 0%, #18251a 0, #111315 38%); }
 .app-topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 0.85rem; height: 4.5rem; border-bottom: 1px solid #272d31; background: #111315e8; padding: 0 1.5rem; backdrop-filter: blur(14px); }
 .app-topbar__brand { display: flex; align-items: center; gap: 0.55rem; font-size: 0.94rem; font-weight: 750; letter-spacing: 0.03em; }
@@ -26,6 +27,17 @@ button:disabled { cursor: wait; opacity: 0.58; }
 .records-workspace-status--error { align-items: flex-start; border: 1px solid #733343; border-radius: 10px; background: #351b243d; padding: 1rem; color: #fecdd3; }
 .records-workspace-status p { margin: 0.35rem 0 0; color: #fda4af; line-height: 1.5; }
 .secondary-button { background: transparent; }
+.identity-status, .records-trust-notice { display: grid; gap: 0.75rem; margin-top: 1.5rem; border: 1px solid #343c41; border-radius: 12px; background: #15191c; padding: 1rem; }
+.identity-status--ready, .records-trust-notice--ready { border-color: #49673b; }
+.identity-status--attention, .records-trust-notice--attention { border-color: #765d2e; }
+.identity-status--blocked, .records-trust-notice--blocked { border-color: #733343; background: #351b243d; }
+.identity-status__heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.identity-status__tone { border: 1px solid currentColor; border-radius: 999px; padding: 0.2rem 0.5rem; color: #c7cdd2; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+.identity-status__identifiers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin: 0.25rem 0; }
+.identity-status__identifiers div { display: grid; gap: 0.35rem; border-top: 1px solid #30363b; padding-top: 0.75rem; }
+.identity-status__identifiers dt, .identity-status__identifiers small { color: #9da5ad; font-size: 0.78rem; line-height: 1.45; }
+.identity-status__identifiers dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 0.83rem; }
+.records-trust-notice p { margin: 0; color: #c7cdd2; line-height: 1.55; }
 .records-state, .raw-records { margin-top: 1.5rem; border-top: 1px solid #30363b; padding-top: 1.25rem; }
 .records-state--rejected { border-color: #733343; }
 .records-state > .muted, .raw-records > .muted { margin: 0.8rem 0 0; }
@@ -143,4 +155,4 @@ h2 { font-size: 1.15rem; margin-top: 0.4rem; }
 .peer-details dd { margin: 0.35rem 0 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.84rem; }
 @media (max-width: 1000px) { .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .record-core-panel__metrics { grid-template-columns: 1fr; gap: 1rem; } }
-@media (max-width: 700px) { .workspace-header, .page-header, .records-workspace-status { align-items: start; flex-direction: column; } .app-topbar { padding: 0 1rem; } .app-workspace { padding-inline: 1rem; } .dashboard-grid, .peer-explorer, .records-state__summary { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr; } .status-strip__identity { align-items: flex-start; flex-direction: column; } .tree-panel { min-height: 430px; } .network-tree, .network-tree__svg { min-height: 320px; height: 320px; } .tree-label--community { right: 1%; } }
+@media (max-width: 700px) { .workspace-header, .page-header, .records-workspace-status, .identity-status__heading { align-items: start; flex-direction: column; } .app-topbar { padding: 0 1rem; } .app-workspace { padding-inline: 1rem; } .dashboard-grid, .peer-explorer, .records-state__summary, .identity-status__identifiers { grid-template-columns: 1fr; } .metrics { grid-template-columns: 1fr; } .status-strip__identity { align-items: flex-start; flex-direction: column; } .tree-panel { min-height: 430px; } .network-tree, .network-tree__svg { min-height: 320px; height: 320px; } .tree-label--community { right: 1%; } }

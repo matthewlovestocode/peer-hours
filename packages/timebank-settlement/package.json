@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@peer-hours/timebank-domain": "file:../timebank-domain",
+    "@peer-hours/timebank-identity": "file:../timebank-identity",
     "@peer-hours/timebank-ledger": "file:../timebank-ledger"
   },
   "devDependencies": {

@@ -5,6 +5,10 @@ import {
   type TransferAttestation,
 } from "@peer-hours/timebank-ledger";
 import {
+  assertAuthorizedTransferAttestations,
+  type MemberSigningKeyAuthorization,
+} from "@peer-hours/timebank-identity";
+import {
   resolveSettlementAcknowledgements,
   type SettlementAcknowledgement,
 } from "./settlement-acknowledgement.js";
@@ -38,6 +42,12 @@ export interface CreateDualConfirmedSettlementTransferInput {
 export interface ValidateDualConfirmedSettlementTransferInput extends ValidateSettlementTransferInput {
   /** The participant acknowledgements replicated for the transfer's source proposal. */
   readonly acknowledgements: readonly SettlementAcknowledgement[];
+}
+
+/** Input used to cryptographically admit a protocol-valid dual-confirmed settlement transfer. */
+export interface ValidateAuthorizedDualConfirmedSettlementTransferInput extends ValidateDualConfirmedSettlementTransferInput {
+  /** Active, community-scoped Ed25519 authorizations used to verify both participant signatures. */
+  readonly authorizations: readonly MemberSigningKeyAuthorization[];
 }
 
 /**
@@ -126,6 +136,20 @@ export function validateDualConfirmedSettlementTransfer(
     throw new SettlementRuleError("A settlement transfer must use its proposal's deterministic transfer id.");
   }
   return transfer;
+}
+
+/**
+ * Admits a deterministic dual-confirmed settlement transfer only after both exact participant
+ * attestations verify with currently supplied active Ed25519 authorizations.
+ *
+ * This admission check deliberately does not establish ledger acceptance, durable replication,
+ * or any form of network finality.
+ */
+export function validateAuthorizedDualConfirmedSettlementTransfer(
+  input: ValidateAuthorizedDualConfirmedSettlementTransferInput,
+): Transfer {
+  const transfer = validateDualConfirmedSettlementTransfer(input);
+  return assertAuthorizedTransferAttestations(transfer, input.authorizations);
 }
 
 /**

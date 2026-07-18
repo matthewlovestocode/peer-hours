@@ -29,6 +29,8 @@ test("community node returns unavailable health until its runtime has opened sto
     assert.deepEqual(await response.json(), { status: "starting", core: "", length: 0 });
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
     assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(response.headers.get("x-frame-options"), "DENY");
+    assert.equal(response.headers.get("content-security-policy"), "default-src 'none'");
 
     await runtime.start();
     const ready = await fetch(`${node.baseUrl}/health`);

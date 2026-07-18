@@ -357,6 +357,36 @@ export function createEd25519SignatureVerifier(
 }
 
 /**
+ * Admits a transfer only when both canonical participant attestations verify against active,
+ * community-scoped Ed25519 authorizations.
+ *
+ * This is a cryptographic admission check, not a ledger or replication-finality decision. The
+ * returned transfer is structurally normalized; callers still apply their own settlement and
+ * ledger policies before deriving balances.
+ */
+export function assertAuthorizedTransferAttestations(
+  transfer: Transfer,
+  authorizations: readonly MemberSigningKeyAuthorization[],
+): Transfer {
+  const normalized = createTransfer(transfer);
+  const verifyAttestation = createEd25519SignatureVerifier(authorizations);
+
+  for (const attestation of normalized.attestations) {
+    let verified = false;
+    try {
+      verified = verifyAttestation({ transfer: normalized, attestation });
+    } catch {
+      // Treat malformed authorization or signature input as failed admission.
+    }
+    if (!verified) {
+      throw new IdentityRuleError("Each participant must provide a valid authorized Ed25519 transfer attestation.");
+    }
+  }
+
+  return normalized;
+}
+
+/**
  * Creates a verifier for arbitrary immutable member-authored payloads.
  *
  * This is intentionally separate from transfer attestation verification so record adapters can

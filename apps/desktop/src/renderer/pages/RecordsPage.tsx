@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel } from "../components/Primitive.js";
 import { ListingComposer } from "../components/records/ListingComposer.js";
+import { IdentityStatus } from "../components/records/IdentityStatus.js";
 import { PendingProposalList } from "../components/records/PendingProposalList.js";
 import { ProposalComposer } from "../components/records/ProposalComposer.js";
 import { RawRecordList } from "../components/records/RawRecordList.js";
 import { ResolvedState } from "../components/records/ResolvedState.js";
 import { RecordsWorkspaceStatus, type RecordsWorkspacePhase } from "../components/records/RecordsWorkspaceStatus.js";
+import { RecordsTrustNotice } from "../components/records/RecordsTrustNotice.js";
 import { SettlementAcknowledgementList } from "../components/records/SettlementAcknowledgementList.js";
 import { readRecordsWorkspace, recordsWorkspaceErrorMessage, type RecordsWorkspaceSnapshot } from "../components/records/recordsWorkspace.js";
 
@@ -67,18 +69,17 @@ export function RecordsPage() {
       </header>
       <Panel>
         <RecordsWorkspaceStatus phase={phase} hasSnapshot={snapshot !== null} error={refreshError} onRefresh={() => void refresh()} />
+        {identity && <IdentityStatus identity={identity} creating={creatingIdentity} onCreate={() => void createIdentity()} />}
+        <RecordsTrustNotice resolved={resolved} rawRecordCount={snapshot?.records.length ?? 0} />
         {snapshot && <ResolvedState state={resolved} />}
-        {identity?.state === "not-created" && <button disabled={creatingIdentity} onClick={() => void createIdentity()}>{creatingIdentity ? "Creating identity…" : "Create identity and announce this feed"}</button>}
         {identity?.state === "ready" && (
           <>
-            <p className="empty-state">Self-owned identity ready: <code>{identity.memberId}</code></p>
             <ListingComposer onComplete={refresh} />
             {resolved?.state === "ready" && <ProposalComposer listings={resolved.publishedListings} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <PendingProposalList proposals={resolved.proposedProposals} memberId={identity.memberId} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <SettlementAcknowledgementList proposals={resolved.acceptedProposals} confirmations={resolved.settlementConfirmations} memberId={identity.memberId} onComplete={refresh} />}
           </>
         )}
-        {identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}
         {snapshot && <RawRecordList records={snapshot.records} />}
       </Panel>
     </section>

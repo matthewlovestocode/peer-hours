@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
 import { type ExchangeProposal } from "@peer-hours/timebank-domain";
+import {
+  canonicalTransferPayload,
+  createMemberSigningKeyAuthorization,
+  transferPayloadDigest,
+  type MemberSigningKeyAuthorization,
+} from "@peer-hours/timebank-identity";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   SettlementAcknowledgementRuleError,
@@ -9,6 +16,7 @@ import {
   createSettlementAcknowledgement,
   resolveSettlementAcknowledgements,
   settlementTransferId,
+  validateAuthorizedDualConfirmedSettlementTransfer,
   validateDualConfirmedSettlementTransfer,
   validateSettlementAcknowledgement,
   validateSettlementTransfer,
@@ -47,6 +55,51 @@ function settlementTransfer(overrides: Partial<Transfer> = {}): Transfer {
       { memberId: terms.recipientMemberId, keyId: "recipient-key", payloadDigest: "fixture-digest", signature: "recipient-signature" },
     ],
   });
+}
+
+/** Creates a fresh Ed25519 key pair for one cryptographic-attestation test participant. */
+function memberKeyPair(): ReturnType<typeof generateKeyPairSync> {
+  return generateKeyPairSync("ed25519");
+}
+
+/** Creates one active community-scoped authorization for a fixture member key. */
+function authorization(
+  memberId: string,
+  keyId: string,
+  publicKey: ReturnType<typeof memberKeyPair>["publicKey"],
+): MemberSigningKeyAuthorization {
+  return createMemberSigningKeyAuthorization({
+    communityId,
+    memberId,
+    keyId,
+    publicKeyPem: publicKey.export({ format: "pem", type: "spki" }).toString(),
+    active: true,
+  });
+}
+
+/** Signs the deterministic settlement terms with each participant's independent Ed25519 key. */
+function cryptographicallyAttestedSettlementTransfer(): {
+  readonly transfer: Transfer;
+  readonly authorizations: readonly MemberSigningKeyAuthorization[];
+} {
+  const providerKeys = memberKeyPair();
+  const recipientKeys = memberKeyPair();
+  const unsigned = settlementTransfer();
+  const payloadDigest = transferPayloadDigest(unsigned);
+  const transfer = createTransfer({
+    ...unsigned,
+    attestations: [
+      { memberId: proposal.providerMemberId, keyId: "provider-key", payloadDigest, signature: sign(null, canonicalTransferPayload(unsigned), providerKeys.privateKey).toString("base64url") },
+      { memberId: proposal.receiverMemberId, keyId: "recipient-key", payloadDigest, signature: sign(null, canonicalTransferPayload(unsigned), recipientKeys.privateKey).toString("base64url") },
+    ],
+  });
+  return {
+    transfer,
+    authorizations: [
+      authorization(proposal.providerMemberId, "provider-key", providerKeys.publicKey),
+      authorization(proposal.receiverMemberId, "recipient-key", recipientKeys.publicKey),
+    ],
+  };
 }
 
 test("accepts a settlement transfer that exactly matches an accepted proposal", () => {
@@ -140,6 +193,43 @@ test("admits only a deterministic transfer backed by both participant acknowledg
       transfer: settlementTransfer({ id: "non-deterministic-settlement" }),
     }),
     SettlementRuleError,
+  );
+});
+
+test("cryptographically admits dual-confirmed settlement terms only with both authorized participant attestations", () => {
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+  const { transfer, authorizations } = cryptographicallyAttestedSettlementTransfer();
+
+  assert.deepEqual(
+    validateAuthorizedDualConfirmedSettlementTransfer({ proposal, acknowledgements, transfer, authorizations }),
+    transfer,
+  );
+  assert.throws(
+    () => validateAuthorizedDualConfirmedSettlementTransfer({
+      proposal,
+      acknowledgements,
+      transfer: {
+        ...transfer,
+        attestations: [
+          { ...transfer.attestations[0]!, signature: "A".repeat(86) },
+          transfer.attestations[1]!,
+        ],
+      },
+      authorizations,
+    }),
+    /valid authorized Ed25519 transfer attestation/i,
+  );
+  assert.throws(
+    () => validateAuthorizedDualConfirmedSettlementTransfer({
+      proposal,
+      acknowledgements,
+      transfer,
+      authorizations: authorizations.slice(0, 1),
+    }),
+    /valid authorized Ed25519 transfer attestation/i,
   );
 });
 

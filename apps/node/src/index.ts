@@ -3,12 +3,12 @@ import { resolveNodeConfiguration } from "./config.js";
 import { createNodeServer } from "./server.js";
 
 const configuration = resolveNodeConfiguration();
-const runtime = new PeerRuntime(configuration.dataDirectory, process.env.PEER_HOURS_BOOTSTRAP_KEY, undefined, Date.now, true, false);
+const runtime = new PeerRuntime(configuration.dataDirectory, configuration.bootstrapKey, undefined, Date.now, true, false);
 
 await runtime.start();
 
 const server = createNodeServer(runtime, {
-  enableDevelopmentPeerRegistration: process.env.ENABLE_DEV_PEER_REGISTRATION === "true",
+  enableDevelopmentPeerRegistration: configuration.enableDevelopmentPeerRegistration,
 });
 
 server.listen(configuration.port, "0.0.0.0", () => {

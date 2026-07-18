@@ -3,6 +3,9 @@ import type { PeerRuntime } from "@peer-hours/peer-runtime";
 import { createHealthPayload } from "./health.js";
 
 const DEVELOPMENT_PEER_BODY_LIMIT_BYTES = 4 * 1024;
+const HTTP_REQUEST_TIMEOUT_MS = 15_000;
+const HTTP_HEADERS_TIMEOUT_MS = 16_000;
+const HTTP_KEEP_ALIVE_TIMEOUT_MS = 5_000;
 
 /** Limits the optional development-only simulator registration route. */
 export interface NodeServerOptions {
@@ -54,18 +57,22 @@ export function createNodeServer(
   runtime: PeerRuntime,
   options: NodeServerOptions = {},
 ): Server {
-  return createServer((request, response) => {
+  const server = createServer((request, response) => {
     response.setHeader("cache-control", "no-store");
     response.setHeader("x-content-type-options", "nosniff");
     response.setHeader("referrer-policy", "no-referrer");
+    response.setHeader("x-frame-options", "DENY");
+    response.setHeader("content-security-policy", "default-src 'none'");
     const pathname = request.url === undefined ? null : safelyParsePathname(request.url);
     if (pathname === null) {
+      request.resume();
       sendJson(response, 400, { error: "invalid request target" });
       return;
     }
     const status = runtime.status();
 
     if (pathname === "/health" && request.method === "GET") {
+      request.resume();
       const health = createHealthPayload({
         state: status.state === "online" ? "ok" : status.state,
         core: status.replication.coreKey,
@@ -76,6 +83,7 @@ export function createNodeServer(
     }
 
     if (pathname === "/status" && request.method === "GET") {
+      request.resume();
       sendJson(response, 200, status);
       return;
     }
@@ -94,8 +102,19 @@ export function createNodeServer(
       return;
     }
 
+    request.resume();
     sendJson(response, 404, { error: "not found" });
   });
+  configureHttpTimeouts(server);
+  return server;
+}
+
+/** Bounds idle and slow HTTP connections so diagnostics cannot monopolize a community node. */
+function configureHttpTimeouts(server: Server): void {
+  server.requestTimeout = HTTP_REQUEST_TIMEOUT_MS;
+  server.headersTimeout = HTTP_HEADERS_TIMEOUT_MS;
+  server.keepAliveTimeout = HTTP_KEEP_ALIVE_TIMEOUT_MS;
+  server.maxHeadersCount = 100;
 }
 
 /** Parses only the pathname so query parameters cannot alter the operational HTTP surface. */
@@ -109,6 +128,7 @@ function safelyParsePathname(requestTarget: string): string | null {
 
 /** Emits a consistently typed JSON response without reflecting untrusted request content. */
 function sendJson(response: ServerResponse, status: number, payload: unknown): void {
+  if (response.destroyed || response.writableEnded) return;
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload));
 }

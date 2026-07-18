@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 export type NodeConfiguration = {
   port: number;
   dataDirectory: string;
+  bootstrapKey: string | undefined;
+  enableDevelopmentPeerRegistration: boolean;
 };
 
 /** Resolves and validates process configuration before the runtime opens durable storage. */
@@ -20,6 +22,8 @@ export function resolveNodeConfiguration(
   return {
     port,
     dataDirectory: resolve(workingDirectory, configuredDirectory ?? "data"),
+    bootstrapKey: optionalCoreKey(environment.PEER_HOURS_BOOTSTRAP_KEY),
+    enableDevelopmentPeerRegistration: parseBoolean(environment.ENABLE_DEV_PEER_REGISTRATION, "ENABLE_DEV_PEER_REGISTRATION"),
   };
 }
 
@@ -33,4 +37,21 @@ function parsePort(value: string | undefined): number {
     throw new Error("PORT must be an integer between 1 and 65535.");
   }
   return port;
+}
+
+/** Validates an optional discovery-core key before durable storage or networking is opened. */
+function optionalCoreKey(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[a-f0-9]{64}$/i.test(value)) {
+    throw new Error("PEER_HOURS_BOOTSTRAP_KEY must be a 64-character hexadecimal Hypercore key when configured.");
+  }
+  return value.toLowerCase();
+}
+
+/** Accepts development-only switches only when explicitly set to true or false. */
+function parseBoolean(value: string | undefined, name: string): boolean {
+  if (value === undefined) return false;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`${name} must be true or false when configured.`);
 }

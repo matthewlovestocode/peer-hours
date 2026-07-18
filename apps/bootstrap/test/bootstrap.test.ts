@@ -41,6 +41,8 @@ test("serves only minimal, configured discovery metadata", async () => {
     assert.equal(queried.status, 200);
     assert.equal(queried.headers.get("x-content-type-options"), "nosniff");
     assert.equal(queried.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(queried.headers.get("x-frame-options"), "DENY");
+    assert.equal(queried.headers.get("content-security-policy"), "default-src 'none'");
     assert.match(queried.headers.get("content-type") ?? "", /^application\/json; charset=utf-8/);
   } finally {
     await bootstrap.close();

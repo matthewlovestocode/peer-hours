@@ -10,6 +10,7 @@ import {
   createMemberFeedDeclaration,
   createMemberSigningKeyAuthorizationEvent,
   createEd25519SignatureVerifier,
+  assertAuthorizedTransferAttestations,
   createMemberSigningKeyAuthorization,
   createSelfOwnedMemberIdentity,
   reduceMemberSigningKeyAuthorizationEvents,
@@ -176,6 +177,26 @@ test("accepts valid authorized provider and recipient signatures over determinis
     [providerMemberId]: 90,
     [recipientMemberId]: -90,
   });
+});
+
+test("admits a transfer only when both participant signatures are authorized for its exact canonical terms", () => {
+  const providerKeys = memberKeyPair();
+  const recipientKeys = memberKeyPair();
+  const transfer = signedTransfer({ providerPrivateKey: providerKeys.privateKey, recipientPrivateKey: recipientKeys.privateKey });
+  const authorizations = [
+    authorization({ memberId: providerMemberId, keyId: "provider-key", publicKey: providerKeys.publicKey }),
+    authorization({ memberId: recipientMemberId, keyId: "recipient-key", publicKey: recipientKeys.publicKey }),
+  ];
+
+  assert.deepEqual(assertAuthorizedTransferAttestations(transfer, authorizations), transfer);
+  assert.throws(
+    () => assertAuthorizedTransferAttestations({ ...transfer, minutes: 45 }, authorizations),
+    /valid authorized Ed25519 transfer attestation/i,
+  );
+  assert.throws(
+    () => assertAuthorizedTransferAttestations(transfer, authorizations.slice(0, 1)),
+    /valid authorized Ed25519 transfer attestation/i,
+  );
 });
 
 test("rejects an attestation with a mismatched payload digest or another active key id", () => {

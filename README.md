@@ -11,7 +11,9 @@ peer-hours/
 │   ├── node/                # Headless community node
 │   └── dev-peers/           # Real local peers for UI/network development
 ├── packages/
-│   └── peer-runtime/        # Platform-neutral local peer runtime
+│   ├── peer-runtime/        # Platform-neutral local peer runtime
+│   ├── timebank-domain/     # Member, listing, and exchange-agreement rules
+│   └── timebank-ledger/     # Attested time-credit settlement and balance derivation
 ├── package.json             # Root workspace and shared scripts
 ├── package-lock.json        # Locked dependency versions
 ├── tsconfig.json            # Root TypeScript project references
@@ -24,7 +26,7 @@ peer-hours/
 
 Applications are deployable products. Each application has its own `package.json`, source tree, build configuration, and scripts. Applications should generally remain private and should not be published to npm.
 
-The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite.
+The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite. Its application shell provides a drawer-based navigation structure; network diagnostics live in the separate Network workspace rather than on the landing page.
 
 The `@peer-hours/node` application is a headless community node. It keeps persistent Hypercore storage, exposes `/bootstrap`, discovers peers with Hyperswarm, and reports peer status. It does not yet implement the Peer Hours ledger or multi-writer transaction rules.
 
@@ -35,6 +37,8 @@ Community identifiers use an `earth` root so the namespace can grow beyond Earth
 Packages are for reusable code shared by two or more applications, such as UI components, domain logic, API clients, or configuration. A package intended for npm publication should use the organization scope, for example `@peer-hours/ui`.
 
 Do not create a shared package speculatively. Add one when there is a concrete reuse case.
+
+`@peer-hours/timebank-domain` is the pure, test-first model for member eligibility, listings, and exchange consent. `@peer-hours/timebank-ledger` is a separate pure settlement boundary: dual-attested, integer-minute transfers derive balances but do not yet provide cryptographic key management or replicated persistence. See [the domain model](docs/timebank-domain-model.md) and [ledger settlement](docs/ledger-settlement.md).
 
 ## Prerequisites
 
@@ -167,7 +171,7 @@ The node workspace currently uses Node’s built-in test runner through `tsx`:
 npm --workspace @peer-hours/node test
 ```
 
-Tests live in the workspace’s `test/` directory. The first test covers the node health payload; replication and ledger integration tests should be added as those behaviors are implemented.
+Tests live in the workspace’s `test/` directory. The node suite covers health, replication, and community-node HTTP behavior. The timebank-domain and timebank-ledger suites are pure TDD boundaries for membership, listings, consent, settlement, reversals, and derived balances.
 
 Network lifecycle tests use an injected clock, so they can deterministically verify heartbeat, stale, recovery, and offline behavior without waiting in real time. The node test command builds `@peer-hours/peer-runtime` first, ensuring integration tests exercise the current shared runtime implementation.
 

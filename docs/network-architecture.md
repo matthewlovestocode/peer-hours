@@ -88,7 +88,7 @@ apps/
 └── admin/         # Possible community administration interface
 ```
 
-`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, and peer status; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The admin application should be added when its first concrete workflows are understood.
+`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, and peer status; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain` and `timebank-ledger` packages now define agreement and settlement rules, but are not yet persisted or replicated as application events. The admin application should be added when its first concrete workflows are understood.
 
 ## Local development topology
 
@@ -109,13 +109,13 @@ The development community node exists to make local testing repeatable. The depl
 
 ## Possible shared packages
 
-These are potential boundaries, not a commitment to create all of them now:
+These are potential boundaries. `timebank-domain` now covers the initial listings and agreement rules, and `timebank-ledger` covers pure attested settlement and balance derivation:
 
 ```text
 packages/
 ├── identity/      # Keys, identities, and device authorization
-├── listings/      # Offers and requests
-├── ledger/        # Signed time-credit transactions and balances
+├── timebank-domain/ # Member profiles, offers, requests, and exchange consent
+├── timebank-ledger/ # Attested time-credit transfers and derived balances
 ├── sync/          # Replication and conflict handling
 ├── protocol/      # Network message formats and serialization
 └── policy/        # Community-configurable rules

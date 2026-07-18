@@ -100,6 +100,13 @@ test("publishes a locally signed immutable offer without exposing root key mater
   });
 });
 
+test("rejects an invalid renderer-supplied listing kind without appending a record", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+  await assert.rejects(fixture.identity.publishListing({ kind: "other", title: "Garden help", minutes: 90 } as never), /offer or request/i);
+  assert.equal(fixture.feed.records.length, 1);
+});
+
 test("restart loads the same member identity from protected persisted material", async () => {
   const first = service();
   const created = await first.identity.createAndAnnounce();

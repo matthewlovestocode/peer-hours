@@ -66,6 +66,7 @@ export class MemberIdentityService {
 
   /** Publishes one root-signed offer or request from this member's independently owned feed. */
   async publishListing(input: PublishListingInput): Promise<void> {
+    if (input.kind !== "offer" && input.kind !== "request") throw new Error("Listing kind must be an offer or request.");
     const communityId = this.memberFeed.communityId();
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before publishing a listing.");
     if (!this.secureStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
+import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
 
 const dataDirectory = join(app.getPath("userData"), "peer-hours");
@@ -65,6 +66,16 @@ app.whenReady().then(() => {
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
   ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(input));
+  ipcMain.handle("member:resolved", async () => {
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) return { state: "unavailable" as const, reason: "No bootstrap discovery community is configured." };
+    try {
+      const resolved = resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: runtime.memberRecordFeedKey, records: await runtime.readMemberRecords() as never }]);
+      return { state: "ready" as const, publishedListings: resolved.publishedListings, acceptedProposals: resolved.acceptedProposals, transfers: resolved.transfers };
+    } catch (error) {
+      return { state: "rejected" as const, reason: error instanceof Error ? error.message : "Local records could not be verified." };
+    }
+  });
   runtime.onStatusChange((status) => {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send("network:status-changed", status);
   });

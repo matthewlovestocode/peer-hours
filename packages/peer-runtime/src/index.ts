@@ -172,9 +172,15 @@ export class PeerRuntime {
     return this.recordStore?.publicKey ?? "";
   }
 
+  /** Reports whether this runtime owns the active record core and can append to it. */
+  get canAppendRecords(): boolean {
+    return this.recordStore?.writable ?? false;
+  }
+
   /** Appends one immutable JSON record when this runtime owns the active record core. */
   async appendRecord(record: JsonValue): Promise<number> {
     if (this.recordStore === null) throw new Error("The record core is not ready.");
+    if (!this.recordStore.writable) throw new Error("The active community record core is read-only.");
     const index = await this.recordStore.append(record);
     this.notifyStatusChange();
     return index;

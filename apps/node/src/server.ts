@@ -1,5 +1,34 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
-import type { PeerRuntime } from "@peer-hours/peer-runtime";
+import type { JsonValue, PeerRuntime } from "@peer-hours/peer-runtime";
+import { createRecordEnvelope, type RecordEnvelope, type RecordEnvelopeInput } from "@peer-hours/timebank-records";
+
+/** Rejects non-object input before it enters the canonical record-envelope normalizer. */
+function asRecordEnvelopeInput(value: unknown): RecordEnvelopeInput {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("A community record must be a JSON object.");
+  }
+  return value as RecordEnvelopeInput;
+}
+
+/**
+ * Validates and appends one local community record through the node's single-writer authority.
+ *
+ * This is deliberately an in-process boundary, not an HTTP endpoint: the current protocol has
+ * no member submission authentication or signature-verification flow for arbitrary network writes.
+ */
+export async function appendValidatedCommunityRecord(
+  runtime: PeerRuntime,
+  communityId: string,
+  input: unknown,
+): Promise<{ index: number; record: RecordEnvelope }> {
+  const record = createRecordEnvelope(asRecordEnvelopeInput(input));
+  if (record.communityId !== communityId) {
+    throw new TypeError("A community record must belong to this node's configured community.");
+  }
+  // createRecordEnvelope has already recursively normalized this plain JSON envelope.
+  const index = await runtime.appendRecord(record as unknown as JsonValue);
+  return { index, record };
+}
 
 /** Writes a cache-safe snapshot of record-core metadata and immutable records without exposing mutations. */
 async function respondWithRecords(response: ServerResponse, runtime: PeerRuntime): Promise<void> {

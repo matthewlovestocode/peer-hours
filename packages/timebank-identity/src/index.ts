@@ -55,6 +55,18 @@ export class IdentityRuleError extends Error {
   }
 }
 
+/** Immutable inputs used to verify one authorized member's detached Ed25519 signature. */
+export interface VerifyMemberSignatureInput {
+  readonly communityId: string;
+  readonly memberId: string;
+  readonly keyId: SigningKeyId;
+  readonly payload: Uint8Array;
+  readonly signature: string;
+}
+
+/** Verifies a detached payload signature using a snapshot of active member authorizations. */
+export type MemberSignatureVerifier = (input: VerifyMemberSignatureInput) => boolean;
+
 /**
  * Creates an immutable authorization for one member's Ed25519 public key.
  *
@@ -211,22 +223,42 @@ export function transferPayloadDigest(transfer: Transfer): string {
 export function createEd25519SignatureVerifier(
   authorizations: readonly MemberSigningKeyAuthorization[],
 ): SignatureVerifier {
-  const keysByCommunityMemberAndId = indexAuthorizedKeys(authorizations);
+  const verifyMemberSignature = createEd25519MemberSignatureVerifier(authorizations);
 
   return (input: VerifyAttestationInput): boolean => {
-    const key = keysByCommunityMemberAndId.get(keyFor(input.transfer.communityId, input.attestation.memberId, input.attestation.keyId));
-    if (key === undefined || input.attestation.payloadDigest !== transferPayloadDigest(input.transfer)) {
+    if (input.attestation.payloadDigest !== transferPayloadDigest(input.transfer)) {
       return false;
     }
+    return verifyMemberSignature({
+      communityId: input.transfer.communityId,
+      memberId: input.attestation.memberId,
+      keyId: input.attestation.keyId,
+      payload: canonicalTransferPayload(input.transfer),
+      signature: input.attestation.signature,
+    });
+  };
+}
 
-    const signature = decodeBase64UrlSignature(input.attestation.signature);
-    if (signature === undefined) {
+/**
+ * Creates a verifier for arbitrary immutable member-authored payloads.
+ *
+ * This is intentionally separate from transfer attestation verification so record adapters can
+ * authenticate their own canonical payload without inheriting ledger-specific terms.
+ */
+export function createEd25519MemberSignatureVerifier(
+  authorizations: readonly MemberSigningKeyAuthorization[],
+): MemberSignatureVerifier {
+  const keysByCommunityMemberAndId = indexAuthorizedKeys(authorizations);
+
+  return (input: VerifyMemberSignatureInput): boolean => {
+    const key = keysByCommunityMemberAndId.get(keyFor(input.communityId, input.memberId, input.keyId));
+    const signature = decodeBase64UrlSignature(input.signature);
+    if (key === undefined || signature === undefined) {
       return false;
     }
 
     try {
-      const payload = canonicalTransferPayload(input.transfer);
-      return verify(null, payload, key, signature);
+      return verify(null, input.payload, key, signature);
     } catch {
       return false;
     }

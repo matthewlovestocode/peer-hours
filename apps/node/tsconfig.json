@@ -6,6 +6,9 @@
     "composite": true,
     "types": ["node"]
   },
-  "references": [{ "path": "../../packages/peer-runtime" }],
+  "references": [
+    { "path": "../../packages/peer-runtime" },
+    { "path": "../../packages/timebank-records" }
+  ],
   "include": ["src"]
 }

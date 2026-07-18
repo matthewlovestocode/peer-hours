@@ -99,7 +99,7 @@ A settlement transfer is the final, signed account of an exchange that took plac
 - Both signatures must authenticate the exact same canonical transfer bytes.
 - The provider receives `minutes` of time credit; the recipient incurs the corresponding debit when the ledger derives balances.
 - A transfer with missing, invalid, mismatched-key, or mismatched-digest attestations is invalid.
-- A locally signed transfer remains pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand.
+- **Proposed network rule:** a locally signed transfer should remain pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand. No acknowledgement or finalization protocol is implemented yet.
 - Corrections are compensating transfers, never edits to a settled transfer.
 
 The current `@peer-hours/timebank-ledger` and `@peer-hours/timebank-identity` packages implement the transfer and verification rules in memory. Replicated authorization records and the verified link from `sourceProposalId` to an accepted proposal remain future integration work.

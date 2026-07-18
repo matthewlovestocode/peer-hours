@@ -18,7 +18,7 @@ flowchart LR
     Resolve --> Ledger["Verified ledger and balances"]
 ```
 
-This package is the adapter between replicated data and pure timebank rules. It owns the shared event envelope, record-kind mappings, replay/conflict detection, and deterministic read models. It does not replace the underlying domain packages.
+This package is the adapter between replicated data and pure timebank rules. It owns the shared event envelope, member-signed envelope admission, record-kind mappings, replay/conflict detection, and deterministic read models. It does not replace the underlying domain packages.
 
 ## Boundaries
 
@@ -32,7 +32,9 @@ The record protocol must never place business rules solely in serialization or t
 
 ## Not yet a trust protocol
 
-The first record shape makes histories deterministic and safe to replay. The desktop and node now open a live, community-owned record core, but the shape does not yet make a network-received record trustworthy: community authority, signatures on authorization events, access policy, and multiwriter ordering remain protocol work. Desktop members cannot yet write timebank records to the shared core.
+Accepted-proposal and transfer records now require an active, community-scoped member key to sign every immutable envelope term before the resolver admits them. That protects the current deterministic read model from unsigned, tampered, inactive-key, cross-community, and unrelated-member submissions.
+
+This is not the complete trust protocol. Community authority, signatures on authorization events, access policy, member-feed replication, and multiwriter ordering remain protocol work. Desktop members cannot yet write timebank records to the shared core.
 
 ## Development
 

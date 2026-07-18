@@ -37,6 +37,21 @@ Community nodes
 
 The system should not depend on one central application server, while still remaining practical for people who simply want to use a timebank.
 
+## Current implementation boundary
+
+Peer Hours has a working **replicated-read foundation**, not a production timebank yet. The following pieces are implemented and tested today:
+
+- the Electron desktop owns persistent local peer storage and an embedded runtime;
+- a community node owns a persistent Hypercore record core, publishes its public key through bootstrap metadata, and exposes read-only diagnostics;
+- connected runtimes replicate Corestores directly and desktop runtimes can open the advertised community record core as readers;
+- pure packages model membership eligibility, listings, accepted proposals, Ed25519 transfer attestations, proposal-to-transfer matching, immutable record envelopes, deterministic record resolution, and derived ledger balances.
+
+The record core is currently writable only by its owning community runtime. A desktop can read replicated records but cannot safely publish a member profile, listing, proposal, authorization event, or transfer. The pure timebank packages operate on supplied in-memory records; they are not yet connected to an authorized member-write protocol or a member-facing workflow. The current node roster endpoint is also a diagnostic/development visibility aid, not evidence of a complete discovery, routing, or availability protocol.
+
+This distinction matters: replication proves that bytes can be copied between connected runtimes. It does not by itself prove who was allowed to write them, whether an exchange is settled, whether policy accepted it, or whether the data is durably available across a node failure.
+
+For the phased production path, success criteria, and unresolved decisions, see the [production roadmap](production-roadmap.md).
+
 ## Offline and online behavior
 
 Offers and requests are asynchronous records. A member should be able to create, edit, and queue them while offline. They synchronize to one or more nodes when connectivity becomes available.

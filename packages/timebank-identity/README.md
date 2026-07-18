@@ -27,6 +27,7 @@ The identity package sits between signed member activity and the accounting rule
 - Encode deterministic transfer terms, excluding the attestation envelope, so both participants sign the same bytes.
 - Produce a base64url SHA-256 digest of those transfer terms.
 - Provide a ledger-compatible Ed25519 verifier that checks the exact named `keyId`, active authorization, payload digest, and signature.
+- Provide a generic detached-signature verifier for other versioned, immutable member payloads such as record envelopes.
 
 ## Explicit non-responsibilities
 
@@ -60,6 +61,8 @@ Use `createEd25519SignatureVerifier(authorizations)` to produce the `SignatureVe
 - names an active key authorized for the attesting member in the transfer's community;
 - carries the current digest for the canonical transfer terms; and
 - contains a valid Ed25519 signature for those terms.
+
+`createEd25519MemberSignatureVerifier(authorizations)` exposes the same active-key and community/member scoping for a caller-supplied canonical payload. It is used by `@peer-hours/timebank-records` to verify signatures over immutable record envelopes; it does not make the caller's payload format or community-authority policy part of this package.
 
 ## Dependencies
 

@@ -1,0 +1,154 @@
+# Production roadmap
+
+Peer Hours has working foundations for local peer storage, direct replication, a community-owned record core, and pure timebank rules. It is **not** ready to operate a real timebank yet. This roadmap describes the smallest safe route from the current foundation to a limited community pilot.
+
+It deliberately separates verified capability from proposed work. A phase is complete only when its acceptance criteria are demonstrated in automated tests and in the running applications; a diagram or package interface alone is not completion.
+
+```mermaid
+flowchart LR
+    A["Today: replicated reads\n+pure timebank rules"] --> B["1. Authorized member writes"]
+    B --> C["2. One complete exchange"]
+    C --> D["3. Resilient community replication"]
+    D --> E["4. Policy and security"]
+    E --> F["5. Limited pilot operations"]
+```
+
+## What exists today
+
+The desktop application has an embedded, persistent peer runtime. A community node has a persistent Corestore, Hyperswarm connectivity, a bootstrap endpoint, and a named community record core. The desktop can fetch that core's public key, open it as a reader, replicate it while connected, and display record-core status.
+
+The shared packages test these pure rules in memory:
+
+- active/inactive member eligibility, offers, requests, and accepted exchange proposals;
+- Ed25519 attestation verification against an in-memory member-key registry;
+- exact matching between one accepted proposal and one normal settlement transfer;
+- immutable time-credit transfers, reversals, idempotency, and derived balances; and
+- immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
+
+These are necessary building blocks, but none makes a record network-authoritative. The community core is still single-writer, member keys are not governed by a replicated authority protocol, and the desktop contains no real offer-to-settlement experience. Signed record admission currently protects in-memory resolution; it is not yet a replicated member-feed or submission protocol.
+
+## 1. Authorized member writes
+
+**Goal:** a member can create a signed record that other runtimes accept only when the community's authority rules permit it.
+
+### Proposed design direction
+
+Use a separate append-only feed per member device, or an equivalently explicit multiwriter protocol. Each feed must have a stable public identity. Every record should carry a versioned envelope, author identity, signature, community scope, and causal/reference information needed by the resolver. Community-owned records must establish who can enroll members, authorize keys, suspend a member, and rotate authority keys.
+
+The shared community record core must not become an unauthenticated write bucket. A community node may relay and retain records, but it must not silently become the sole actor that decides member truth.
+
+```mermaid
+sequenceDiagram
+    participant M as Member device/feed
+    participant N as Community node
+    participant R as Receiving runtime
+    participant A as Community authority view
+
+    M->>M: Sign versioned record envelope
+    M->>N: Replicate member feed
+    N->>R: Relay immutable record
+    R->>A: Resolve authority and active key
+    A-->>R: Author permitted or rejected
+    R->>R: Include only valid record in local view
+```
+
+### Acceptance criteria
+
+- A member record survives independent process restart and replication through at least two runtimes.
+- An unknown, revoked, cross-community, malformed, or tampered writer cannot affect the resolved view.
+- Replaying the same record is harmless; conflicting records fail visibly and deterministically.
+- A community authority change is itself signed, replicated, versioned, and test-covered.
+- Private keys stay in the desktop main process or an operating-system-backed keystore; they never enter the renderer, bootstrap response, node status API, or record payload.
+
+## 2. One complete member exchange
+
+**Goal:** two real members complete one narrow, understandable exchange from discovery to a replicated balance view.
+
+Build only this vertical slice first:
+
+1. An authorized member creates and publishes an offer or request.
+2. Another authorized member proposes a fixed number of minutes.
+3. The non-creator accepts the proposal.
+4. After the work occurs, both members sign the same settlement terms.
+5. The application shows the transfer as pending until a defined replication acknowledgement is met, then as settled.
+6. Both members derive the same resulting balances from the same valid record history.
+
+Offline composition may create local drafts. Publishing, acceptance, and settlement must make their network state visible rather than implying completion while disconnected. The acknowledgement rule is still a product and protocol decision: it could require one durable community node, multiple independent community nodes, or another explicitly documented threshold. It must be chosen and tested before the UI says “settled.”
+
+### Acceptance criteria
+
+- End-to-end tests run two independent desktop-capable runtimes plus community-node storage.
+- The UI distinguishes draft, queued, published, awaiting the other member, pending replication, settled, and rejected states.
+- A duplicated proposal or settlement cannot change the derived balance twice.
+- A restart during every stage produces a recoverable, explainable state.
+- The flow does not rely on a mutable server-side balance as the authority.
+
+## 3. Resilient community replication
+
+**Goal:** a community can remain available and recoverable when one member device or one community node is offline.
+
+The current one-node bootstrap experience is useful for development but is not sufficient operational resilience. Add multiple independently deployed community nodes per community, persistent node identities and storage, explicit replication health, and a documented bootstrap/failover configuration. The system should show the difference between “connected to a node,” “records have replicated,” and “the chosen durability acknowledgement has been met.”
+
+The proposed multi-node model is replication, not a hidden central database: each node retains the same signed histories and can be replaced from a verified backup or a healthy peer. Federation across separate communities remains future work and must never merge their ledgers merely because their nodes can connect.
+
+### Acceptance criteria
+
+- A member configured with two community nodes recovers from either node being unavailable.
+- A new node can catch up from another node and report record/feed lag without corrupting the resolved view.
+- Backup and restore are rehearsed using a fresh machine or storage directory, including verification of core keys and record history.
+- Integration tests cover node restart, temporary partitions, reconnect, catch-up, and one unavailable bootstrap endpoint.
+- Peer counts and replication indicators derive from real transport/state data; simulators remain visibly development-only.
+
+## 4. Community policy and security
+
+**Goal:** make the social and security rules explicit enough for a real community to operate safely.
+
+Cryptographic signatures tell a runtime which key signed a record; they do not determine whether the work occurred, whether someone is safe, how debt limits should work, or how a dispute should be resolved. These rules require community policy plus software support.
+
+Before a pilot, define and implement the minimum policy surface:
+
+- membership enrollment, suspension, and key recovery;
+- administrator/authority roles, rotation, and emergency revocation;
+- credit limits, negative-balance policy, and any community-pool rules;
+- dispute intake, evidence visibility, compensating reversals, and moderator actions;
+- listing/profile/transaction privacy, retention, export, and deletion expectations; and
+- protocol and policy versioning, so a client can explain why it accepts or rejects a record.
+
+Security work should include a threat model, dependency/update process, secret handling review, encrypted local-data and backup decisions, input and envelope limits, rate limits for public node endpoints, audit logging that avoids private content, release signing, and a desktop auto-update plan. The exact privacy design must follow community needs and legal advice; it should not be guessed from transport choices alone.
+
+### Acceptance criteria
+
+- Tests cover authorization revocation, key rotation/recovery, role boundaries, and policy-version mismatch.
+- The product has a written, member-readable explanation of settlement finality, disputes, recovery, and data visibility.
+- No private key or sensitive unencrypted record is exposed through diagnostics, renderer state, logs, or a default backup.
+- A security review produces prioritized findings and remediation decisions before external pilot members depend on balances.
+
+## 5. Limited pilot operations
+
+**Goal:** support one small, consenting timebank with a known operator and a recovery path—not a broad public launch.
+
+Select a single community, a modest member count, named community-node operators, and a clear support channel. Define what data is migrated or seeded, how members enroll, where node credentials and backups live, who can pause the service, and how a serious incident is communicated. Instrument node health, storage capacity, replication lag, bootstrap success, application errors, and release adoption without turning member activity into surveillance.
+
+Run failure drills before inviting members: lose one node, restore a backup, revoke a compromised device key, restart a member device with unsynced drafts, and correct a mistaken settlement through the approved policy. Start with a limited duration and feedback loop. Expand only after the pilot's reliability, usability, privacy, and governance findings are addressed.
+
+### Pilot exit signals
+
+- The complete exchange flow works for pilot members without operator database edits.
+- The community can restore and verify its history from documented backups.
+- Members and operators can understand connection, pending, settlement, and correction states.
+- Known security and policy gaps are either closed or explicitly accepted by the pilot community with appropriate limits.
+
+## Decisions to make before implementation commits
+
+These are not settled by the current code and should be chosen with tests, prototypes, and community input:
+
+| Decision | Why it gates production work |
+| --- | --- |
+| Member-feed versus multiwriter-log protocol | Determines authorship, replication mechanics, conflict handling, and recovery. |
+| Community authority model | Determines who can approve keys, change roles, and revoke access without recreating a central-server trust assumption. |
+| Settlement acknowledgement threshold | Determines when an application may honestly call a transfer settled. |
+| Concurrent-spend and credit-limit behavior | Determines how negative balances and conflicting offline activity are handled. |
+| Privacy and retention model | Determines which records may replicate to which nodes and what recovery/export means. |
+| Community-node operating model | Determines redundancy, cost, administration, backup ownership, and incident response. |
+
+The next engineering milestone is Phase 1: a signed, authorized member record that replicates across independent runtimes and is deterministically accepted or rejected. Settlement UI and pilot operations should wait until that boundary is real.

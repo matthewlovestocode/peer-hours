@@ -75,6 +75,9 @@ test("replicates immutable record envelopes between two Peer Hours runtimes", as
     assert.equal(Object.isFrozen(records), true);
     assert.equal(Object.isFrozen(records[0]), true);
     assert.equal(Object.isFrozen(records[0]?.payload), true);
+    assert.equal(second.canAppendRecords, false);
+    await assert.rejects(() => second.appendRecord(envelope("record-b", "An unauthorized append")), /read-only/);
+    assert.deepEqual(await second.readRecords(), [envelope("record-a", "Shared immutable record")]);
   } finally {
     await firstReplication?.destroy();
     await secondReplication?.destroy();

@@ -12,8 +12,15 @@ import {
   reduceMemberSigningKeyAuthorizationRecords,
 } from "./identity-records.js";
 import {
+  isMemberSignedRecord,
+  verifyMemberSignedRecord,
+  type MemberSignedRecord,
+} from "./member-signed-record.js";
+import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
+  decodeAcceptedExchangeProposalRecord,
+  decodeLedgerTransferRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
 } from "./timebank-records.js";
@@ -46,7 +53,7 @@ export class RecordResolutionError extends Error {
  */
 export function resolveTimebankRecords(
   communityId: string,
-  records: readonly RecordEnvelope[],
+  records: readonly (RecordEnvelope | MemberSignedRecord)[],
 ): ResolvedTimebankState {
   try {
     const normalizedRecords = reduceRecordEnvelopes(records);
@@ -54,6 +61,7 @@ export function resolveTimebankRecords(
     const authorizations = reduceMemberSigningKeyAuthorizationRecords(
       communityRecords.filter(isIdentityRecord),
     );
+    assertMemberSignedDomainRecords(records, communityId, authorizations);
     const acceptedProposals = reduceAcceptedExchangeProposalRecords(
       communityRecords.filter((record) => record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND),
       communityId,
@@ -91,6 +99,45 @@ export function resolveTimebankRecords(
     const detail = error instanceof Error ? error.message : "Unknown record resolution failure.";
     throw new RecordResolutionError(detail);
   }
+}
+
+/** Admits known member-authored domain records only when an active authorized key signed them. */
+function assertMemberSignedDomainRecords(
+  records: readonly (RecordEnvelope | MemberSignedRecord)[],
+  communityId: string,
+  authorizations: readonly MemberSigningKeyAuthorization[],
+): void {
+  for (const record of records) {
+    if (record.communityId !== communityId || !isMemberAuthoredDomainRecord(record)) continue;
+    if (!isMemberSignedRecord(record)) {
+      throw new RecordResolutionError("A member-originated domain record must include an authorized member signature.");
+    }
+    if (!verifyMemberSignedRecord(record, authorizations)) {
+      throw new RecordResolutionError("A member-originated domain record signature is invalid or not authorized.");
+    }
+    assertRecordAuthorParticipates(record);
+  }
+}
+
+/** Ensures a signed record author is a participant in the proposal or transfer it submits. */
+function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
+  if (record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND) {
+    const proposal = decodeAcceptedExchangeProposalRecord(record);
+    if (record.authorId !== proposal.creatorMemberId && record.authorId !== proposal.acceptedByMemberId) {
+      throw new RecordResolutionError("An accepted proposal record must be submitted by one of its participants.");
+    }
+    return;
+  }
+
+  const transfer = decodeLedgerTransferRecord(record);
+  if (record.authorId !== transfer.providerMemberId && record.authorId !== transfer.recipientMemberId) {
+    throw new RecordResolutionError("A ledger transfer record must be submitted by one of its participants.");
+  }
+}
+
+/** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
+function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
+  return record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

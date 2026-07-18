@@ -60,7 +60,7 @@ These lessons are deliberately planned but not yet written. They will be added a
 
 ### Part 4 — From records to app state
 
-24. Raw records versus a useful screen
+24. [Raw records versus a useful screen](24-raw-records-and-useful-screens.md)
 25. What “resolve” means
 26. Why order-independent results matter
 27. What a member-key authorization is

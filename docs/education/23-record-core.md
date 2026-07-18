@@ -38,4 +38,4 @@ The record core stores the shared history. Resolver packages turn that history i
 
 ## Next lesson
 
-The next lesson should introduce the resolver: how raw envelopes become a deterministic Peer Hours view without treating the UI or a server response as the source of truth.
+Continue to [Lesson 24: Raw Records Versus a Useful Screen](24-raw-records-and-useful-screens.md), which introduces the resolver: how raw envelopes become a deterministic Peer Hours view without treating the UI or a server response as the source of truth.

@@ -4,6 +4,7 @@ export type JsonValue = null | boolean | number | string | readonly JsonValue[] 
 type HypercoreLike = {
   key: Uint8Array;
   length: number;
+  writable: boolean;
   ready(): Promise<void>;
   append(value: unknown): Promise<void>;
   get(index: number): Promise<unknown>;
@@ -73,8 +74,14 @@ export class HypercoreRecordStore<TRecord extends JsonValue = JsonValue> {
     return this.core.length;
   }
 
+  /** Reports whether this store owns the private key required to append to its core. */
+  get writable(): boolean {
+    return this.core.writable;
+  }
+
   /** Appends one validated immutable JSON record and returns its zero-based sequence index. */
   async append(record: TRecord): Promise<number> {
+    if (!this.writable) throw new Error("This record core is read-only.");
     const normalized = normalizeRecord<TRecord>(record);
     const index = this.core.length;
     await this.core.append(normalized);

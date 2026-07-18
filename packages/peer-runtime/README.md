@@ -76,7 +76,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 
 ### Generic record storage
 
-`HypercoreRecordStore` persists immutable JSON values in one named Hypercore and can open a remote reader using that core's public key. It owns no record vocabulary; `@peer-hours/timebank-records` defines the Peer Hours record envelope and resolver that an application may store in it.
+`HypercoreRecordStore` persists immutable JSON values in one named Hypercore and can open a remote reader using that core's public key. `writable` reports whether the local Corestore owns the private writer key, and `append()` rejects remote reader cores. This prevents a desktop that opened a community-owned record core from being mistaken for an authorized writer. The store owns no record vocabulary; `@peer-hours/timebank-records` defines the Peer Hours record envelope and resolver that an application may store in it.
 
 ### Peer lifecycle
 

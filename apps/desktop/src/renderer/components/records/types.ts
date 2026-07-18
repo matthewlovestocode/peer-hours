@@ -16,5 +16,20 @@ export type PendingProposal = {
   minutes: number;
 };
 
+/** A locally verified accepted exchange whose completion can be acknowledged by its participants. */
+export type AcceptedProposal = {
+  id: string;
+  providerMemberId: string;
+  receiverMemberId: string;
+  minutes: number;
+};
+
+/** The non-ledger completion state derived from participant acknowledgements. */
+export type SettlementConfirmation = {
+  proposalId: string;
+  status: "awaiting-counterparty" | "dual-confirmed";
+  acknowledgements: readonly { acknowledgedByMemberId: string }[];
+};
+
 /** The verified member-feed state exposed through the narrow Electron bridge. */
 export type ResolvedMemberState = Awaited<ReturnType<typeof window.peerHours.getResolvedMemberState>>;

@@ -5,6 +5,7 @@ import { PendingProposalList } from "../components/records/PendingProposalList.j
 import { ProposalComposer } from "../components/records/ProposalComposer.js";
 import { RawRecordList } from "../components/records/RawRecordList.js";
 import { ResolvedState } from "../components/records/ResolvedState.js";
+import { SettlementAcknowledgementList } from "../components/records/SettlementAcknowledgementList.js";
 import type { ResolvedMemberState } from "../components/records/types.js";
 
 type Identity = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
@@ -61,6 +62,7 @@ export function RecordsPage() {
             <ListingComposer onComplete={refresh} />
             {resolved?.state === "ready" && <ProposalComposer listings={resolved.publishedListings} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <PendingProposalList proposals={resolved.proposedProposals} memberId={identity.memberId} onComplete={refresh} />}
+            {resolved?.state === "ready" && identity.memberId && <SettlementAcknowledgementList proposals={resolved.acceptedProposals} confirmations={resolved.settlementConfirmations} memberId={identity.memberId} onComplete={refresh} />}
           </>
         )}
         {identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}

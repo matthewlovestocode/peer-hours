@@ -5,6 +5,7 @@ import type { JsonValue } from "@peer-hours/peer-runtime";
 import {
   decodeAcceptedExchangeProposalRecord,
   decodePublishedListingRecord,
+  decodeSettlementAcknowledgementRecord,
 } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type MemberFeedRuntime, type SecureStorageAdapter, type StoredMemberIdentity } from "../src/electron/member-identity.js";
 
@@ -161,6 +162,40 @@ test("does not append acceptance when the local member created the pending propo
     fixture.identity.acceptProposal({ proposal, offer, request }),
     /only the other proposal participant/i,
   );
+  assert.equal(fixture.feed.records.length, 1);
+});
+
+test("signs a participant-owned acknowledgement for an accepted exchange without creating a transfer", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: memberId,
+    creatorMemberId: "member-provider", acceptedByMemberId: memberId, minutes: 60, status: "accepted" as const,
+  };
+
+  await fixture.identity.acknowledgeSettlement(proposal);
+
+  assert.equal(fixture.feed.records.length, 2);
+  const record = fixture.feed.records[1] as Parameters<typeof decodeSettlementAcknowledgementRecord>[0];
+  assert.deepEqual(decodeSettlementAcknowledgementRecord(record), {
+    id: `${proposal.id}/settlement-ack/${memberId}`, communityId, sourceProposalId: proposal.id,
+    providerMemberId: proposal.providerMemberId, recipientMemberId: memberId, minutes: 60, acknowledgedByMemberId: memberId,
+  });
+});
+
+test("does not append a settlement acknowledgement when the local member is not an exchange participant", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: "member-recipient",
+    creatorMemberId: "member-provider", acceptedByMemberId: "member-recipient", minutes: 60, status: "accepted" as const,
+  };
+
+  await assert.rejects(fixture.identity.acknowledgeSettlement(proposal), /only an exchange participant/i);
   assert.equal(fixture.feed.records.length, 1);
 });
 

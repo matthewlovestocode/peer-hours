@@ -20,6 +20,7 @@
     "@peer-hours/peer-runtime": "0.1.0",
     "@peer-hours/timebank-identity": "0.1.0",
     "@peer-hours/timebank-records": "0.1.0",
+    "@peer-hours/timebank-settlement": "0.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zustand": "^5.0.8"

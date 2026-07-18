@@ -1,6 +1,7 @@
 import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
+  createDualConfirmedSettlementTransfer,
   settlementAcknowledgementId,
   type SettlementAcknowledgement,
 } from "@peer-hours/timebank-settlement";
@@ -45,6 +46,18 @@ export type SettlementAcknowledgementRecord = RecordEnvelope<JsonObject>;
 export interface CreateTimebankRecordMetadata {
   readonly occurredAt: string;
   readonly authorId: string;
+}
+
+/** Input needed to encode a dual-confirmed settlement transfer for member-feed publication. */
+export interface CreateDualConfirmedSettlementTransferRecordInput {
+  /** Accepted proposal whose terms define the transfer. */
+  readonly proposal: ExchangeProposal;
+  /** Both signed participant acknowledgements resolved from member feeds. */
+  readonly acknowledgements: readonly SettlementAcknowledgement[];
+  /** The two participant attestations over the deterministic ledger transfer terms. */
+  readonly attestations: Transfer["attestations"];
+  /** Immutable envelope metadata supplied by the publishing participant. */
+  readonly metadata: CreateTimebankRecordMetadata;
 }
 
 /** Raised when a replicated record cannot safely map to its timebank domain value. */
@@ -157,6 +170,30 @@ export function toLedgerTransferRecord(transfer: Transfer, metadata: CreateTimeb
     authorId: metadata.authorId,
     payload: normalized as unknown as JsonObject,
   });
+}
+
+/**
+ * Encodes a normal settlement only after the accepted proposal and both participant
+ * acknowledgements compose one deterministic, dual-attested transfer.
+ *
+ * This encoder intentionally does not mark the transfer final: signature verification and the
+ * community's replication acknowledgement policy remain resolver and application concerns.
+ */
+export function toDualConfirmedSettlementTransferRecord(
+  input: CreateDualConfirmedSettlementTransferRecordInput,
+): LedgerTransferRecord {
+  const transfer = createDualConfirmedSettlementTransfer({
+    proposal: input.proposal,
+    acknowledgements: input.acknowledgements,
+    attestations: input.attestations,
+  });
+  if (
+    input.metadata.authorId !== transfer.providerMemberId &&
+    input.metadata.authorId !== transfer.recipientMemberId
+  ) {
+    throw new RecordMappingError("A settlement transfer record must be authored by one of its participants.");
+  }
+  return toLedgerTransferRecord(transfer, input.metadata);
 }
 
 /** Decodes one transfer envelope after checking its kind, community ownership, and attestations. */

@@ -1,7 +1,8 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { acceptExchangeProposal, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord } from "@peer-hours/timebank-records";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord } from "@peer-hours/timebank-records";
+import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
 /** Defines the encrypted identity material persisted only by the Electron main process. */
@@ -115,6 +116,17 @@ export class MemberIdentityService {
     this.assertStoredIdentity(stored); const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
     const accepted = acceptExchangeProposal({ proposal: input.proposal, offer: input.offer, request: input.request, provider: createMemberProfile({ id: input.offer.memberId, communityId, displayName: input.offer.memberId }), recipient: createMemberProfile({ id: input.request.memberId, communityId, displayName: input.request.memberId }), acceptedByMemberId: memberId });
     const record = toAcceptedExchangeProposalRecord(accepted, { occurredAt: new Date().toISOString(), authorId: memberId });
+    await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
+  }
+
+  /** Publishes this participant's signed acknowledgement for one already accepted exchange. */
+  async acknowledgeSettlement(proposal: ExchangeProposal): Promise<void> {
+    const communityId = this.memberFeed.communityId(); const stored = await this.identityStore.read();
+    if (!communityId || stored === null || !this.secureStorage.isEncryptionAvailable()) throw new Error("A protected identity and community scope are required to acknowledge a settlement.");
+    this.assertStoredIdentity(stored); const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    if (proposal.communityId !== communityId) throw new Error("The accepted proposal is outside the current community scope.");
+    const acknowledgement = createSettlementAcknowledgement(proposal, memberId);
+    const record = toSettlementAcknowledgementRecord(acknowledgement, { occurredAt: new Date().toISOString(), authorId: memberId });
     await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
   }
 

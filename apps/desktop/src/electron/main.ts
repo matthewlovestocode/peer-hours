@@ -89,6 +89,23 @@ app.whenReady().then(() => {
     if (!proposal || !offer || !request) throw new Error("Choose a locally accepted pending proposal with accepted listings.");
     await memberIdentity.acceptProposal({ proposal, offer, request });
   });
+  ipcMain.handle("member:acknowledge-settlement", async (_event, proposalId: unknown) => {
+    if (typeof proposalId !== "string") throw new Error("Proposal id is invalid.");
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before acknowledging a settlement.");
+    const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
+    const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
+    const resolved = resolveTimebankMemberFeeds(communityId, histories);
+    const proposal = resolved.acceptedProposals.find((item) => item.id === proposalId);
+    if (!proposal) throw new Error("Choose a locally accepted proposal before acknowledging its settlement.");
+    const identity = await memberIdentity.status();
+    if (identity.state !== "ready" || identity.memberId === null) throw new Error("Create your self-owned identity before acknowledging a settlement.");
+    const confirmation = resolved.settlementConfirmations.find((item) => item.proposalId === proposalId);
+    if (confirmation?.acknowledgements.some((item) => item.acknowledgedByMemberId === identity.memberId)) {
+      throw new Error("You have already acknowledged completion of this exchange.");
+    }
+    await memberIdentity.acknowledgeSettlement(proposal);
+  });
   ipcMain.handle("member:resolved", async () => {
     const communityId = runtime.status().community?.communityId;
     if (!communityId) return { state: "unavailable" as const, reason: "No bootstrap discovery community is configured." };
@@ -103,7 +120,7 @@ app.whenReady().then(() => {
           : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never,
       })));
       const resolved = resolveTimebankMemberFeeds(communityId, histories);
-      return { state: "ready" as const, publishedListings: resolved.publishedListings, proposedProposals: resolved.proposedProposals, acceptedProposals: resolved.acceptedProposals, transfers: resolved.transfers };
+      return { state: "ready" as const, publishedListings: resolved.publishedListings, proposedProposals: resolved.proposedProposals, acceptedProposals: resolved.acceptedProposals, settlementConfirmations: resolved.settlementConfirmations, transfers: resolved.transfers };
     } catch (error) {
       return { state: "rejected" as const, reason: error instanceof Error ? error.message : "Local records could not be verified." };
     }

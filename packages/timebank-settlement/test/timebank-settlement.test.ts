@@ -5,8 +5,10 @@ import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   SettlementAcknowledgementRuleError,
   SettlementRuleError,
+  createDualConfirmedSettlementTransfer,
   createSettlementAcknowledgement,
   resolveSettlementAcknowledgements,
+  settlementTransferId,
   validateSettlementAcknowledgement,
   validateSettlementTransfer,
 } from "../src/index.js";
@@ -100,5 +102,33 @@ test("rejects outsider, changed-term, or unaccepted-proposal acknowledgements", 
   assert.throws(
     () => createSettlementAcknowledgement({ ...proposal, status: "proposed", acceptedByMemberId: undefined }, proposal.providerMemberId),
     SettlementAcknowledgementRuleError,
+  );
+});
+
+test("composes the one deterministic settlement transfer only after dual confirmation", () => {
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+  const transfer = createDualConfirmedSettlementTransfer({
+    proposal,
+    acknowledgements,
+    attestations: settlementTransfer().attestations,
+  });
+
+  assert.equal(transfer.id, settlementTransferId(proposal.id));
+  assert.equal(transfer.sourceProposalId, proposal.id);
+  assert.equal(transfer.reversesTransferId, undefined);
+  assert.deepEqual(transfer.attestations, settlementTransfer().attestations);
+});
+
+test("refuses transfer composition until the counterparty also acknowledges", () => {
+  assert.throws(
+    () => createDualConfirmedSettlementTransfer({
+      proposal,
+      acknowledgements: [createSettlementAcknowledgement(proposal, proposal.providerMemberId)],
+      attestations: settlementTransfer().attestations,
+    }),
+    SettlementRuleError,
   );
 });

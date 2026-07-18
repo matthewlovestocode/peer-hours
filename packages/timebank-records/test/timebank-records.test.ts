@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
 import { createRecordEnvelope } from "../src/envelope.js";
 import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
@@ -15,6 +16,7 @@ import {
   toProposedExchangeProposalRecord,
   decodeProposedExchangeProposalRecord,
   toLedgerTransferRecord,
+  toDualConfirmedSettlementTransferRecord,
 } from "../src/timebank-records.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -119,6 +121,49 @@ test("maps and decodes a ledger transfer without losing attestations", () => {
 
   assert.equal(record.kind, LEDGER_TRANSFER_RECORD_KIND);
   assert.deepEqual(decodeLedgerTransferRecord(record), expected);
+});
+
+test("encodes a deterministic settlement transfer only from dual-confirmed acknowledgements", () => {
+  const proposal = acceptedProposal();
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+  const record = toDualConfirmedSettlementTransferRecord({
+    proposal,
+    acknowledgements,
+    attestations: transfer().attestations,
+    metadata: recordMetadata,
+  });
+
+  assert.equal(record.id, "proposal-1/settlement");
+  assert.deepEqual(decodeLedgerTransferRecord(record), {
+    ...transfer(),
+    id: "proposal-1/settlement",
+  });
+});
+
+test("rejects one-sided settlement publication and non-participant authors", () => {
+  const proposal = acceptedProposal();
+  const acknowledgement = createSettlementAcknowledgement(proposal, proposal.providerMemberId);
+  const input = {
+    proposal,
+    acknowledgements: [acknowledgement],
+    attestations: transfer().attestations,
+    metadata: recordMetadata,
+  };
+  assert.throws(() => toDualConfirmedSettlementTransferRecord(input), /both exchange participants/i);
+  assert.throws(
+    () => toDualConfirmedSettlementTransferRecord({
+      ...input,
+      acknowledgements: [
+        acknowledgement,
+        createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+      ],
+      metadata: { ...recordMetadata, authorId: "member-observer" },
+    }),
+    /authored by one of its participants/i,
+  );
 });
 
 test("rejects malformed proposal and transfer record payloads", () => {

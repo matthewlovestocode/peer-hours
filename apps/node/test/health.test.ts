@@ -4,7 +4,8 @@ import { createHealthPayload } from "../src/health.js";
 
 test("creates a health payload from node state", () => {
   const payload = createHealthPayload({
-    key: Buffer.from([0, 15, 255]),
+    state: "ok",
+    core: "000fff",
     length: 3,
   });
 
@@ -12,5 +13,13 @@ test("creates a health payload from node state", () => {
     status: "ok",
     core: "000fff",
     length: 3,
+  });
+});
+
+test("preserves a non-ready runtime state without claiming success", () => {
+  assert.deepEqual(createHealthPayload({ state: "starting", core: "", length: 0 }), {
+    status: "starting",
+    core: "",
+    length: 0,
   });
 });

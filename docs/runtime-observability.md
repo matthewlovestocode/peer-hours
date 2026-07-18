@@ -6,10 +6,12 @@ Community nodes make data more available, but an operator needs more than a gree
 
 The current community-node HTTP API exposes two diagnostic views:
 
-- `GET /health` returns `200` with `status: "ok"` only while the embedded runtime reports `online`; it also returns the current network-core key and length.
+- `GET /health` returns `200` with `status: "ok"` only while the embedded runtime reports `online`; before storage is ready or after a startup error it returns `503` with the runtime state instead. It also returns the current network-core key and length. Responses are explicitly non-cacheable, so probes do not report an earlier healthy observation as current.
 - `GET /status` returns the runtime's current snapshot: runtime state, `startedAt`, non-negative `uptimeMs`, whether Hyperswarm is listening, discovery counters, peer lifecycle entries, network-core information, record-core metadata, bootstrap state, and any current error.
 
 These endpoints are useful for local development and for a basic platform health check. `startedAt` is captured when the current `PeerRuntime` instance is constructed, and `uptimeMs` is derived from that runtime's clock; uptime is clamped at zero if that clock moves backwards. A successful response still describes a point-in-time observation, not proof that the node has been continuously available.
+
+At process startup, the community node validates `PORT` as an integer from 1 through 65535 and resolves `DATA_DIR` to an absolute path before opening storage. The runtime creates that directory, but operators should mount it on durable storage and make it writable by the service account. On `SIGINT` or `SIGTERM`, the process stops accepting HTTP connections before it closes the peer runtime's swarm and local store; repeated signals share the same shutdown operation rather than racing storage closure.
 
 When a runtime obtains bootstrap metadata or a community-node roster over HTTP, it treats those responses as untrusted operational input: it accepts only HTTP(S), bounds JSON responses to 64 KiB, applies a 10-second request timeout, and validates the implemented manifest version and peer-roster fields before updating local status. A failed optional diagnostics refresh clears the remote roster rather than retaining a stale claim about the community node. These checks make the view safer and more predictable; they do not authenticate the endpoint or make bootstrap metadata authoritative.
 

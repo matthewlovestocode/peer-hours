@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { PeerRuntime } from "@peer-hours/peer-runtime";
+import { createHealthPayload } from "./health.js";
 
 const DEVELOPMENT_PEER_BODY_LIMIT_BYTES = 4 * 1024;
 
@@ -54,12 +55,18 @@ export function createNodeServer(
   options: NodeServerOptions = {},
 ): Server {
   return createServer((request, response) => {
-    response.setHeader("access-control-allow-origin", "*");
+    response.setHeader("cache-control", "no-store");
+    response.setHeader("x-content-type-options", "nosniff");
     const status = runtime.status();
 
     if (request.url === "/health" && request.method === "GET") {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ status: status.state === "online" ? "ok" : status.state, core: status.replication.coreKey, length: status.replication.length }));
+      const health = createHealthPayload({
+        state: status.state === "online" ? "ok" : status.state,
+        core: status.replication.coreKey,
+        length: status.replication.length,
+      });
+      response.writeHead(health.status === "ok" ? 200 : 503, { "content-type": "application/json" });
+      response.end(JSON.stringify(health));
       return;
     }
 

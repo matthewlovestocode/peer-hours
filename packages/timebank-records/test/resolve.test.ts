@@ -144,16 +144,27 @@ test("admits an accepted proposal from a self-owned root identity without a comm
   };
   const proposalRecord = toAcceptedExchangeProposalRecord(acceptedProposal, { ...metadata, authorId: recipientId, occurredAt: "2026-07-18T13:01:00.000Z" });
   const signedProposal = signedRecord(proposalRecord, recipientKeys.privateKey, rootKeyIdForMember(recipientId));
+  const acknowledgementRecord = toSettlementAcknowledgementRecord(
+    createSettlementAcknowledgement(acceptedProposal, recipientId),
+    { ...metadata, authorId: recipientId, occurredAt: "2026-07-18T13:02:00.000Z" },
+  );
+  const signedAcknowledgement = signedRecord(
+    acknowledgementRecord,
+    recipientKeys.privateKey,
+    rootKeyIdForMember(recipientId),
+  );
 
   const declarationRecord = memberFeedDeclarationToRecord(declaration);
   const state = resolveTimebankMemberFeeds(communityId, [{
     feedPublicKey: declaration.feedPublicKey,
-    records: [signedProposal, declarationRecord],
+    records: [signedProposal, signedAcknowledgement, declarationRecord],
   }]);
   assert.equal(state.acceptedProposals.length, 1);
+  assert.equal(state.settlementAcknowledgements.length, 1);
+  assert.equal(state.settlementConfirmations[0]?.status, "awaiting-counterparty");
   assert.equal(state.authorizations[0]?.memberId, recipientId);
   assert.throws(
-    () => resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: "b".repeat(64), records: [signedProposal, declarationRecord] }]),
+    () => resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: "b".repeat(64), records: [signedAcknowledgement, declarationRecord] }]),
     /declared.*identity/i,
   );
 });

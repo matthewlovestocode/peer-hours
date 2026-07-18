@@ -1,6 +1,10 @@
 import { type MemberSigningKeyAuthorization } from "@peer-hours/timebank-identity";
 import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import { type Ledger, type Transfer } from "@peer-hours/timebank-ledger";
+import {
+  type SettlementAcknowledgement,
+  type SettlementConfirmationState,
+} from "@peer-hours/timebank-settlement";
 import { type RecordEnvelope } from "./envelope.js";
 import { MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord } from "./self-owned-identity-records.js";
 import { resolveTimebankRecords } from "./resolve.js";
@@ -10,6 +14,7 @@ import {
   LEDGER_TRANSFER_RECORD_KIND,
   PUBLISHED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
 } from "./timebank-records.js";
 
 /** A concrete replicated history read from one known member-owned Hypercore feed. */
@@ -25,6 +30,10 @@ export interface FeedResolvedTimebankState {
   readonly publishedListings: readonly Listing[];
   readonly proposedProposals: readonly ExchangeProposal[];
   readonly acceptedProposals: readonly ExchangeProposal[];
+  /** Participant acknowledgements admitted only from their declared member feeds. */
+  readonly settlementAcknowledgements: readonly SettlementAcknowledgement[];
+  /** Acknowledgement progress per accepted proposal; this is not transfer finality. */
+  readonly settlementConfirmations: readonly SettlementConfirmationState[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
 }
@@ -59,7 +68,18 @@ export function resolveTimebankMemberFeeds(
     }
   }
 
-  return resolveTimebankRecords(communityId, records);
+  const resolved = resolveTimebankRecords(communityId, records);
+  return Object.freeze({
+    communityId: resolved.communityId,
+    authorizations: resolved.authorizations,
+    publishedListings: resolved.publishedListings,
+    proposedProposals: resolved.proposedProposals,
+    acceptedProposals: resolved.acceptedProposals,
+    settlementAcknowledgements: resolved.settlementAcknowledgements,
+    settlementConfirmations: resolved.settlementConfirmations,
+    transfers: resolved.transfers,
+    ledger: resolved.ledger,
+  });
 }
 
 /** Collects valid root-signed declarations before admitting any domain record from a member feed. */
@@ -80,7 +100,11 @@ function declaredFeedKeysByMember(communityId: string, histories: readonly Membe
 
 /** Limits feed provenance checks to record kinds whose authorship semantics are already explicit. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND ||
+    record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND ||
+    record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND ||
+    record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND ||
+    record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Rejects malformed feed addresses before a caller can mistake arbitrary text for a Hypercore identity. */

@@ -43,6 +43,14 @@ terms. Acknowledgements do **not** produce ledger postings or change balances. T
 ledger continues to require the separate dual-attested transfer, so acknowledgement state is a
 safe replicated workflow foundation rather than premature economic finality.
 
+For a new normal-transfer publication flow, `createDualConfirmedSettlementTransfer` is the
+pure composition boundary. It requires a `dual-confirmed` acknowledgement set and both
+participant transfer attestations, derives a deterministic `<proposal-id>/settlement` transfer
+ID, and copies every economic term from the accepted proposal. The records package exposes
+`toDualConfirmedSettlementTransferRecord` to encode that result only when the envelope author is
+one of the transfer participants. Cryptographic verification and durable replication are still
+separate checks: composition or record encoding must never be displayed as final settlement.
+
 Signature verification remains the responsibility of `@peer-hours/timebank-identity`; balance derivation and duplicate-settlement protection remain the responsibility of `@peer-hours/timebank-ledger`.
 
 ## Deliberate boundary

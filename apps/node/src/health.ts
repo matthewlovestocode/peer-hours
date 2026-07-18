@@ -1,13 +1,14 @@
 export type NodeHealth = {
-  status: "ok";
+  status: "ok" | "starting" | "error";
   core: string;
   length: number;
 };
 
-export function createHealthPayload(core: { key: Buffer; length: number }): NodeHealth {
+/** Maps the runtime's point-in-time state to a lightweight, non-mutating HTTP health payload. */
+export function createHealthPayload(runtime: { state: NodeHealth["status"]; core: string; length: number }): NodeHealth {
   return {
-    status: "ok",
-    core: core.key.toString("hex"),
-    length: core.length,
+    status: runtime.state,
+    core: runtime.core,
+    length: runtime.length,
   };
 }

@@ -17,6 +17,28 @@ async function startTestNode(runtime: PeerRuntime, enableDevelopmentPeerRegistra
   return { baseUrl: `http://127.0.0.1:${address.port}`, close: () => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) };
 }
 
+test("community node returns unavailable health until its runtime has opened storage", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-health-"));
+  const runtime = new PeerRuntime(directory, undefined, undefined, Date.now, false);
+  const node = await startTestNode(runtime);
+
+  try {
+    const response = await fetch(`${node.baseUrl}/health`);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), { status: "starting", core: "", length: 0 });
+
+    await runtime.start();
+    const ready = await fetch(`${node.baseUrl}/health`);
+    assert.equal(ready.status, 200);
+    assert.equal((await ready.json() as { status: string }).status, "ok");
+  } finally {
+    await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("community node exposes simulator registration in its live roster", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-integration-"));
   const runtime = new PeerRuntime(directory);

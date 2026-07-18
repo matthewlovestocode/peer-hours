@@ -9,7 +9,7 @@ import { createNodeServer } from "../src/server.js";
 
 /** Starts a neutral community peer's HTTP diagnostics around an ephemeral runtime. */
 async function startNode(runtime: PeerRuntime): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const server = createNodeServer(runtime, { communityId: "peer-hours/earth/test", displayName: "Test Community" });
+  const server = createNodeServer(runtime);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
@@ -23,19 +23,14 @@ async function startNode(runtime: PeerRuntime): Promise<{ baseUrl: string; close
   };
 }
 
-test("community node publishes only peer-discovery bootstrap metadata, never a community record authority", async () => {
+test("community peer exposes diagnostics but no bootstrap or community record authority", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-neutral-peer-"));
   const runtime = new PeerRuntime(directory, undefined, undefined, Date.now, false);
   await runtime.start();
   const node = await startNode(runtime);
 
   try {
-    const bootstrap = await fetch(`${node.baseUrl}/bootstrap`).then((response) => response.json()) as Record<string, unknown>;
-    assert.equal(bootstrap.communityId, "peer-hours/earth/test");
-    assert.match(String(bootstrap.coreKey), /^[a-f0-9]{64}$/);
-    assert.equal(bootstrap.role, "community-peer");
-    assert.deepEqual(bootstrap.capabilities, ["discovery", "replication", "diagnostics"]);
-    assert.equal("recordCoreKey" in bootstrap, false);
+    assert.equal((await fetch(`${node.baseUrl}/bootstrap`)).status, 404);
     assert.equal((await fetch(`${node.baseUrl}/records`)).status, 404);
     assert.equal((await fetch(`${node.baseUrl}/records`, { method: "POST" })).status, 404);
   } finally {

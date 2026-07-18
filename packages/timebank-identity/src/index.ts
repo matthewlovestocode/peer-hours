@@ -92,6 +92,18 @@ export interface MemberFeedDeclaration {
 /** Input used to validate a signed, community-scoped member-feed declaration. */
 export type CreateMemberFeedDeclarationInput = MemberFeedDeclaration;
 
+/** A short-lived root-signed announcement that makes one declared member feed discoverable to peers. */
+export interface MemberFeedAnnouncement {
+  readonly schema: "peer-hours/member-feed-announcement/v1";
+  readonly declaration: MemberFeedDeclaration;
+  readonly announcedAt: string;
+  readonly expiresAt: string;
+  readonly signature: string;
+}
+
+/** Input used to validate one short-lived member-feed announcement. */
+export type CreateMemberFeedAnnouncementInput = MemberFeedAnnouncement;
+
 /** Derives a stable member identifier from the exact Ed25519 root public key that owns it. */
 export function createSelfOwnedMemberIdentity(input: CreateSelfOwnedMemberIdentityInput): SelfOwnedMemberIdentity {
   assertPresent(input.rootPublicKeyPem, "Root public key");
@@ -132,6 +144,44 @@ export function createMemberFeedDeclaration(input: CreateMemberFeedDeclarationIn
   }
 
   return Object.freeze({ ...input });
+}
+
+/** Returns the exact domain-separated bytes a root identity signs to announce one declared feed. */
+export function canonicalMemberFeedAnnouncementPayload(announcement: Omit<MemberFeedAnnouncement, "signature">): Buffer {
+  const declaration = createMemberFeedDeclaration(announcement.declaration);
+  assertCanonicalTimestamp(announcement.announcedAt);
+  assertCanonicalTimestamp(announcement.expiresAt);
+  if (Date.parse(announcement.expiresAt) <= Date.parse(announcement.announcedAt)) {
+    throw new IdentityRuleError("A member feed announcement must expire after it is announced.");
+  }
+
+  return Buffer.from(JSON.stringify({
+    schema: "peer-hours/member-feed-announcement/v1",
+    declaration,
+    announcedAt: announcement.announcedAt,
+    expiresAt: announcement.expiresAt,
+  }), "utf8");
+}
+
+/** Creates a discoverable feed announcement only when its owning root identity signed its exact terms. */
+export function createMemberFeedAnnouncement(input: CreateMemberFeedAnnouncementInput): MemberFeedAnnouncement {
+  if (input.schema !== "peer-hours/member-feed-announcement/v1") {
+    throw new IdentityRuleError("A member feed announcement must use the current schema.");
+  }
+  const declaration = createMemberFeedDeclaration(input.declaration);
+  const payload = canonicalMemberFeedAnnouncementPayload({ ...input, declaration });
+  const signature = decodeBase64UrlSignature(input.signature);
+  if (signature === undefined || !verify(null, payload, parseEd25519PublicKey(declaration.rootPublicKeyPem), signature)) {
+    throw new IdentityRuleError("A member feed announcement must have a valid root identity signature.");
+  }
+
+  return Object.freeze({
+    schema: input.schema,
+    declaration,
+    announcedAt: input.announcedAt,
+    expiresAt: input.expiresAt,
+    signature: input.signature,
+  });
 }
 
 /**

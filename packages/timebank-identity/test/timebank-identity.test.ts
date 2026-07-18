@@ -5,6 +5,8 @@ import { applyTransfers, createTransfer, type Transfer } from "@peer-hours/timeb
 import {
   canonicalTransferPayload,
   canonicalMemberFeedDeclarationPayload,
+  canonicalMemberFeedAnnouncementPayload,
+  createMemberFeedAnnouncement,
   createMemberFeedDeclaration,
   createMemberSigningKeyAuthorizationEvent,
   createEd25519SignatureVerifier,
@@ -49,6 +51,25 @@ test("derives a stable self-owned member identity and accepts only its signed me
   assert.deepEqual(createMemberFeedDeclaration(declaration), declaration);
   assert.throws(() => createMemberFeedDeclaration({ ...declaration, feedPublicKey: "b".repeat(64) }));
   assert.throws(() => createMemberFeedDeclaration({ ...declaration, memberId: "phm_other" }));
+});
+
+test("accepts only an unexpired root-signed announcement for a declared member feed", () => {
+  const keys = memberKeyPair();
+  const declaration = memberFeedDeclaration(keys.privateKey, keys.publicKey);
+  const unsigned = {
+    schema: "peer-hours/member-feed-announcement/v1" as const,
+    declaration,
+    announcedAt: "2026-07-18T12:00:00.000Z",
+    expiresAt: "2026-07-19T12:00:00.000Z",
+  };
+  const announcement = {
+    ...unsigned,
+    signature: sign(null, canonicalMemberFeedAnnouncementPayload(unsigned), keys.privateKey).toString("base64url"),
+  };
+
+  assert.deepEqual(createMemberFeedAnnouncement(announcement), announcement);
+  assert.throws(() => createMemberFeedAnnouncement({ ...announcement, expiresAt: unsigned.announcedAt }));
+  assert.throws(() => createMemberFeedAnnouncement({ ...announcement, announcedAt: "2026-07-18T12:01:00.000Z" }));
 });
 
 /** Signs an exact canonical transfer payload using an ephemeral Ed25519 private key. */

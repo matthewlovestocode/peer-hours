@@ -10,10 +10,11 @@ function manifest(overrides: Record<string, unknown> = {}): Record<string, unkno
     communityId: "peer-hours/earth/US/CA/east-bay",
     displayName: "East Bay Timebank",
     protocolVersion: 1,
-    role: "community-peer",
-    capabilities: ["discovery", "replication", "diagnostics"],
+    role: "bootstrap",
+    capabilities: ["discovery-metadata"],
     coreKey,
-    bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10000/bootstrap"],
+    bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10001/bootstrap"],
+    communityNodeUrl: "https://peer.example.test",
     ...overrides,
   };
 }
@@ -23,10 +24,11 @@ test("parses complete bootstrap metadata before the runtime uses it", () => {
     communityId: "peer-hours/earth/US/CA/east-bay",
     displayName: "East Bay Timebank",
     protocolVersion: 1,
-    role: "community-peer",
-    capabilities: ["discovery", "replication", "diagnostics"],
+    role: "bootstrap",
+    capabilities: ["discovery-metadata"],
     coreKey,
-    bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10000/bootstrap"],
+    bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10001/bootstrap"],
+    communityNodeUrl: "https://peer.example.test/",
   });
 });
 
@@ -46,16 +48,21 @@ test("rejects malformed public network core keys", () => {
   assert.throws(() => parseCommunityManifest(manifest({ coreKey: "not-a-key" })), /coreKey must be a 64-character hexadecimal Hypercore key/);
 });
 
-test("accepts only the non-authoritative community-peer role and known descriptive capabilities", () => {
-  assert.throws(() => parseCommunityManifest(manifest({ role: "community-authority" })), /role must be community-peer/);
-  assert.throws(() => parseCommunityManifest(manifest({ capabilities: ["admission"] })), /capabilities must contain only/);
-  assert.deepEqual(parseCommunityManifest(manifest({ role: undefined, capabilities: undefined })).capabilities, ["discovery", "replication", "diagnostics"]);
+test("accepts only the narrow bootstrap role and discovery-metadata capability", () => {
+  assert.throws(() => parseCommunityManifest(manifest({ role: "community-peer" })), /role must be bootstrap/);
+  assert.throws(() => parseCommunityManifest(manifest({ capabilities: ["admission"] })), /capabilities must be \[discovery-metadata\]/);
+  assert.throws(() => parseCommunityManifest(manifest({ role: undefined })), /role must be bootstrap/);
 });
 
 test("requires bootstrap nodes to be an array of HTTP(S) URLs", () => {
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: "https://node.example.test" })), /bootstrapNodes must be an array/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["file:///private/data"] })), /bootstrapNodes\[0\] must be a valid HTTP\(S\) URL/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["not a url"] })), /bootstrapNodes\[0\] must be a valid HTTP\(S\) URL/);
+});
+
+test("accepts an optional community-peer diagnostics URL but rejects other URL schemes", () => {
+  assert.equal(parseCommunityManifest(manifest({ communityNodeUrl: undefined })).communityNodeUrl, null);
+  assert.throws(() => parseCommunityManifest(manifest({ communityNodeUrl: "file:///private/data" })), /communityNodeUrl must be a valid HTTP\(S\) URL/);
 });
 
 test("rejects arrays and null rather than treating them as manifest objects", () => {

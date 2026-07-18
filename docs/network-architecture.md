@@ -56,7 +56,7 @@ Peer Hours has a working **replicated-read foundation**, not a production timeba
 - connected runtimes replicate known member feeds directly through Corestore;
 - pure packages model listing ownership, accepted proposals, Ed25519 transfer attestations, proposal-to-transfer matching, immutable record envelopes, deterministic record resolution, and derived ledger balances.
 
-Each member runtime owns a separate writable member feed, and a receiving runtime can directly replicate a known member-feed key. A self-certifying identity can sign a declaration linking itself to that feed, and the resolver admits that root key for the member's signed records without a community authorization event. Its feed-aware API also rejects a domain record supplied from a feed the author did not declare. The always-on community peer is simply another peer with durable storage: it has no human member identity, assists discovery and replication, and has no community record core, member-admission role, or special validity authority. Feed discovery and the desktop workflow are still absent, so a desktop cannot yet safely publish a member profile, listing, proposal, identity record, or transfer into the resolved community view. See [open participation and agreement privacy](open-participation-and-agreement-privacy.md) for the decision that this protocol must not become membership approval.
+Each member runtime owns a separate writable member feed, and a receiving runtime can directly replicate a known member-feed key. A self-certifying identity can sign a declaration linking itself to that feed, and the resolver admits that root key for the member's signed records without a community authorization event. Its feed-aware API also rejects a domain record supplied from a feed the author did not declare. Connected runtimes can now exchange root-signed, expiring feed announcements over their shared discovery core; a valid announcement opens the named feed automatically for replication. The always-on community peer is simply another peer with durable storage: it has no human member identity, assists discovery and replication, and has no community record core, member-admission role, or special validity authority. A shared discovery-core key and the desktop workflow are still needed, so a desktop cannot yet safely publish a member profile, listing, proposal, identity record, or transfer into the resolved community view. See [open participation and agreement privacy](open-participation-and-agreement-privacy.md) for the decision that this protocol must not become membership approval.
 
 At the current resolver boundary, an accepted proposal is admitted only when the accepting member authored its signed envelope. A settlement transfer is admitted only when either participant authored its signed envelope **and** the ledger validates the transfer's separate attestations from both participants. These are verified in-memory record rules, not proof that a desktop has a production network path to submit a record. The current node roster endpoint is also a diagnostic/development visibility aid, not evidence of a complete discovery, routing, or availability protocol.
 
@@ -114,7 +114,7 @@ flowchart LR
     E3 <-->|"independent bridge"| M3
 ```
 
-This is a future topology, not present behavior. The current runtime makes direct encrypted peer connections after discovery and can replicate a known member feed between connected peers. It does not yet provide general multi-hop routing, automatic bridge selection, feed discovery, or delayed interplanetary transport. Any future bridge must make its replication scope, authority, privacy, and conflict policy explicit; a network path must never silently merge two communities' ledgers.
+This is a future topology, not present behavior. The current runtime makes direct encrypted peer connections after discovery, exchanges signed expiring feed announcements over a shared discovery core, and can replicate the announced member feed between connected peers. It does not yet provide general multi-hop routing, automatic bridge selection, or delayed interplanetary transport. Any future bridge must make its replication scope, authority, privacy, and conflict policy explicit; a network path must never silently merge two communities' ledgers.
 
 ## Trust and accounting
 
@@ -220,12 +220,12 @@ These questions should be answered through small experiments and community conve
 
 ## Default network bootstrap
 
-The initial desktop experience should use a default Render-hosted bootstrap node. The desktop connects to a small public bootstrap endpoint over HTTPS, reads the node's public network/core key, and then joins the corresponding Holepunch discovery topic.
+The initial desktop experience should use a default Render-hosted **bootstrap service** that is separate from every community peer. The desktop connects to a small public bootstrap endpoint over HTTPS, reads configured public discovery metadata, and then joins the corresponding Holepunch discovery topic.
 
 ```mermaid
 sequenceDiagram
     participant D as Desktop peer
-    participant R as Render bootstrap node
+    participant R as Render bootstrap service
     participant P as P2P network
 
     D->>R: GET /bootstrap
@@ -234,9 +234,9 @@ sequenceDiagram
     P-->>D: replicated peers and data
 ```
 
-The bootstrap endpoint is a rendezvous mechanism, not the authority for all Peer Hours data. The public key may be shared; private signing material must remain on the node. The Render node's identity should be stored on persistent storage so restarts do not change the default network identity unexpectedly.
+The bootstrap endpoint is a rendezvous mechanism, not the authority for all Peer Hours data. It does not run a peer, persist member data, relay feeds, approve identities, or decide record validity. The discovery-core key may be shared publicly. A separate community peer owns persistent peer storage and should keep that core identity stable across restarts using durable storage.
 
-Today, the runtime checks that bootstrap returns a successful HTTP response and structurally validates a complete manifest: nonblank community ID and display name, a positive integer protocol version, fixed-length hexadecimal core keys, and HTTP(S) bootstrap URLs. It does **not** yet authenticate the endpoint or verify a signed manifest. A production bootstrap design needs an explicit trust policy such as pinned keys, signed manifests, or another verifiable community-distribution mechanism.
+Today, the runtime checks that bootstrap returns a successful HTTP response and structurally validates a complete manifest: nonblank community ID and display name, a positive protocol version, a fixed-length hexadecimal discovery-core key, the narrow `bootstrap` role, a discovery-metadata capability, optional community-peer diagnostics URL, and HTTP(S) fallback bootstrap URLs. It does **not** yet authenticate the endpoint or verify a signed manifest. A production bootstrap design needs an explicit trust policy such as pinned keys, signed manifests, or another verifiable community-distribution mechanism.
 
 ## Community naming
 
@@ -270,9 +270,9 @@ Geographic segments should use stable uppercase codes where applicable, such as 
 
 ```json
 {
-  "communityId": "peer-hours/earth/US/CA/east-bay",
-  "displayName": "East Bay Timebank",
-  "parentCommunity": "peer-hours/earth/US/CA"
+  "communityId": "peer-hours/earth/US/CA/east-bay/oakland",
+  "displayName": "Oakland Timebank",
+  "parentCommunity": "peer-hours/earth/US/CA/east-bay"
 }
 ```
 

@@ -13,7 +13,7 @@ Peer Hours uses `GET /bootstrap` differently. The desktop asks for connection me
 ```mermaid
 sequenceDiagram
   participant D as Desktop runtime
-  participant H as Community HTTP endpoint
+  participant H as Bootstrap HTTP endpoint
   participant P as Peer-to-peer network
   D->>H: GET /bootstrap
   H-->>D: community + discovery metadata
@@ -30,7 +30,7 @@ The current bootstrap response can include a value like this:
 ```json
 {
   "community": {
-    "id": "peer-hours/earth/US/CA/east-bay"
+    "id": "peer-hours/earth/US/CA/east-bay/oakland"
   },
 }
 ```
@@ -39,7 +39,7 @@ The long `coreKey` identifies the discovery core used to rendezvous with peers. 
 
 ## Peer Hours connection
 
-For development, the desktop commonly points at `http://127.0.0.1:10000/bootstrap`. A deployed community node can provide the same kind of public metadata from its own URL.
+For development, the desktop commonly points at `http://127.0.0.1:10001/bootstrap`. The bootstrap service is deliberately separate from the deployed community peer: it serves configured discovery metadata but does not run Hypercore, Hyperswarm, member feeds, or record replication.
 
 Bootstrap metadata must be treated carefully. It tells the runtime *what to try connecting to*; it does not itself prove that a transfer is valid, that a member is authorized, or that the node has every record.
 

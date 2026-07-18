@@ -48,10 +48,9 @@ async function readDevelopmentPeerPayload(request: IncomingMessage): Promise<{ i
   return { id, action };
 }
 
-/** Creates the community node HTTP API used by desktop peers and development simulators. */
+/** Creates the community-peer diagnostics API used by operators and development simulators. */
 export function createNodeServer(
   runtime: PeerRuntime,
-  metadata: { communityId: string; displayName: string },
   options: NodeServerOptions = {},
 ): Server {
   return createServer((request, response) => {
@@ -67,12 +66,6 @@ export function createNodeServer(
     if (request.url === "/status" && request.method === "GET") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify(status));
-      return;
-    }
-
-    if (request.url === "/bootstrap" && request.method === "GET") {
-      response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-      response.end(JSON.stringify({ communityId: metadata.communityId, displayName: metadata.displayName, protocolVersion: 1, role: "community-peer", capabilities: ["discovery", "replication", "diagnostics"], coreKey: status.replication.coreKey, bootstrapNodes: [] }));
       return;
     }
 

@@ -18,6 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@peer-hours/timebank-identity": "file:../timebank-identity",
     "corestore": "^7.5.0",
     "hyperswarm": "^4.15.0"
   },

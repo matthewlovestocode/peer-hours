@@ -9,7 +9,7 @@ import { createNodeServer } from "../src/server.js";
 
 /** Starts an ephemeral community API and returns its local URL and cleanup function. */
 async function startTestNode(runtime: PeerRuntime, enableDevelopmentPeerRegistration = false): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const server = createNodeServer(runtime, { communityId: "peer-hours/earth/test", displayName: "Test Community" }, { enableDevelopmentPeerRegistration });
+  const server = createNodeServer(runtime, { enableDevelopmentPeerRegistration });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();

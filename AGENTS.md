@@ -41,6 +41,8 @@ Use `docs/` as a living workspace. Documentation is expected to be revised repea
 
 Record important architectural decisions, unresolved questions, and observed behavior. Keep documentation aligned with the code, but do not turn every implementation detail into a permanent rule.
 
+The `docs/education/` area is reserved for teaching material and is intentionally separate from architecture and planning notes. Educational documentation should favor visual explanations, especially Mermaid diagrams, small charts, progressive examples, and runnable code. Explain how Hypercore, Corestore, Hyperswarm, Autobase, and related libraries work together before showing how those pieces form Peer Hours. Optimize for readers learning the system, not only for contributors looking up a reference.
+
 ## Git
 
 - Use clear, focused commit messages.

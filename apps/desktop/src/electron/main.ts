@@ -5,7 +5,7 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 const runtime = new PeerRuntime(
   join(app.getPath("userData"), "peer-hours"),
   process.env.PEER_HOURS_BOOTSTRAP_KEY,
-  process.env.PEER_HOURS_BOOTSTRAP_URL ?? "http://127.0.0.1:10000/bootstrap",
+  process.env.PEER_HOURS_BOOTSTRAP_URL ?? "http://127.0.0.1:10001/bootstrap",
 );
 
 /** Creates the desktop window and loads either the Vite development UI or built renderer. */

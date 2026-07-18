@@ -40,6 +40,10 @@ Peer Hours is software for communities that want to run this kind of exchange. I
 
 This lesson is about the social model, not the network technology. Before learning how data moves between computers, we need to know who the software is for: a community.
 
+## Takeaway
+
+A timebank records a completed exchange as equal-and-opposite time changes. It is mutual accounting for help, not a marketplace payment system.
+
 ## Next lesson
 
 Continue to [Lesson 2: What Is a Peer Hours Community?](./02-what-is-a-community.md)

@@ -19,12 +19,12 @@ Peer Hours separates jobs. Bootstrap shares public connection metadata. Replicat
 ```mermaid
 flowchart LR
   B["Bootstrap endpoint"] -->|"community + core key"| R["Peer runtime"]
-  C["Replicated record core"] -->|"immutable records"| R
+  C["Known member feeds"] -->|"immutable records"| R
   R --> V["Verify and resolve"]
   V --> L["Derived balance"]
 ```
 
-If the bootstrap endpoint says “this is the community record core,” that does not make every record inside it valid. A valid transfer still needs the correct proposal linkage, authorized keys, matching payload digest, and participant signatures.
+Bootstrap does not name a community record core. Even after peers exchange member-feed keys, a valid transfer still needs the correct proposal linkage, declared feed provenance, authorized keys, matching payload digest, and participant signatures.
 
 ## Small example
 
@@ -40,11 +40,15 @@ Both desktops run the same validation rules. If the signatures are missing or th
 
 This is why the current packages are separated:
 
-- `peer-runtime` handles local peer and record-core behavior.
+- `peer-runtime` handles local peer and member-feed behavior.
 - `timebank-records` resolves immutable envelopes.
 - `timebank-identity`, `timebank-settlement`, and `timebank-ledger` decide whether records can affect derived state.
 
-The unresolved community-authority question is separate again: we still need a trusted policy for who may activate or revoke member signing keys. A reachable node is not, by itself, that policy.
+The unresolved identity-lifecycle question is separate again: key rotation and recovery need a self-owned protocol. A reachable community peer is not, by itself, that policy.
+
+## Takeaway
+
+Bootstrap tells a runtime where to begin. Independent local validation tells it which replicated records are acceptable.
 
 ## Next lesson
 

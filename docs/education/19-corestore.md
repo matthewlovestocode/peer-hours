@@ -9,8 +9,9 @@ In a web application, you might configure one database connection and create man
 ```mermaid
 flowchart TB
   S["One local Corestore directory"] --> N["Network core"]
-  S --> R["Timebank record core"]
-  S --> F["Possible future member feed"]
+  S --> D["Discovery core"]
+  S --> F["Local member feed"]
+  S --> R["Known remote member feeds"]
 ```
 
 Each core still has its own public key, ordered blocks, and replication behavior. Corestore gives the runtime a convenient place to open, persist, and replicate them together.
@@ -32,7 +33,7 @@ The exact files on disk are Corestore implementation details. Applications shoul
 
 ## Peer Hours connection
 
-`@peer-hours/peer-runtime` creates and owns an application-supplied Corestore. It opens the normal network core plus a named `peer-hours-timebank-records` core through `HypercoreRecordStore`. When it receives a replication connection, it replicates the Corestore, allowing the other runtime to exchange blocks for cores both sides have opened.
+`@peer-hours/peer-runtime` creates and owns an application-supplied Corestore. It opens a local discovery core and, for a member runtime, a named `peer-hours-member-records` feed through `HypercoreRecordStore`. After a valid signed feed announcement, it can open a known remote member feed too. When it receives a replication connection, it replicates the Corestore, allowing the other runtime to exchange blocks for cores both sides have opened.
 
 Corestore does not decide which records should be trusted or how a balance is calculated. `@peer-hours/timebank-records` and the pure timebank packages do that after records arrive locally.
 

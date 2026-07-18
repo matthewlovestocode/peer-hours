@@ -22,12 +22,13 @@ The package is deliberately separate from the timebank-domain and ledger package
 
 ## Current responsibilities
 
-- Opens an independent, locally writable member-record Hypercore alongside the community record core.
+- Opens an independent, locally writable member-record Hypercore for every runtime.
 
 - Creates an app-owned local data directory and Corestore.
 - Opens the `peer-hours-network` Hypercore and joins its discovery key.
 - Starts a Hyperswarm instance, listens for connections, and replicates the local Corestore over them.
 - Optionally obtains a community manifest from a configured bootstrap URL or uses a supplied bootstrap-core key, then joins that core's discovery key.
+- Exchanges root-signed, expiring member-feed announcements over the shared discovery core, validates them, and opens newly announced member feeds for Corestore replication.
 - Tracks direct Hyperswarm connections and derives `connecting`, `connected`, `stale`, and `offline` lifecycle states from peer freshness.
 - Polls a configured community node's `/status` endpoint to include its reported peer roster in the status view.
 - Supports explicitly registered simulated peers for development-only topology and UI testing. A simulated status entry is not proof of a direct transport connection or replication.
@@ -37,9 +38,9 @@ The package is deliberately separate from the timebank-domain and ledger package
 ## Explicit non-responsibilities
 
 - It does not define, persist, or validate timebank members, listings, exchange proposals, transfers, balances, or signatures.
-- It does not interpret or validate timebank-domain, identity, or ledger records. It can replicate their immutable JSON envelopes through a shared record core, while `@peer-hours/timebank-records` owns their meaning and resolution.
+- It does not interpret or validate timebank-domain, identity, or ledger records. It can replicate their immutable JSON envelopes through known member feeds, while `@peer-hours/timebank-records` owns their meaning and resolution.
 - It does not authenticate a bootstrap endpoint, establish that a fetched community manifest is trustworthy, or authorize community membership. The current loader checks a successful HTTP response and validates a complete manifest: a JSON object with nonblank community ID/display name, a positive integer protocol version, 64-character hexadecimal core keys, and HTTP(S) bootstrap URLs. It normalizes accepted keys and URLs. It does not yet pin a key, verify a signature, or establish that the endpoint is an authorized community operator.
-- It does not yet advertise, discover, or resolve member-feed declarations. `memberRecordFeedKey`, `appendMemberRecord()`, and `readMemberRecordsFromFeed()` establish the storage and replication boundary only.
+- It does not decide which people should announce feeds or interpret the records within an announced feed. A shared discovery-core key is still required before compatible runtimes can exchange announcements.
 - It does not guarantee that a peer shown from a community node's status endpoint is a direct local connection.
 - It is not an HTTP server; applications such as `apps/node` decide which endpoints to expose.
 - Simulated-peer registration is a status fixture only; it is not a real Hyperswarm connection or replication participant. A simulator process may run its own runtime, but registering its ID with a node does not prove that runtime is connected or synchronized.
@@ -54,7 +55,7 @@ The package is deliberately separate from the timebank-domain and ledger package
 const runtime = new PeerRuntime(
   "/path/to/app-data",
   undefined,
-  "http://127.0.0.1:10000/bootstrap",
+  "http://127.0.0.1:10001/bootstrap",
 );
 
 await runtime.start();
@@ -62,7 +63,7 @@ const status = runtime.status();
 await runtime.stop();
 ```
 
-Its constructor accepts an application-owned data directory, an optional bootstrap core key (hex), an optional bootstrap URL, an optional clock useful for deterministic tests, and an optional community record-core key. The final networking flag is intended for deterministic storage tests; application runtimes use the default enabled networking. `start()` initializes storage and discovery; `stop()` closes the swarm and store.
+Its constructor accepts an application-owned data directory, an optional bootstrap core key (hex), an optional bootstrap URL, an optional clock useful for deterministic tests, an optional networking flag, and an optional member-feed flag. Member applications use the default feed-enabled configuration. The headless community-peer application explicitly disables its own member feed because it has no human member identity. `start()` initializes storage and discovery; `stop()` closes the swarm and store.
 
 ### Status
 
@@ -74,7 +75,8 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 - listening and Hyperswarm discovery counts;
 - direct and community-reported `PeerStatus` entries;
 - bootstrap fetch state and optional `CommunityManifest` metadata.
-- active record-core key, local record count, and whether that core is locally owned or supplied by a community node.
+- local member-feed key and local member-feed record count when the runtime represents a member.
+- validated, unexpired member-feed announcements currently known to the runtime.
 
 `onStatusChange(listener)` subscribes to meaningful status changes and returns an unsubscribe function.
 
@@ -82,7 +84,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 
 ### Generic record storage
 
-`HypercoreRecordStore` persists immutable JSON values in one named Hypercore and can open a remote reader using that core's public key. `writable` reports whether the local Corestore owns the private writer key, and `append()` rejects remote reader cores. This prevents a desktop that opened a community-owned record core from being mistaken for an authorized writer. The store owns no record vocabulary; `@peer-hours/timebank-records` defines the Peer Hours record envelope and resolver that an application may store in it.
+`HypercoreRecordStore` persists immutable JSON values in one named Hypercore and can open a remote reader using that feed's public key. `writable` reports whether the local Corestore owns the private writer key, and `append()` rejects remote reader feeds. The store owns no record vocabulary; `@peer-hours/timebank-records` defines the Peer Hours record envelope and resolver that an application may store in it.
 
 ### Peer lifecycle
 
@@ -90,7 +92,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 
 ### Community manifest
 
-`CommunityManifest` is the bootstrap metadata currently read from an endpoint. It includes a community ID, display name, protocol version, public network core key, optional `recordCoreKey`, and bootstrap-node URLs. The runtime uses `coreKey` to open and join the associated discovery core and opens `recordCoreKey` as a reader when present.
+`CommunityManifest` is the bootstrap metadata currently read from an endpoint. It includes a community ID, display name, protocol version, the narrow `bootstrap` role, a `discovery-metadata` capability, a public discovery-core key, optional community-peer diagnostics URL, and fallback bootstrap URLs. The runtime uses `coreKey` to open and join the associated discovery core. The role is descriptive, not permission to control participation, and the manifest does not carry a community-owned record-feed key.
 
 This is structural validation, not trust establishment. Callers should surface bootstrap errors and avoid presenting fetched metadata as authenticated community authority until the protocol adds a signed or pinned manifest policy.
 

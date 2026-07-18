@@ -31,7 +31,11 @@ Consider two evenings:
 
 This is why Peer Hours plans for independently deployed community nodes. They support discovery, persistence, and replication for a particular timebank. They do not make ordinary members responsible for uptime.
 
-There is still a design question ahead: which records can members write, and how will their writes become available to the community? The current project deliberately has a community-owned writable record core while it designs safe member-originated writes.
+Peer Hours now has a first answer for that question: after two compatible peers meet through a shared discovery scope, a member can send a root-signed, short-lived announcement naming their feed. The announcement contains the feed identity and expiry, not private contact information. The receiving peer validates the signature and opens the feed for replication. The remaining work is to put that deliberate publication choice into the desktop UI and test it over real Hyperswarm discovery, not just direct test connections.
+
+## Takeaway
+
+Members can participate when their desktop is open. Independently operated community peers improve availability so participation never requires every member to become a server operator.
 
 ## Next lesson
 

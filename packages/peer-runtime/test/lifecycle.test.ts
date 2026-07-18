@@ -34,7 +34,7 @@ test("preserves connecting and discovered states while they are fresh", () => {
 
 test("reports an immutable start time and clock-derived uptime across snapshots", () => {
   let clock = Date.parse("2026-07-18T01:02:03.000Z");
-  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-test", undefined, undefined, () => clock, undefined, false);
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-test", undefined, undefined, () => clock, false);
 
   const initial = runtime.status();
   assert.equal(initial.startedAt, "2026-07-18T01:02:03.000Z");
@@ -50,7 +50,7 @@ test("reports an immutable start time and clock-derived uptime across snapshots"
 
 test("never reports negative uptime when an injected clock moves backwards", () => {
   let clock = Date.parse("2026-07-18T01:02:03.000Z");
-  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-backward-clock-test", undefined, undefined, () => clock, undefined, false);
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-backward-clock-test", undefined, undefined, () => clock, false);
 
   clock -= 1;
   assert.equal(runtime.status().uptimeMs, 0);

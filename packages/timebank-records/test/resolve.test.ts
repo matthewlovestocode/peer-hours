@@ -16,6 +16,7 @@ import {
   canonicalMemberSignedRecordPayload,
   createMemberSignedRecord,
   resolveTimebankRecords,
+  resolveTimebankMemberFeeds,
   rootKeyIdForMember,
   toAcceptedExchangeProposalRecord,
   toLedgerTransferRecord,
@@ -135,9 +136,17 @@ test("admits an accepted proposal from a self-owned root identity without a comm
   const proposalRecord = toAcceptedExchangeProposalRecord(acceptedProposal, { ...metadata, authorId: recipientId, occurredAt: "2026-07-18T13:01:00.000Z" });
   const signedProposal = signedRecord(proposalRecord, recipientKeys.privateKey, rootKeyIdForMember(recipientId));
 
-  const state = resolveTimebankRecords(communityId, [signedProposal, memberFeedDeclarationToRecord(declaration)]);
+  const declarationRecord = memberFeedDeclarationToRecord(declaration);
+  const state = resolveTimebankMemberFeeds(communityId, [{
+    feedPublicKey: declaration.feedPublicKey,
+    records: [signedProposal, declarationRecord],
+  }]);
   assert.equal(state.acceptedProposals.length, 1);
   assert.equal(state.authorizations[0]?.memberId, recipientId);
+  assert.throws(
+    () => resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: "b".repeat(64), records: [signedProposal, declarationRecord] }]),
+    /declared.*identity/i,
+  );
 });
 
 test("rejects a member-originated domain record without a valid authorized signature", () => {

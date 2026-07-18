@@ -1,4 +1,4 @@
-import { type ExchangeProposal } from "@peer-hours/timebank-domain";
+import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import {
   createEd25519SignatureVerifier,
   type MemberSigningKeyAuthorization,
@@ -23,16 +23,20 @@ import {
 import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
+  PUBLISHED_LISTING_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
   decodeLedgerTransferRecord,
+  decodePublishedListingRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
+  reducePublishedListingRecords,
 } from "./timebank-records.js";
 
 /** The deterministic local timebank view derived from one replicated record history. */
 export interface ResolvedTimebankState {
   readonly communityId: string;
   readonly authorizations: readonly MemberSigningKeyAuthorization[];
+  readonly publishedListings: readonly Listing[];
   readonly acceptedProposals: readonly ExchangeProposal[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
@@ -70,6 +74,10 @@ export function resolveTimebankRecords(
     );
     const authorizations = Object.freeze([...legacyAuthorizations, ...selfOwnedAuthorizations]);
     assertMemberSignedDomainRecords(records, communityId, authorizations);
+    const publishedListings = reducePublishedListingRecords(
+      communityRecords.filter((record) => record.kind === PUBLISHED_LISTING_RECORD_KIND),
+      communityId,
+    );
     const acceptedProposals = reduceAcceptedExchangeProposalRecords(
       communityRecords.filter((record) => record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND),
       communityId,
@@ -98,6 +106,7 @@ export function resolveTimebankRecords(
     return Object.freeze({
       communityId,
       authorizations,
+      publishedListings,
       acceptedProposals,
       transfers,
       ledger,
@@ -137,6 +146,14 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
     return;
   }
 
+  if (record.kind === PUBLISHED_LISTING_RECORD_KIND) {
+    const listing = decodePublishedListingRecord(record);
+    if (record.authorId !== listing.memberId) {
+      throw new RecordResolutionError("A published listing record must be signed by its member owner.");
+    }
+    return;
+  }
+
   const transfer = decodeLedgerTransferRecord(record);
   if (record.authorId !== transfer.providerMemberId && record.authorId !== transfer.recipientMemberId) {
     throw new RecordResolutionError("A ledger transfer record must be submitted by one of its participants.");
@@ -145,7 +162,7 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
 
 /** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

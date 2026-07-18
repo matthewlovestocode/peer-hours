@@ -34,6 +34,10 @@ The current packages model this distinction: proposals describe an intended exch
 
 This boundary is deliberate. It lets people record needs and offers in everyday life while treating shared time-credit settlement as a verifiable, connected action.
 
+## Takeaway
+
+Drafting can be local. A balance-changing settlement needs both people’s confirmation and a visible network path for sharing the resulting record.
+
 ## Next lesson
 
 Continue to [Lesson 8: Where Is the Database?](./08-where-is-the-database.md) to replace the usual single-server storage mental model.

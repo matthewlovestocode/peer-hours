@@ -19,10 +19,10 @@ Peer Hours connection health is a group of facts. Treat it as a status object, n
 ```mermaid
 flowchart TB
   S["Connection status"] --> L["Local runtime running?"]
-  S --> B["Bootstrap metadata available?"]
-  S --> C["Community record core open?"]
+  S --> B["Bootstrap metadata fetched?"]
+  S --> C["Local member feed ready?"]
   S --> P["Live peers connected?"]
-  S --> R["How many records are local?"]
+  S --> R["How many local member-feed records?"]
   S --> E["Last error or retry state?"]
 ```
 
@@ -33,14 +33,14 @@ Each fact answers a different question. A desktop may have local records while o
 Compare these two states:
 
 ```text
-A: runtime online, bootstrap fetched, record core open,
+A: runtime online, bootstrap fetched, member feed ready,
    0 live peers, 42 records local
 
 B: runtime online, bootstrap failed,
-   no community core known, 0 live peers, 42 records local
+   no discovery scope known, 0 live peers, 42 records local
 ```
 
-Both can show yesterday's local data. State A is ready to synchronize when a peer appears. State B needs bootstrap configuration or a retry before it even knows which community core to open.
+Both can show yesterday's local data. State A is ready to synchronize when a peer appears. State B needs bootstrap configuration or a retry before it knows which discovery scope to join.
 
 ## Uptime is not the same as health
 
@@ -78,6 +78,10 @@ The simulator is useful, but it must stay visibly different from a real connecti
 The desktop Network workspace is intentionally a diagnostics view: it exposes community-node, peer, and record-core state separately. This avoids the misleading claim that a member is “fully connected” when only one narrow condition is true.
 
 As Peer Hours grows, status can add sync progress, record lag, key-resolution health, and retry timing. Good status language builds trust because it tells members what the application knows, what it is doing, and what it cannot currently do.
+
+## Takeaway
+
+Connection is a collection of observable facts: local readiness, bootstrap state, peer availability, record freshness, and errors. A single green indicator cannot honestly represent all of them.
 
 ## Next lesson
 

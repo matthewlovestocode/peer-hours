@@ -35,7 +35,7 @@ This is useful when a later screen needs to understand how it reached its curren
 
 ## Peer Hours connection
 
-Peer Hours uses Hypercore storage through `@peer-hours/peer-runtime`. That runtime can open a named record core and append or read immutable JSON records. Hypercore does not know what an offer, proposal, or transfer means. The meaning belongs to Peer Hours packages such as `@peer-hours/timebank-records` and the domain packages it composes.
+Peer Hours uses Hypercore storage through `@peer-hours/peer-runtime`. That runtime can open a named member feed and append or read immutable JSON records. Hypercore does not know what an offer, proposal, or transfer means. The meaning belongs to Peer Hours packages such as `@peer-hours/timebank-records` and the domain packages it composes.
 
 An append-only log is not automatically a ledger, database, or trust system. It is the durable history that those higher-level rules can examine.
 

@@ -47,7 +47,7 @@ The identity package sits between signed member activity and the accounting rule
 
 `createSelfOwnedMemberIdentity({ rootPublicKeyPem })` derives a stable `phm_…` member ID from the exact Ed25519 root public key. `createMemberFeedDeclaration()` accepts a community ID, a lowercase Hypercore feed key, and a root signature over the canonical declaration. It rejects a changed member ID, feed key, timestamp, or signature.
 
-This is a protocol foundation, not feed discovery or feed-source enforcement yet. A community node does not approve the declaration. The record resolver now accepts the declaration's root key for that member's signed records; a future feed-aware resolver must also prove that each admitted record arrived from the declared feed.
+`createMemberFeedAnnouncement()` adds a short-lived discovery message around a valid declaration. The same root key signs its exact declaration, announcement time, and expiry, so a receiving runtime can reject altered, expired, or undeclared feed addresses before opening a remote feed. A community node does not approve either object. The feed-aware record resolver accepts the declaration's root key for that member's signed records and verifies that each admitted listing, proposal, or transfer arrived from the declared feed.
 
 ### Current authorizations
 

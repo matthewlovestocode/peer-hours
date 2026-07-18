@@ -4,7 +4,7 @@ This is a living product decision record. It distinguishes the intended Peer Hou
 
 ## Guiding principle
 
-> Peer Hours is open to participation. People choose what to share, whom to trust, and whether to exchange; community nodes replicate records but do not decide who may exist.
+> Peer Hours is open to participation. People choose what to share, whom to trust, and whether to exchange; community peers replicate records but do not decide who may exist. The open-source, not-for-profit protocol has no global governing authority or fee-extracting service at its center.
 
 ```mermaid
 flowchart LR
@@ -20,6 +20,7 @@ flowchart LR
 ### Identity and participation
 
 - There is no membership approval prerequisite, administrator-controlled admission list, or global ban list.
+- The network is intended to grow organically: compatible peers and communities must not need permission from a central organization, vendor, or required host to participate.
 - A person owns their signing identity. Their private signing material stays under their control; a community node must not impersonate them or own their balance.
 - One underlying identity may participate across communities. Community-specific profiles, listings, and exchange records remain scoped to their community.
 - An email address is core private identity metadata. It is never visible by default, is not replicated in public records, and does not need up-front verification for someone to participate.
@@ -68,7 +69,7 @@ The shared credit boundary is **-50 hours** (`-3000` minutes) per member within 
 | Decision | Verified code today | Current deviation | Proposed work |
 | --- | --- | --- | --- |
 | Open participation, no membership approval | There is no node HTTP membership-approval endpoint. Domain profiles no longer have an active/inactive state, and listing publication and exchange rules check only the relevant owner or participant relationship. | Identity verification still relies on a supplied community-scoped authorization list. That is a temporary verifier input, not an acceptable participation gate. | Define self-owned identity records and user-selected filtering, then replace the supplied authorization-list model. |
-| Self-owned signing identities | A `phm_…` member ID now derives from an Ed25519 root public key. A root-signed declaration can bind that identity to a community-scoped Hypercore member feed, and the resolver accepts that root key for the member's signed records without a community authorization event. Every runtime owns a separate writable member feed that replicates directly to a reader that knows its key. Private keys are not node API data. | Key rotation/recovery, feed discovery, and proof that an admitted record arrived from its declared feed are not wired into the community network. | Persist device-owned keys safely, add feed-aware resolution, and add privacy-preserving feed discovery. |
+| Self-owned signing identities | A `phm_…` member ID now derives from an Ed25519 root public key. A root-signed declaration binds that identity to a community-scoped Hypercore member feed, and the resolver accepts that root key for the member's signed records without a community authorization event. The feed-aware resolver also rejects member-authored records not supplied through a feed declared by their author. Each member runtime owns a separate writable member feed; connected runtimes can exchange a root-signed expiring announcement to open an unknown declared feed automatically. Community peers have no human member identity or member feed. Private keys are not node API data. | Key rotation/recovery, a user-controlled publication choice, and full privacy-aware discovery across real network topology are not wired into the community network. | Persist device-owned keys safely, expose an intentional announcement choice, and test discovery through real Hyperswarm connections. |
 | One identity across communities | All current records are correctly scoped to one community. | Profiles and key bindings are community-scoped; there is no root identity/profile relationship across communities. | Define one root identity with community-specific profiles and visibility settings. |
 | Private email + mutual exchange | No email field is currently replicated by the timebank protocol. | No private identity metadata, dual-consent record, encryption, or email-sharing UI exists. | Add private identity storage and dual-consent contact sharing without public email replication. |
 | Public general listings; private sensitive details | Listings currently carry only basic title/minute data. | There is no visibility model, broad-area field, sensitive-detail encryption, or UI. | Add explicit profile/listing visibility and participant-only detail handling. |

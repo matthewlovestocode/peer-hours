@@ -37,7 +37,7 @@ flowchart LR
 
 If one Earth-to-Mars path is unavailable, a second bridge may later carry the same replicated records. Members usually connect to a nearby or trusted community node; they do not need to know every path inside the web. A record being copied across multiple paths is still the same record, so its identity and signatures—not the route it took—tell us what it is.
 
-**Important boundary:** this diagram is a proposed federation topology, not a claim about the current runtime. Today Peer Hours establishes direct peer sessions after discovery and replicates the community record core between connected runtimes. It does not yet implement general multi-hop routing, automatic bridge selection, or an interplanetary transport layer. Those capabilities need explicit protocol and policy design.
+**Important boundary:** this diagram is a proposed federation topology, not a claim about the current runtime. Today Peer Hours establishes direct peer sessions after discovery, can exchange a signed expiring announcement for a member feed on a shared discovery core, and can replicate that announced feed between connected runtimes. It does not yet implement general multi-hop routing, automatic bridge selection, or an interplanetary transport layer. Those capabilities need explicit protocol and policy design.
 
 ## A small example
 
@@ -56,6 +56,10 @@ Live remote peers: 2
 Peer Hours uses precise language because it prevents an important misunderstanding. A **community node** is independently deployed, always-available infrastructure. A **peer** is any participating runtime, including the desktop app’s embedded runtime. We avoid saying “peer node” when one of those clearer terms is meant.
 
 Later lessons will introduce how peers find each other and replicate records. First, it helps to understand why member desktops are peers without also being servers.
+
+## Takeaway
+
+A peer is any runtime participating in replication. A community peer is simply one durable peer with an operational role, not a different source of truth.
 
 ## Next lesson
 

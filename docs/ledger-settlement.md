@@ -26,6 +26,20 @@ flowchart LR
 
 ## Attestation boundary
 
+The following compact transfer shape shows the separation between the immutable transfer terms and the two signatures over those terms:
+
+```json
+{
+  "id": "transfer-42",
+  "sourceProposalId": "proposal-42",
+  "providerMemberId": "alex",
+  "recipientMemberId": "bri",
+  "minutes": 60,
+  "providerAttestation": { "keyId": "alex-laptop", "payloadDigest": "…", "signature": "…" },
+  "recipientAttestation": { "keyId": "bri-phone", "payloadDigest": "…", "signature": "…" }
+}
+```
+
 The ledger requires each participant attestation to name a signing `keyId`, carry the SHA-256 `payloadDigest` of canonical transfer bytes, and include its signature. It accepts an injected verifier rather than a cryptography library. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier and community-scoped member-key authorization boundary. See [identity attestations](identity-attestations.md).
 
 The authorization registry is not yet a replicated protocol record. A formally versioned canonical JSON profile and verified linkage from `sourceProposalId` to an accepted proposal in `@peer-hours/timebank-domain` are still required.

@@ -6,6 +6,8 @@ This is a headless, continuously running Peer Hours node. It is infrastructure f
 
 This is the independently deployable community node. It is distinct from the peer runtime embedded in the desktop app. It should be usable as a local development fixture and as a remote community node.
 
+This application is not a bootstrap server. Do not add `/bootstrap` or manifest-serving behavior here; `apps/bootstrap/` owns the minimal, separate onboarding endpoint.
+
 ## First infrastructure milestone: observability
 
 The node must provide rich, trustworthy connection status before domain features are added. Make it possible for the desktop app and operators to inspect:

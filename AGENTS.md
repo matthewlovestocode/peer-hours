@@ -2,7 +2,7 @@
 
 ## Project purpose
 
-Peer Hours is a federated, local-first timebank system. Desktop applications serve members; independently deployed nodes provide persistent storage, discovery, and replication. The project is inspired by the BACE timebank model but should evolve toward a more resilient and adaptable peer-to-peer system.
+Peer Hours is a federated, local-first, open-source and not-for-profit timebank system. Desktop applications serve members; independently deployed nodes provide persistent storage, discovery, and replication. The project is inspired by the BACE timebank model but should evolve toward a more resilient and adaptable peer-to-peer system that can spread organically without a governing authority.
 
 ## Repository structure
 
@@ -21,6 +21,7 @@ Use precise network terminology: a **community node** is independently deployed,
 - Keep applications private. Only intentionally reusable npm packages may be publishable.
 - Keep domain rules explicit and testable; do not hide business behavior in UI or transport code.
 - Do not introduce a central-server assumption into code intended for replicated operation.
+- Do not introduce mandatory fees, central admission, a required vendor host, or a protocol role that controls member participation, identity, balances, or record truth.
 - Preserve local-first behavior where practical: local state should be understandable and recoverable.
 - Do not commit secrets, local environment files, dependencies, build output, or TypeScript build metadata.
 - Do not commit local runtime state. In particular, `apps/node/data/` contains the node's local persistent store and must remain ignored.

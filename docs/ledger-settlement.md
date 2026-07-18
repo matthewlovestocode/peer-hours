@@ -24,8 +24,10 @@ flowchart LR
 - A correction is a new, dual-attested reversal that swaps participants and uses the exact original minute amount. It never edits or deletes the original transfer.
 - Valid transfers may be processed in any order and derive the same balances.
 
-## Deliberate limits
+## Attestation boundary
 
-The current verifier is an injected interface, not a cryptographic implementation. The next protocol layer must define a versioned canonical transfer payload, member key authorization, attestation key identifiers, and signature algorithms. It must also connect `sourceProposalId` to a verified accepted proposal from `@peer-hours/timebank-domain`.
+The ledger requires each participant attestation to name a signing `keyId`, carry the SHA-256 `payloadDigest` of canonical transfer bytes, and include its signature. It accepts an injected verifier rather than a cryptography library. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier and community-scoped member-key authorization boundary. See [identity attestations](identity-attestations.md).
+
+The authorization registry is not yet a replicated protocol record. A formally versioned canonical JSON profile and verified linkage from `sourceProposalId` to an accepted proposal in `@peer-hours/timebank-domain` are still required.
 
 Credit limits, disputes, multi-device keys, membership revocation, and replicated ledger persistence are intentionally deferred. Negative balances are currently allowed because balance-limit enforcement needs a deterministic concurrent-spend protocol.

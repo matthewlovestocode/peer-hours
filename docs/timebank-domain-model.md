@@ -6,7 +6,7 @@ This is a working model for the first Peer Hours exchange workflow. It gives the
 
 All records belong to exactly one `communityId`. A member may participate in more than one community, but their membership and exchanges remain community-specific. Records use stable identifiers and timestamps; duration is stored as whole minutes, never a floating-point number of hours.
 
-An offer or request may be composed while offline. A completed exchange is different: it requires both participants' consent and must be replicated before the application presents it as final. A completed exchange is the future source for derived balances; it does not itself mutate a stored balance.
+An offer or request may be composed while offline. Settlement is different: it requires both participants' consent and must be replicated before the application presents it as final. A verified ledger transfer is the source for derived balances; it does not itself mutate a stored balance.
 
 ```mermaid
 classDiagram
@@ -35,18 +35,19 @@ classDiagram
       durationMinutes
       status
     }
-    class CompletedExchange {
-      exchangeId
-      completedAt
-      providerSignature
-      recipientSignature
+    class LedgerTransfer {
+      transferId
+      sourceProposalId
+      providerKeyId
+      recipientKeyId
+      payloadDigest
     }
 
     MemberProfile "1" --> "0..*" Offer : publishes
     MemberProfile "1" --> "0..*" Request : publishes
     Offer "0..1" --> "0..*" ProposedExchange : informs
     Request "0..1" --> "0..*" ProposedExchange : informs
-    ProposedExchange "1" --> "0..1" CompletedExchange : settles as
+    ProposedExchange "1" --> "0..1" LedgerTransfer : settles as
     MemberProfile "1" --> "0..*" ProposedExchange : provider or recipient
 ```
 
@@ -59,7 +60,7 @@ A member profile represents a member's public presence within one community. It 
 - `memberId` and `communityId` are immutable after creation.
 - `displayName` is required and non-blank.
 - Only an `active` member can publish an offer, publish a request, propose an exchange, or accept one.
-- A profile is not a device identity or a signing key. Those bindings belong to the future identity model.
+- A profile is not a device identity or a signing key. Those bindings belong to the separate [identity attestation boundary](identity-attestations.md).
 
 ### Offer
 
@@ -90,16 +91,18 @@ A proposed exchange is a specific agreement-in-progress between a provider and a
 - Only the non-creator can accept a proposal. Either participant can decline or cancel it before completion.
 - Acceptance records the accepting member and timestamp. It is a commitment to the proposed terms, not evidence that the service occurred.
 
-### Completed exchange
+### Settlement transfer
 
-A completed exchange is the final, signed account of an exchange that took place. It preserves the agreed provider, recipient, duration, and summary from an accepted proposal, adds `completedAt`, `providerSignature`, `recipientSignature`, and replication acknowledgement metadata. It is immutable.
+A settlement transfer is the final, signed account of an exchange that took place. It references one accepted proposal and preserves its community, provider, recipient, and duration. Each participant attestation names the authorized signing `keyId`, carries a SHA-256 digest of the canonical transfer bytes, and carries an Ed25519 signature. The transfer is immutable.
 
 - It can be created only from one accepted proposal and only once for that proposal.
-- Both signatures must authenticate the exact same canonical exchange payload.
-- The provider receives `durationMinutes` of time credit; the recipient incurs the corresponding debit when a future ledger derives balances.
-- A completion with missing, invalid, or mismatched participant signatures is invalid.
-- A locally signed completion remains pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand.
-- Corrections are future compensating events, never edits to a completed exchange.
+- Both signatures must authenticate the exact same canonical transfer bytes.
+- The provider receives `minutes` of time credit; the recipient incurs the corresponding debit when the ledger derives balances.
+- A transfer with missing, invalid, mismatched-key, or mismatched-digest attestations is invalid.
+- A locally signed transfer remains pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand.
+- Corrections are compensating transfers, never edits to a settled transfer.
+
+The current `@peer-hours/timebank-ledger` and `@peer-hours/timebank-identity` packages implement the transfer and verification rules in memory. Replicated authorization records and the verified link from `sourceProposalId` to an accepted proposal remain future integration work.
 
 ## TDD acceptance scenarios
 
@@ -146,23 +149,23 @@ Scenario: Acceptance freezes the agreed terms
 ### Completion and accounting boundary
 
 ```gherkin
-Scenario: Both participants finalize an accepted exchange
+Scenario: Both participants settle an accepted exchange
   Given an accepted 60 minute exchange between a provider and recipient
-  When both participants sign the same canonical completion payload
+  When both participants sign the same canonical transfer payload
   And replication acknowledgement is recorded
-  Then one immutable completed exchange exists
+  Then one immutable settlement transfer exists
   And it is finalized
-  And it credits the provider 60 minutes and debits the recipient 60 minutes for future balance derivation
+  And it credits the provider 60 minutes and debits the recipient 60 minutes through balance derivation
 
 Scenario: A single signature cannot finalize an exchange
   Given an accepted exchange signed only by the provider
-  When completion is requested
-  Then no finalized completed exchange exists
-  And the completion remains pending or is rejected
+  When settlement is requested
+  Then no finalized settlement transfer exists
+  And the transfer remains pending or is rejected
 
-Scenario: A completion cannot be duplicated
-  Given a finalized completed exchange for an accepted proposal
-  When either participant attempts a second completion for that proposal
+Scenario: A settlement cannot be duplicated
+  Given a finalized settlement transfer for an accepted proposal
+  When either participant attempts a second settlement for that proposal
   Then the operation is rejected
 ```
 
@@ -170,7 +173,7 @@ Scenario: A completion cannot be duplicated
 
 Start with pure functions and immutable records for member eligibility, offer/request publication, proposal creation, acceptance, and rejection. Write the scenarios above as failing tests first. Add signing, persistence, replication acknowledgement, and derived balances only after the in-memory state transitions are proven. This creates a concrete reuse case for a domain package without prematurely deciding its npm name or its transport format.
 
-The current implementation is [`@peer-hours/timebank-domain`](../packages/timebank-domain/). It covers active/inactive member profiles, draft/published listings, and proposed/accepted exchanges. It stores positive whole `minutes`, preserves the owning `communityId`, requires active listing owners and proposal participants, and records both the proposal creator and accepting participant. It rejects self-matches, cross-community matches, unpublished listings, inactive or mismatched members, and proposals larger than either listing. Signatures, completed exchanges, balances, and ledger postings remain future slices; in particular, an accepted proposal does not move any time credit.
+The current implementation is [`@peer-hours/timebank-domain`](../packages/timebank-domain/). It covers active/inactive member profiles, draft/published listings, and proposed/accepted exchanges. It stores positive whole `minutes`, preserves the owning `communityId`, requires active listing owners and proposal participants, and records both the proposal creator and accepting participant. It rejects self-matches, cross-community matches, unpublished listings, inactive or mismatched members, and proposals larger than either listing. An accepted proposal does not move any time credit. The separate ledger and identity packages now cover in-memory transfer attestation and balance derivation; network replication and proposal-to-transfer integration remain future slices.
 
 The next settlement boundary is documented in [ledger settlement](ledger-settlement.md). It is deliberately a separate package so that accepting an exchange and moving time-credit balances cannot be conflated.
 

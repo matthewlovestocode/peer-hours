@@ -7,6 +7,8 @@ export type MemberId = string;
 /** A participant's attestation of the exact transfer supplied to a verifier. */
 export interface TransferAttestation {
   readonly memberId: MemberId;
+  readonly keyId: string;
+  readonly payloadDigest: string;
   readonly signature: string;
 }
 
@@ -167,6 +169,8 @@ function normalizeAttestations(transfer: Transfer): TransferAttestation[] {
   const attestationsByMember = new Map<MemberId, TransferAttestation>();
   for (const attestation of transfer.attestations) {
     assertPresent(attestation.memberId, "Attesting member id");
+    assertPresent(attestation.keyId, "Attestation signing key id");
+    assertPresent(attestation.payloadDigest, "Attestation payload digest");
     assertPresent(attestation.signature, "Attestation signature");
     if (attestation.memberId !== transfer.providerMemberId && attestation.memberId !== transfer.recipientMemberId) {
       throw new LedgerRuleError("Only the provider and recipient may attest a transfer.");

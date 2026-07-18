@@ -13,6 +13,7 @@ peer-hours/
 ├── packages/
 │   ├── peer-runtime/        # Platform-neutral local peer runtime
 │   ├── timebank-domain/     # Member, listing, and exchange-agreement rules
+│   ├── timebank-identity/   # Community member signing-key verification
 │   └── timebank-ledger/     # Attested time-credit settlement and balance derivation
 ├── package.json             # Root workspace and shared scripts
 ├── package-lock.json        # Locked dependency versions
@@ -38,7 +39,7 @@ Packages are for reusable code shared by two or more applications, such as UI co
 
 Do not create a shared package speculatively. Add one when there is a concrete reuse case.
 
-`@peer-hours/timebank-domain` is the pure, test-first model for member eligibility, listings, and exchange consent. `@peer-hours/timebank-ledger` is a separate pure settlement boundary: dual-attested, integer-minute transfers derive balances but do not yet provide cryptographic key management or replicated persistence. See [the domain model](docs/timebank-domain-model.md) and [ledger settlement](docs/ledger-settlement.md).
+`@peer-hours/timebank-domain` is the pure, test-first model for member eligibility, listings, and exchange consent. `@peer-hours/timebank-ledger` is a separate settlement boundary for dual-attested, integer-minute transfers and derived balances. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier for community member keys. See [the domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
 
 ## Prerequisites
 

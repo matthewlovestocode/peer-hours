@@ -15,7 +15,7 @@ const recipientMemberId = "member-recipient";
 
 /** Creates a signature fixture accepted by the verifier used in these tests. */
 function attestation(memberId: string, signature = `valid:${memberId}`): TransferAttestation {
-  return { memberId, signature };
+  return { memberId, keyId: `${memberId}-key`, payloadDigest: "fixture-payload-digest", signature };
 }
 
 /** Creates a structurally valid transfer fixture with both participant attestations. */
@@ -62,6 +62,17 @@ test("requires exactly one provider and one recipient attestation", () => {
   );
   assert.throws(
     () => transfer({ attestations: [attestation(providerMemberId), attestation("unrelated-member")] }),
+    LedgerRuleError,
+  );
+});
+
+test("requires each participant attestation to identify its signing key and signed payload digest", () => {
+  assert.throws(
+    () => transfer({ attestations: [{ memberId: providerMemberId, keyId: "provider-key", payloadDigest: "", signature: "valid:provider" }, attestation(recipientMemberId)] }),
+    LedgerRuleError,
+  );
+  assert.throws(
+    () => transfer({ attestations: [{ memberId: providerMemberId, keyId: "", payloadDigest: "fixture-payload-digest", signature: "valid:provider" }, attestation(recipientMemberId)] }),
     LedgerRuleError,
   );
 });

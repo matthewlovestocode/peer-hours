@@ -106,3 +106,13 @@ Bootstrap availability is separate from community-node availability. Configure m
 For a planned restore, stop the affected node cleanly, verify a previously tested *consistent* backup, and restore it into a new `DATA_DIR`, then start it and wait for `GET /health` to return `200`. Inspect `GET /status` for its local core key, discovery activity, known member feeds, and bootstrap diagnostics. Finally, compare a known member-feed record history from an independent desktop or community node after replication has had time to catch up. Do not copy individual files into a live Corestore, overwrite a previous directory, or treat a fresh empty directory as a restore: it is only a new cache that must rediscover and replicate data.
 
 The current API cannot prove catch-up completeness or durable replication across a failure domain. Operators must define a freshness window, backup cadence/retention, restore objective, and an independent evidence source before representing the service as resilient to members.
+
+## Repeatable multi-node failure drill
+
+The automated node suite includes a deterministic transport drill that gives one member-owned feed to two independent community runtimes, stops one runtime, appends another record while the other remains available, then restarts the stopped runtime and verifies that it rediscovers and catches up from the survivor. It also verifies that a live community-node diagnostics server remains ready before the simulated outage. Run it with:
+
+```sh
+npm --workspace @peer-hours/node test
+```
+
+This is evidence that the local runtime's append-only replication and restart path work together. It is not a substitute for a deployment drill: before pilot enrollment, operators should repeat the same sequence across the two real failure domains, using their real bootstrap configuration, persisted `DATA_DIR` volumes, and an independently checked member-feed history. Record the outage time, recovery time, catch-up observation, and any missing history; do not infer durable or resilient replication from process health alone.

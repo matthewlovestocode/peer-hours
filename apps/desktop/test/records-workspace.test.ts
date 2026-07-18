@@ -6,7 +6,7 @@ import { readRecordsWorkspace, recordsWorkspaceErrorMessage } from "../src/rende
 function reader(overrides: Partial<Parameters<typeof readRecordsWorkspace>[0]> = {}) {
   return {
     getMemberRecords: async () => [{ id: "raw-1" }],
-    getMemberIdentityStatus: async () => ({ state: "ready" as const, memberId: "member-1", communityId: "community-1" }),
+    getMemberIdentityStatus: async () => ({ state: "ready" as const, memberId: "member-1", communityId: "community-1", deviceSigningKeys: [] }),
     getResolvedMemberState: async () => ({ state: "ready" as const, publishedListings: [], proposedProposals: [], acceptedProposals: [], settlementConfirmations: [], settlementAttestations: [], settledProposalIds: [], settlementDurability: [], transferCount: 0 }),
     ...overrides,
   };

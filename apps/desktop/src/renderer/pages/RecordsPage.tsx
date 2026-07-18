@@ -18,6 +18,7 @@ export function RecordsPage() {
   const [phase, setPhase] = useState<RecordsWorkspacePhase>("loading");
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [creatingIdentity, setCreatingIdentity] = useState(false);
+  const [changingDeviceKey, setChangingDeviceKey] = useState(false);
   const requestVersion = useRef(0);
 
   /** Refreshes every member-facing view from one consistent local snapshot and retains usable state if it fails. */
@@ -56,6 +57,34 @@ export function RecordsPage() {
     }
   };
 
+  /** Publishes one protected overlapping recovery device key and refreshes its replicated lifecycle state. */
+  const activateDeviceKey = async () => {
+    try {
+      setChangingDeviceKey(true);
+      await window.peerHours.activateDeviceSigningKey();
+      await refresh();
+    } catch (reason) {
+      setRefreshError(recordsWorkspaceErrorMessage(reason));
+      setPhase("error");
+    } finally {
+      setChangingDeviceKey(false);
+    }
+  };
+
+  /** Permanently revokes the selected active device key only after the member explicitly clicks its control. */
+  const revokeDeviceKey = async (keyId: string) => {
+    try {
+      setChangingDeviceKey(true);
+      await window.peerHours.revokeDeviceSigningKey(keyId);
+      await refresh();
+    } catch (reason) {
+      setRefreshError(recordsWorkspaceErrorMessage(reason));
+      setPhase("error");
+    } finally {
+      setChangingDeviceKey(false);
+    }
+  };
+
   const identity = snapshot?.identity;
   const resolved = snapshot?.resolved ?? null;
 
@@ -70,7 +99,7 @@ export function RecordsPage() {
       </header>
       <Panel>
         <RecordsWorkspaceStatus phase={phase} hasSnapshot={snapshot !== null} error={refreshError} onRefresh={() => void refresh()} />
-        {identity && <IdentityStatus identity={identity} creating={creatingIdentity} onCreate={() => void createIdentity()} />}
+        {identity && <IdentityStatus identity={identity} creating={creatingIdentity} changingDeviceKey={changingDeviceKey} onCreate={() => void createIdentity()} onActivateDeviceKey={() => void activateDeviceKey()} onRevokeDeviceKey={(keyId) => void revokeDeviceKey(keyId)} />}
         <RecordsTrustNotice resolved={resolved} rawRecordCount={snapshot?.records.length ?? 0} />
         {snapshot && <ResolvedState state={resolved} />}
         {identity?.state === "ready" && (

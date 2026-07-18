@@ -6,7 +6,7 @@ import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
 import { presentResolvedMemberState } from "./resolved-member-state.js";
 import { collectVerifiedSettlementDurability } from "./settlement-durability.js";
-import { parseCreateProposalRequest, parseListingId, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
+import { parseCreateProposalRequest, parseDeviceSigningKeyId, parseListingId, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
 
 const dataDirectory = join(app.getPath("userData"), "peer-hours");
 const runtime = new PeerRuntime(
@@ -68,6 +68,8 @@ app.whenReady().then(() => {
   ipcMain.handle("member:records", () => runtime.readMemberRecords());
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
+  ipcMain.handle("member:activate-device-signing-key", () => memberIdentity.activateDeviceSigningKey());
+  ipcMain.handle("member:revoke-device-signing-key", (_event, keyId: unknown) => memberIdentity.revokeDeviceSigningKey(parseDeviceSigningKeyId(keyId)));
   ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(parsePublishListingRequest(input)));
   ipcMain.handle("member:close-listing", async (_event, listingId: unknown) => {
     const closedListingId = parseListingId(listingId);

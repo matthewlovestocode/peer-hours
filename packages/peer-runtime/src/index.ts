@@ -333,7 +333,6 @@ export class PeerRuntime {
       this.store = new Corestore(this.dataDirectory);
       this.core = this.store.get({ name: "peer-hours-network", valueEncoding: "json" });
       await this.core.ready();
-      if (!this.memberFeedEnabled) this.registerMemberFeedAnnouncementExtension(this.core);
       if (this.memberFeedEnabled) {
         this.memberRecordStore = await HypercoreRecordStore.open(this.store, "peer-hours-member-records");
       }
@@ -347,6 +346,10 @@ export class PeerRuntime {
         await this.bootstrapCore.ready();
         this.registerMemberFeedAnnouncementExtension();
         if (this.networkingEnabled) this.join(this.bootstrapCore.discoveryKey);
+      } else {
+        // Without a configured discovery core, use this runtime's local network core for direct peers.
+        // Community runtimes must not register here before opening a configured shared discovery core.
+        this.registerMemberFeedAnnouncementExtension(this.core);
       }
       if (this.bootstrapUrls.length > 0) {
         this.statusTimer = setInterval(() => void this.refreshCommunityPeers(), 2_000);

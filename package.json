@@ -8,13 +8,15 @@
     "packages/*"
   ],
   "scripts": {
+    "audit:dependencies": "npm --workspaces=false audit --audit-level=high",
     "build": "npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
     "dev": "npm run dev --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify": "npm --workspaces=false run audit:dependencies && npm --workspaces=false test && npm --workspaces=false run typecheck && npm --workspaces=false run build"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   }
 }

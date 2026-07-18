@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseCreateProposalRequest, parseListingId, parsePublishListingRequest, parseRecordId } from "../src/electron/ipc-inputs.js";
+import { parseCreateProposalRequest, parseDeviceSigningKeyId, parseListingId, parsePublishListingRequest, parseRecordId } from "../src/electron/ipc-inputs.js";
 
 test("IPC listing validation trims bounded titles and accepts whole-minute values", () => {
   assert.deepEqual(parsePublishListingRequest({ kind: "offer", title: "  Garden help  ", minutes: 90 }), {
@@ -15,4 +15,6 @@ test("IPC mutation validation rejects malformed, fractional, and oversized rende
   assert.throws(() => parseCreateProposalRequest(null), /proposal details/i);
   assert.equal(parseListingId("listing-1"), "listing-1");
   assert.throws(() => parseListingId(" "), /listing id/i);
+  assert.equal(parseDeviceSigningKeyId("device:rotation-1"), "device:rotation-1");
+  assert.throws(() => parseDeviceSigningKeyId("root:member-1"), /device signing key id/i);
 });

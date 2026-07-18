@@ -1,17 +1,22 @@
 import { communityScopeLabel, identityPresentation } from "./identityPresentation.js";
+import { DeviceSigningKeyLifecycle, type DeviceSigningKeyValue } from "./DeviceSigningKeyLifecycle.js";
 
 /** Defines the identity facts required to render local signing readiness without exposing private key material. */
 export type IdentityStatusValue = {
   state: "unavailable" | "not-created" | "ready";
   memberId: string | null;
   communityId: string | null;
+  deviceSigningKeys: readonly DeviceSigningKeyValue[];
 };
 
 /** Presents local signing readiness, public identity, and community scope with an explicit recovery action. */
-export function IdentityStatus({ identity, creating, onCreate }: {
+export function IdentityStatus({ identity, creating, changingDeviceKey, onCreate, onActivateDeviceKey, onRevokeDeviceKey }: {
   identity: IdentityStatusValue;
   creating: boolean;
+  changingDeviceKey: boolean;
   onCreate: () => void;
+  onActivateDeviceKey: () => void;
+  onRevokeDeviceKey: (keyId: string) => void;
 }) {
   const presentation = identityPresentation(identity);
   const canCreate = identity.state === "not-created";
@@ -40,6 +45,7 @@ export function IdentityStatus({ identity, creating, onCreate }: {
           </div>
         </dl>
       )}
+      {identity.state === "ready" && <DeviceSigningKeyLifecycle keys={identity.deviceSigningKeys} busy={changingDeviceKey} onActivate={onActivateDeviceKey} onRevoke={onRevokeDeviceKey} />}
       {canCreate && <button type="button" disabled={creating} onClick={onCreate}>{creating ? "Creating local identity…" : "Create identity and announce member feed"}</button>}
       {identity.state === "unavailable" && <p className="error-message" role="alert">Unlock or enable secure operating-system storage, then refresh this workspace. Your existing raw history is unchanged.</p>}
     </section>

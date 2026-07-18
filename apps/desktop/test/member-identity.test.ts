@@ -9,6 +9,7 @@ import {
   decodeLedgerTransferRecord,
   decodeSettlementAcknowledgementRecord,
   decodeSettlementTransferAttestationRecord,
+  rootSignedMemberSigningKeyLifecycleFromRecord,
 } from "@peer-hours/timebank-records";
 import { createDualConfirmedSettlementTransferTerms, createSettlementAcknowledgement, createSettlementTransferAttestation } from "@peer-hours/timebank-settlement";
 import { MemberIdentityService, type MemberFeedRuntime, type SecureStorageAdapter, type StoredMemberIdentity } from "../src/electron/member-identity.js";
@@ -106,6 +107,58 @@ test("concurrent identity setup shares one root identity and declaration", async
   assert.equal(fixture.storage.writes(), 1);
   assert.equal(fixture.feed.records.length, 1);
   assert.equal(fixture.feed.announcements.length, 1);
+});
+
+test("publishes one root-signed protected device-key activation without exposing device key material", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+
+  await fixture.identity.activateDeviceSigningKey();
+
+  assert.equal(fixture.feed.records.length, 2);
+  const activation = rootSignedMemberSigningKeyLifecycleFromRecord(fixture.feed.records[1] as never);
+  assert.equal(activation.action, "activate");
+  assert.match(activation.keyId, /^device:/);
+  assert.equal(fixture.storage.stored()?.deviceSigningKeys?.length, 1);
+  assert.notEqual(fixture.storage.stored()?.deviceSigningKeys?.[0]?.privateKeyCiphertext, activation.publicKeyPem);
+  const status = await fixture.identity.status();
+  assert.deepEqual(status.deviceSigningKeys.map(({ keyId, state }) => ({ keyId, state })), [{ keyId: activation.keyId, state: "active" }]);
+});
+
+test("concurrent device-key activation shares one protected lifecycle append", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+
+  await Promise.all([fixture.identity.activateDeviceSigningKey(), fixture.identity.activateDeviceSigningKey()]);
+
+  assert.equal(fixture.feed.records.length, 2);
+  assert.equal(fixture.storage.stored()?.deviceSigningKeys?.length, 1);
+});
+
+test("permanently revokes an active device key and removes its local protected device material", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+  await fixture.identity.activateDeviceSigningKey();
+  const activation = rootSignedMemberSigningKeyLifecycleFromRecord(fixture.feed.records[1] as never);
+
+  await fixture.identity.revokeDeviceSigningKey(activation.keyId);
+
+  assert.equal(fixture.feed.records.length, 3);
+  const revocation = rootSignedMemberSigningKeyLifecycleFromRecord(fixture.feed.records[2] as never);
+  assert.equal(revocation.action, "revoke");
+  assert.equal(revocation.keyId, activation.keyId);
+  assert.deepEqual(fixture.storage.stored()?.deviceSigningKeys, []);
+  const status = await fixture.identity.status();
+  assert.deepEqual(status.deviceSigningKeys.map(({ keyId, state }) => ({ keyId, state })), [{ keyId: activation.keyId, state: "revoked" }]);
+});
+
+test("does not revoke an unknown device key or append a lifecycle statement", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+
+  await assert.rejects(fixture.identity.revokeDeviceSigningKey("device:not-published"), /active device signing keys/i);
+
+  assert.equal(fixture.feed.records.length, 1);
 });
 
 test("publishes a locally signed immutable offer without exposing root key material", async () => {

@@ -1,13 +1,18 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { acceptExchangeProposal, closeListing, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
-import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createParticipantTransferAttestation, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeLedgerTransferRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toClosedListingRecord, toDualConfirmedSettlementTransferRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord, toSettlementTransferAttestationRecord, type JsonObject, type RecordEnvelope } from "@peer-hours/timebank-records";
+import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, canonicalRootSignedMemberSigningKeyLifecyclePayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createParticipantTransferAttestation, createSelfOwnedMemberIdentity, ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA, type MemberFeedAnnouncement, type MemberFeedDeclaration, type RootSignedMemberSigningKeyLifecycle } from "@peer-hours/timebank-identity";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeLedgerTransferRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, rootSignedMemberSigningKeyLifecycleFromRecord, rootSignedMemberSigningKeyLifecycleToRecord, toAcceptedExchangeProposalRecord, toClosedListingRecord, toDualConfirmedSettlementTransferRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord, toSettlementTransferAttestationRecord, type JsonObject, type RecordEnvelope } from "@peer-hours/timebank-records";
 import { createDualConfirmedSettlementTransferTerms, createSettlementAcknowledgement, createSettlementTransferAttestation, type SettlementAcknowledgement, type SettlementTransferAttestation } from "@peer-hours/timebank-settlement";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
 /** Defines the encrypted identity material persisted only by the Electron main process. */
-export type StoredMemberIdentity = { privateKeyCiphertext: string; publicKeyPem: string };
-export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
+/** Defines one protected device signing key retained locally for a published lifecycle activation. */
+export type StoredDeviceSigningKey = { keyId: string; privateKeyCiphertext: string; publicKeyPem: string };
+/** Defines the encrypted root identity and optional device keys persisted only by Electron main. */
+export type StoredMemberIdentity = { privateKeyCiphertext: string; publicKeyPem: string; deviceSigningKeys?: readonly StoredDeviceSigningKey[] };
+/** Public, renderer-safe lifecycle state for a member-owned device key. */
+export type DeviceSigningKeyStatus = { keyId: string; state: "active" | "revoked"; occurredAt: string };
+export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null; deviceSigningKeys: readonly DeviceSigningKeyStatus[] };
 export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
 export type CreateProposalInput = { offer: Listing; request: Listing; minutes: number };
 export type AcceptProposalInput = { proposal: ExchangeProposal; offer: Listing; request: Listing };
@@ -48,6 +53,8 @@ export class MemberIdentityService {
   private readonly listingClosuresInProgress = new Set<string>();
   /** Shares one identity setup operation so repeated renderer clicks cannot create competing root identities. */
   private identitySetupInProgress: Promise<MemberIdentityStatus> | null = null;
+  /** Shares device-key activation so repeated renderer actions do not publish competing recovery keys. */
+  private deviceKeyActivationInProgress: Promise<void> | null = null;
 
   /** Creates a service from narrow secure-storage, persistence, and member-feed adapters. */
   constructor(
@@ -59,11 +66,12 @@ export class MemberIdentityService {
   /** Reports whether a local root identity can safely operate in the current discovery community. */
   async status(): Promise<MemberIdentityStatus> {
     const communityId = this.memberFeed.communityId();
-    if (!this.secureStorage.isEncryptionAvailable()) return { state: "unavailable", memberId: null, communityId };
+    if (!this.secureStorage.isEncryptionAvailable()) return { state: "unavailable", memberId: null, communityId, deviceSigningKeys: [] };
     const stored = await this.identityStore.read();
-    if (stored === null) return { state: "not-created", memberId: null, communityId };
+    if (stored === null) return { state: "not-created", memberId: null, communityId, deviceSigningKeys: [] };
     this.assertStoredIdentity(stored);
-    return { state: "ready", memberId: createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId, communityId };
+    const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    return { state: "ready", memberId, communityId, deviceSigningKeys: await this.deviceSigningKeyStatuses({ communityId, memberId, rootPublicKeyPem: stored.publicKeyPem }) };
   }
 
   /** Creates a protected root identity, declares its local feed, and announces it to current peers. */
@@ -76,6 +84,63 @@ export class MemberIdentityService {
     } finally {
       if (this.identitySetupInProgress === operation) this.identitySetupInProgress = null;
     }
+  }
+
+  /** Creates and root-signs one protected overlapping device key activation without exposing either private key. */
+  async activateDeviceSigningKey(): Promise<void> {
+    if (this.deviceKeyActivationInProgress !== null) return this.deviceKeyActivationInProgress;
+    const operation = this.activateDeviceSigningKeyOnce();
+    this.deviceKeyActivationInProgress = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.deviceKeyActivationInProgress === operation) this.deviceKeyActivationInProgress = null;
+    }
+  }
+
+  /** Publishes one recovery-capable device key activation after retaining its private material in OS-backed storage. */
+  private async activateDeviceSigningKeyOnce(): Promise<void> {
+    const { stored, communityId, memberId } = await this.requireProtectedIdentity("rotate a device signing key");
+    const keys = generateKeyPairSync("ed25519");
+    const deviceKey: StoredDeviceSigningKey = {
+      keyId: `device:${crypto.randomUUID()}`,
+      privateKeyCiphertext: this.secureStorage.encryptString(keys.privateKey.export({ format: "pem", type: "pkcs8" }).toString()),
+      publicKeyPem: keys.publicKey.export({ format: "pem", type: "spki" }).toString(),
+    };
+    await this.identityStore.write({ ...stored, deviceSigningKeys: [...(stored.deviceSigningKeys ?? []), deviceKey] });
+    const unsigned = {
+      schema: ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA as typeof ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA,
+      eventId: `member-key:${crypto.randomUUID()}`,
+      communityId,
+      memberId,
+      keyId: deviceKey.keyId,
+      action: "activate" as const,
+      occurredAt: new Date().toISOString(),
+      publicKeyPem: deviceKey.publicKeyPem,
+      rootPublicKeyPem: stored.publicKeyPem,
+    };
+    const statement = { ...unsigned, signature: this.sign(stored, canonicalRootSignedMemberSigningKeyLifecyclePayload(unsigned)) };
+    await this.memberFeed.appendRecord(rootSignedMemberSigningKeyLifecycleToRecord(statement) as unknown as JsonValue);
+  }
+
+  /** Root-signs one permanent revocation after confirming the selected device key is currently active. */
+  async revokeDeviceSigningKey(keyId: string): Promise<void> {
+    const { stored, communityId, memberId } = await this.requireProtectedIdentity("revoke a device signing key");
+    const status = await this.deviceSigningKeyStatuses({ communityId, memberId, rootPublicKeyPem: stored.publicKeyPem });
+    if (!status.some((key) => key.keyId === keyId && key.state === "active")) throw new Error("Choose one of your active device signing keys to revoke.");
+    const unsigned = {
+      schema: ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA as typeof ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA,
+      eventId: `member-key:${crypto.randomUUID()}`,
+      communityId,
+      memberId,
+      keyId,
+      action: "revoke" as const,
+      occurredAt: new Date().toISOString(),
+      rootPublicKeyPem: stored.publicKeyPem,
+    };
+    const statement = { ...unsigned, signature: this.sign(stored, canonicalRootSignedMemberSigningKeyLifecyclePayload(unsigned)) };
+    await this.memberFeed.appendRecord(rootSignedMemberSigningKeyLifecycleToRecord(statement) as unknown as JsonValue);
+    await this.identityStore.write({ ...stored, deviceSigningKeys: (stored.deviceSigningKeys ?? []).filter((key) => key.keyId !== keyId) });
   }
 
   /** Performs one serialized identity setup without allowing an overlapping call to replace its root key. */
@@ -271,6 +336,46 @@ export class MemberIdentityService {
     return stored;
   }
 
+  /** Requires the protected root identity and active discovery scope needed for a lifecycle mutation. */
+  private async requireProtectedIdentity(action: string): Promise<{ stored: StoredMemberIdentity; communityId: string; memberId: string }> {
+    const communityId = this.memberFeed.communityId();
+    const stored = await this.identityStore.read();
+    if (!communityId || stored === null || !this.secureStorage.isEncryptionAvailable()) {
+      throw new Error(`A protected identity and community scope are required to ${action}.`);
+    }
+    this.assertStoredIdentity(stored);
+    return {
+      stored,
+      communityId,
+      memberId: createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId,
+    };
+  }
+
+  /** Derives public lifecycle states from locally replicated root-signed statements without revealing key material. */
+  private async deviceSigningKeyStatuses(input: { communityId: string | null; memberId: string; rootPublicKeyPem: string }): Promise<readonly DeviceSigningKeyStatus[]> {
+    if (input.communityId === null) return [];
+    const latestByKey = new Map<string, RootSignedMemberSigningKeyLifecycle>();
+    for (const record of await this.memberFeed.readRecords()) {
+      try {
+        const statement = rootSignedMemberSigningKeyLifecycleFromRecord(record as never);
+        if (
+          statement.communityId !== input.communityId ||
+          statement.memberId !== input.memberId ||
+          statement.rootPublicKeyPem !== input.rootPublicKeyPem
+        ) continue;
+        const current = latestByKey.get(statement.keyId);
+        if (!current || current.occurredAt < statement.occurredAt || (current.occurredAt === statement.occurredAt && current.eventId < statement.eventId)) {
+          latestByKey.set(statement.keyId, statement);
+        }
+      } catch {
+        // Other record kinds and malformed untrusted records cannot affect lifecycle presentation.
+      }
+    }
+    return [...latestByKey.values()]
+      .map((statement) => ({ keyId: statement.keyId, state: statement.action === "activate" ? "active" as const : "revoked" as const, occurredAt: statement.occurredAt }))
+      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || left.keyId.localeCompare(right.keyId));
+  }
+
   /** Rejects malformed persisted material rather than silently replacing an established member identity. */
   private assertStoredIdentity(stored: StoredMemberIdentity): void {
     if (!stored.privateKeyCiphertext || !stored.publicKeyPem) throw new Error("Stored member identity material is corrupted.");
@@ -279,6 +384,12 @@ export class MemberIdentityService {
       const publicKey = createPublicKey(stored.publicKeyPem);
       const proof = Buffer.from("peer-hours/member-identity-integrity/v1");
       if (!verify(null, proof, publicKey, sign(null, proof, privateKey))) throw new Error("Public key does not match private key.");
+      for (const deviceKey of stored.deviceSigningKeys ?? []) {
+        if (!deviceKey.keyId || !deviceKey.privateKeyCiphertext || !deviceKey.publicKeyPem) throw new Error("Device signing key material is corrupted.");
+        const devicePrivateKey = createPrivateKey(this.secureStorage.decryptString(deviceKey.privateKeyCiphertext));
+        const devicePublicKey = createPublicKey(deviceKey.publicKeyPem);
+        if (!verify(null, proof, devicePublicKey, sign(null, proof, devicePrivateKey))) throw new Error("Device signing key material is corrupted.");
+      }
     } catch (error) {
       throw new Error("Stored member identity material is corrupted.", { cause: error });
     }

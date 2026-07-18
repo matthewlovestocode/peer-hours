@@ -3,7 +3,7 @@ import type { ResolvedMemberState } from "./types.js";
 /** Represents the three independently read values that must advance together in the records workspace. */
 export type RecordsWorkspaceSnapshot = {
   records: readonly unknown[];
-  identity: { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
+  identity: { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null; deviceSigningKeys: readonly { keyId: string; state: "active" | "revoked"; occurredAt: string }[] };
   resolved: ResolvedMemberState;
 };
 

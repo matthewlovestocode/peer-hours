@@ -17,6 +17,13 @@ export function parseListingId(value: unknown): string {
   return parseRecordId(value, "Listing id");
 }
 
+/** Validates a renderer-selected opaque device-key id before permanent lifecycle revocation. */
+export function parseDeviceSigningKeyId(value: unknown): string {
+  const keyId = parseRecordId(value, "Device signing key id");
+  if (!keyId.startsWith("device:")) throw new Error("Device signing key id is invalid.");
+  return keyId;
+}
+
 /** Validates a listing request before it reaches the signing service or domain constructors. */
 export function parsePublishListingRequest(value: unknown): PublishListingRequest {
   if (!isRecord(value) || (value.kind !== "offer" && value.kind !== "request")) {

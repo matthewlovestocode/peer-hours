@@ -4,7 +4,7 @@ Peer Hours is a decentralized, local-first, non-profit open-source timebank for 
 
 Members can offer what they know, request what they need, and settle a completed exchange as equal and opposite time-credit entries. Participation is open rather than membership-approved: people own their signing identities and decide locally whom to contact, trust, mute, or block. The project is inspired by the community-centered timebank model used by [BACE](https://timebank.sfbace.org/), while pursuing software that is more resilient, portable, and adaptable to present-day communities.
 
-It is not a centralized banking service, and it has no global governing authority. A member uses a desktop application with its own local peer runtime; independently operated **community peers** keep community data available, help peers discover one another, and replicate signed activity. Members do not need to operate a server to participate. Community peers support the network; they do not supervise its members, own their identities or balances, or decide whose records are true.
+It is not a centralized banking service, and it has no global governing authority. A member uses a desktop application with its own local peer runtime; independently operated **community nodes** keep community data available, help peers discover one another, and replicate signed activity. Members do not need to operate a server to participate. Community nodes support the network; they do not supervise its members, own their identities or balances, or decide whose records are true.
 
 ```mermaid
 flowchart LR
@@ -23,8 +23,8 @@ flowchart LR
 - **Decentralized by design.** Each participant validates signed protocol records locally. No global administrator, company, or community-peer operator controls participation, identity, balances, or the shared truth.
 - **Able to grow organically.** A person, cooperative, or community can operate compatible peer infrastructure and join or form a community without relying on one required host or vendor.
 - **Open source and not for profit.** Peer Hours is not designed to collect transaction fees, sell access, or extract money from timebank exchange. People may voluntarily operate infrastructure, but the protocol does not make a central service necessary.
-- **Community-supporting, not community-governing.** Always-on community peers improve discovery, replication, and availability while leaving trust, safety filters, and exchange decisions with people using the network.
-- **Resilient without required community peers.** Community peers make the experience more reliable, but compatible member desktops should still be able to discover one another, connect, and replicate when community peers are unavailable.
+- **Community-supporting, not community-governing.** Always-on community nodes improve discovery, replication, and availability while leaving trust, safety filters, and exchange decisions with people using the network.
+- **Resilient without required community nodes.** Community nodes make the experience more reliable, but compatible member desktops should still be able to discover one another, connect, and replicate when community nodes are unavailable.
 
 ```mermaid
 flowchart LR
@@ -53,9 +53,9 @@ peer-hours/earth/online/caregivers
 
 ## Current state
 
-This is an early, working foundation—not yet a production timebank. The desktop app, always-on community peer, embedded peer runtime, and development-peer simulator currently focus on making network connectivity visible and testable. Member runtimes own member feeds; a community peer has no human member identity and assists discovery and replication without owning community records or deciding member truth. The shared packages now test a narrow end-to-end protocol exchange between two direct member runtimes: signed feed declarations, published listings, an accepted proposal, a dual-attested settlement, and identical derived balances. A signed, expiring member-feed announcement can automatically open and replicate a discovered feed after peers share a discovery-core scope. Privacy-preserving agreement terms and a complete desktop member workflow are still ahead.
+This is an early, working foundation—not yet a production timebank. The desktop app, always-on community node, embedded peer runtime, and development-peer simulator make network connectivity visible and testable. Member runtimes own member feeds; a community node has no human member identity and assists discovery and replication without owning community records or deciding member truth. The shared packages test an end-to-end protocol exchange between two direct member runtimes: signed feed declarations, published listings, an accepted proposal, dual-confirmed and dual-attested settlement, locally admitted derived balances, and retention receipts. A signed, expiring member-feed announcement can automatically open and replicate a discovered feed after peers share a discovery-core scope. The desktop UI supports the corresponding member workflow; production release controls, privacy choices, correction UX, and pilot operations remain ahead.
 
-For the agreed product direction and an honest code-alignment audit, see [open participation and agreement privacy](docs/open-participation-and-agreement-privacy.md). For the living technical direction, see [network architecture](docs/network-architecture.md). For the production path and explicit readiness gaps, see the [production roadmap](docs/production-roadmap.md). For the active member-feed replication topology, see [record replication](docs/record-replication.md). For the package map and dependency direction, see [package architecture](docs/package-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md). For a clear distinction between process uptime, reachability, replication, and usable timebank service, see [runtime observability](docs/runtime-observability.md).
+For the agreed product direction and an honest code-alignment audit, see [open participation and agreement privacy](docs/open-participation-and-agreement-privacy.md). For the living technical direction, see [network architecture](docs/network-architecture.md). For the production path and explicit readiness gaps, see the [production roadmap](docs/production-roadmap.md). For repeatable validation and the pre-release checklist, see [release engineering](docs/release-engineering.md). For the active member-feed replication topology, see [record replication](docs/record-replication.md). For the package map and dependency direction, see [package architecture](docs/package-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md). For a clear distinction between process uptime, reachability, replication, and usable timebank service, see [runtime observability](docs/runtime-observability.md).
 
 ## Learn the architecture
 
@@ -74,7 +74,7 @@ peer-hours/
 ├── apps/
 │   ├── bootstrap/           # Minimal read-only discovery-metadata service
 │   ├── desktop/             # Electron + React desktop application
-│   ├── node/                # Headless always-on community peer
+│   ├── node/                # Headless always-on community node
 │   └── dev-peers/           # Real local peers for UI/network development
 ├── packages/
 │   ├── peer-runtime/        # Platform-neutral local peer runtime
@@ -97,7 +97,7 @@ Applications are deployable products. Each application has its own `package.json
 
 The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite. Its application shell provides a drawer-based navigation structure; network diagnostics live in the separate Network workspace rather than on the landing page.
 
-The `@peer-hours/node` application is a headless **community peer**: an always-on peer with no human member attached. It keeps persistent Hypercore storage, joins discovery topics, relays valid member-feed announcements, and exposes only health, status, and development-only simulator diagnostics. It has no `/bootstrap` endpoint and does not decide member truth.
+The `@peer-hours/node` application is a headless **community node**: an always-on peer with no human member attached. It keeps persistent Hypercore storage, joins discovery topics, relays valid member-feed announcements, and exposes only health, status, and development-only simulator diagnostics. It has no `/bootstrap` endpoint and does not decide member truth.
 
 The `@peer-hours/bootstrap` application is a separate, minimal, read-only onboarding service. It serves configured discovery metadata at `/bootstrap`, but it runs no peer runtime, retains no member data, and has no role in identity, record, balance, or participation decisions. See [its README](apps/bootstrap/README.md).
 
@@ -113,7 +113,8 @@ Do not create a shared package speculatively. Add one when there is a concrete r
 
 ## Prerequisites
 
-- Node.js 22.12 or newer is recommended for the Electron toolchain.
+- Node.js 22.12 or newer is required for the Electron toolchain and repository
+  validation.
 - npm 10 or newer.
 - macOS is required to build and test macOS application artifacts locally.
 
@@ -138,7 +139,7 @@ The root install configures dependencies for all npm workspaces. The resulting `
 
 The desktop application owns an embedded local peer runtime from `@peer-hours/peer-runtime`. It does not require a separately launched node for its local status view. Run an additional node when testing replication with another peer.
 
-To run a local community peer, use terminal 1:
+To run a local community node, use terminal 1:
 
 ```sh
 npm --workspace @peer-hours/node run build
@@ -152,7 +153,7 @@ curl http://127.0.0.1:10000/health
 curl http://127.0.0.1:10000/status
 ```
 
-Copy the `peerId` returned by `/status`; it is the discovery-core public key for this local community peer. In terminal 2, run the separate bootstrap service with that key:
+Copy the `peerId` returned by `/status`; it is the discovery-core public key for this local community node. In terminal 2, run the separate bootstrap service with that key:
 
 ```sh
 npm --workspace @peer-hours/bootstrap run build
@@ -172,7 +173,7 @@ In terminal 3, start the Vite development server and Electron together:
 npm --workspace @peer-hours/desktop run dev
 ```
 
-The desktop defaults to `http://127.0.0.1:10001/bootstrap`, fetches the read-only bootstrap manifest and public discovery-core key, and joins its discovery topic. The manifest can optionally name a separate community-peer diagnostics URL. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status. It also owns a persistent member feed; the Network workspace shows that feed's public key and local record count. The bootstrap service does not publish a community record core, and the community peer has no special data-writing authority.
+The desktop defaults to `http://127.0.0.1:10001/bootstrap`, fetches the read-only bootstrap manifest and public discovery-core key, and joins its discovery topic. The manifest can optionally name a separate community-node diagnostics URL. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status. It also owns a persistent member feed; the Network workspace shows that feed's public key and local record count. The bootstrap service does not publish a community record core, and the community node has no special data-writing authority.
 
 Peer lifecycle status is reported as `discovered`, `connecting`, `connected`, `stale`, or `offline`. A peer becomes stale after 10 seconds without a fresh heartbeat and is retained for up to 30 seconds so the desktop can show the transition before removing it.
 
@@ -193,7 +194,7 @@ npm --workspace @peer-hours/dev-peers run build
 ENABLE_DEV_PEER_REGISTRATION=true PEER_COUNT=5 npm --workspace @peer-hours/dev-peers run start
 ```
 
-Each simulator process has its own identity and storage directory and bootstraps through the separate bootstrap endpoint. For the **roster** shown by the local community peer, it also repeatedly sends this explicit development registration action to the community peer.
+Each simulator process has its own identity and storage directory and bootstraps through the separate bootstrap endpoint. For the **roster** shown by the local community node, it also repeatedly sends this explicit development registration action to the community node.
 
 ```json
 { "id": "simulator-peer-id", "action": "register" }
@@ -258,6 +259,8 @@ npm run typecheck
 npm run build
 npm run clean
 npm test
+npm --workspaces=false run audit:dependencies
+npm --workspaces=false run verify
 ```
 
 Run a command for a specific workspace with either its package name or path:

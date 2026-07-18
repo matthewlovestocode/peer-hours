@@ -1,5 +1,18 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { PeerRuntime } from "@peer-hours/peer-runtime";
+
+/** Writes a cache-safe snapshot of record-core metadata and immutable records without exposing mutations. */
+async function respondWithRecords(response: ServerResponse, runtime: PeerRuntime): Promise<void> {
+  try {
+    const status = runtime.status();
+    const records = await runtime.readRecords();
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({ recordCore: status.records, records }));
+  } catch (error) {
+    response.writeHead(503, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({ error: error instanceof Error ? error.message : "Record core is unavailable" }));
+  }
+}
 
 /** Creates the community node HTTP API used by desktop peers and development simulators. */
 export function createNodeServer(runtime: PeerRuntime, metadata: { communityId: string; displayName: string }): Server {
@@ -21,7 +34,12 @@ export function createNodeServer(runtime: PeerRuntime, metadata: { communityId: 
 
     if (request.url === "/bootstrap" && request.method === "GET") {
       response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-      response.end(JSON.stringify({ communityId: metadata.communityId, displayName: metadata.displayName, protocolVersion: 1, coreKey: status.replication.coreKey, bootstrapNodes: [] }));
+      response.end(JSON.stringify({ communityId: metadata.communityId, displayName: metadata.displayName, protocolVersion: 1, coreKey: status.replication.coreKey, recordCoreKey: status.records.coreKey, bootstrapNodes: [] }));
+      return;
+    }
+
+    if (request.url === "/records" && request.method === "GET") {
+      void respondWithRecords(response, runtime);
       return;
     }
 

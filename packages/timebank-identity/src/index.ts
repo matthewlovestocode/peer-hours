@@ -16,6 +16,36 @@ export interface MemberSigningKeyAuthorization {
 /** Input used to create an immutable community-scoped signing-key authorization. */
 export interface CreateMemberSigningKeyAuthorizationInput extends MemberSigningKeyAuthorization {}
 
+/** The immutable lifecycle action applied to one community member signing key. */
+export type MemberSigningKeyAuthorizationAction = "activate" | "revoke";
+
+/** Immutable replicated event that authorizes a member's Ed25519 public signing key. */
+export interface MemberSigningKeyActivationEvent {
+  readonly eventId: string;
+  readonly communityId: string;
+  readonly memberId: string;
+  readonly keyId: SigningKeyId;
+  readonly action: "activate";
+  readonly occurredAt: string;
+  readonly publicKeyPem: string;
+}
+
+/** Immutable replicated event that revokes one member's currently known signing key. */
+export interface MemberSigningKeyRevocationEvent {
+  readonly eventId: string;
+  readonly communityId: string;
+  readonly memberId: string;
+  readonly keyId: SigningKeyId;
+  readonly action: "revoke";
+  readonly occurredAt: string;
+}
+
+/** A replicated member signing-key authorization lifecycle event. */
+export type MemberSigningKeyAuthorizationEvent = MemberSigningKeyActivationEvent | MemberSigningKeyRevocationEvent;
+
+/** Input used to create one immutable member signing-key authorization lifecycle event. */
+export type CreateMemberSigningKeyAuthorizationEventInput = MemberSigningKeyAuthorizationEvent;
+
 /** Error raised when a member signing-key authorization is structurally invalid. */
 export class IdentityRuleError extends Error {
   /** Creates an identity-rule error with a readable explanation. */
@@ -47,6 +77,100 @@ export function createMemberSigningKeyAuthorization(
     publicKeyPem: input.publicKeyPem,
     active: input.active,
   });
+}
+
+/**
+ * Creates an immutable authorization lifecycle event suitable for replication.
+ *
+ * Event ids make repeated delivery idempotent. Activations name the authorized Ed25519 public
+ * key, while revocations target a previously known community, member, and key id.
+ */
+export function createMemberSigningKeyAuthorizationEvent(
+  input: CreateMemberSigningKeyAuthorizationEventInput,
+): MemberSigningKeyAuthorizationEvent {
+  assertPresent(input.eventId, "Authorization event id");
+  assertPresent(input.communityId, "Community id");
+  assertPresent(input.memberId, "Member id");
+  assertPresent(input.keyId, "Signing key id");
+  assertCanonicalTimestamp(input.occurredAt);
+
+  if (input.action === "activate") {
+    assertPresent(input.publicKeyPem, "Ed25519 public key");
+    parseEd25519PublicKey(input.publicKeyPem);
+    return Object.freeze({
+      eventId: input.eventId,
+      communityId: input.communityId,
+      memberId: input.memberId,
+      keyId: input.keyId,
+      action: input.action,
+      occurredAt: input.occurredAt,
+      publicKeyPem: input.publicKeyPem,
+    });
+  }
+
+  if (input.action !== "revoke") {
+    throw new IdentityRuleError("Authorization event action must be activate or revoke.");
+  }
+
+  return Object.freeze({
+    eventId: input.eventId,
+    communityId: input.communityId,
+    memberId: input.memberId,
+    keyId: input.keyId,
+    action: input.action,
+    occurredAt: input.occurredAt,
+  });
+}
+
+/**
+ * Deterministically reduces an unordered replicated event history to current key authorizations.
+ *
+ * Identical event ids are delivered once. A duplicate id carrying different immutable terms is
+ * rejected so replicas cannot silently choose between conflicting histories.
+ */
+export function reduceMemberSigningKeyAuthorizationEvents(
+  events: readonly MemberSigningKeyAuthorizationEvent[],
+): readonly MemberSigningKeyAuthorization[] {
+  const eventsById = new Map<string, MemberSigningKeyAuthorizationEvent>();
+
+  for (const event of events) {
+    const normalized = createMemberSigningKeyAuthorizationEvent(event);
+    const existing = eventsById.get(normalized.eventId);
+    if (existing !== undefined && authorizationEventFingerprint(existing) !== authorizationEventFingerprint(normalized)) {
+      throw new IdentityRuleError("Conflicting authorization events share the same event id.");
+    }
+    eventsById.set(normalized.eventId, normalized);
+  }
+
+  const currentByKey = new Map<string, ReducedAuthorization>();
+  const orderedEvents = [...eventsById.values()].sort(compareAuthorizationEvents);
+  for (const event of orderedEvents) {
+    const authorizationKey = keyFor(event.communityId, event.memberId, event.keyId);
+    const current = currentByKey.get(authorizationKey);
+
+    if (event.action === "activate") {
+      currentByKey.set(authorizationKey, {
+        authorization: createMemberSigningKeyAuthorization({ ...event, active: true }),
+        occurredAt: event.occurredAt,
+        eventId: event.eventId,
+      });
+      continue;
+    }
+
+    if (current !== undefined) {
+      currentByKey.set(authorizationKey, {
+        authorization: createMemberSigningKeyAuthorization({ ...current.authorization, active: false }),
+        occurredAt: event.occurredAt,
+        eventId: event.eventId,
+      });
+    }
+  }
+
+  return Object.freeze(
+    [...currentByKey.values()]
+      .sort(compareReducedAuthorizations)
+      .map(({ authorization }) => authorization),
+  );
 }
 
 /**
@@ -142,6 +266,45 @@ function indexAuthorizedKeys(authorizations: readonly MemberSigningKeyAuthorizat
   return keysByCommunityMemberAndId;
 }
 
+/** One current authorization paired with the event that most recently determined its state. */
+interface ReducedAuthorization {
+  readonly authorization: MemberSigningKeyAuthorization;
+  readonly occurredAt: string;
+  readonly eventId: string;
+}
+
+/** Sorts lifecycle events into a replica-independent chronological order. */
+function compareAuthorizationEvents(
+  left: MemberSigningKeyAuthorizationEvent,
+  right: MemberSigningKeyAuthorizationEvent,
+): number {
+  return left.occurredAt.localeCompare(right.occurredAt) || left.eventId.localeCompare(right.eventId);
+}
+
+/** Sorts current authorizations by their determining event, then immutable authorization scope. */
+function compareReducedAuthorizations(left: ReducedAuthorization, right: ReducedAuthorization): number {
+  return (
+    left.occurredAt.localeCompare(right.occurredAt) ||
+    left.eventId.localeCompare(right.eventId) ||
+    left.authorization.communityId.localeCompare(right.authorization.communityId) ||
+    left.authorization.memberId.localeCompare(right.authorization.memberId) ||
+    left.authorization.keyId.localeCompare(right.authorization.keyId)
+  );
+}
+
+/** Produces stable immutable terms for detecting conflicting duplicate event ids. */
+function authorizationEventFingerprint(event: MemberSigningKeyAuthorizationEvent): string {
+  return JSON.stringify({
+    eventId: event.eventId,
+    communityId: event.communityId,
+    memberId: event.memberId,
+    keyId: event.keyId,
+    action: event.action,
+    occurredAt: event.occurredAt,
+    publicKeyPem: event.action === "activate" ? event.publicKeyPem : null,
+  });
+}
+
 /** Parses an Ed25519 PEM public key and rejects other key algorithms. */
 function parseEd25519PublicKey(publicKeyPem: string): KeyObject {
   try {
@@ -177,8 +340,17 @@ function keyFor(communityId: string, memberId: string, keyId: string): string {
 }
 
 /** Ensures authorization text values are non-blank. */
-function assertPresent(value: string, label: string): void {
-  if (value.trim().length === 0) {
+function assertPresent(value: unknown, label: string): void {
+  if (typeof value !== "string" || value.trim().length === 0) {
     throw new IdentityRuleError(`${label} is required.`);
+  }
+}
+
+/** Ensures a lifecycle event timestamp has one unambiguous UTC ISO-8601 representation. */
+function assertCanonicalTimestamp(value: string): void {
+  assertPresent(value, "Authorization event timestamp");
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.valueOf()) || timestamp.toISOString() !== value) {
+    throw new IdentityRuleError("Authorization event timestamp must be a canonical UTC ISO-8601 timestamp.");
   }
 }

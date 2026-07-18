@@ -88,7 +88,7 @@ apps/
 └── admin/         # Possible community administration interface
 ```
 
-`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, and peer status; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain` and `timebank-ledger` packages now define agreement and settlement rules, but are not yet persisted or replicated as application events. The admin application should be added when its first concrete workflows are understood.
+`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, peer status, and a community-owned record core; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain`, `timebank-settlement`, `timebank-ledger`, `timebank-identity`, and `timebank-records` packages now define agreement, proposal-to-transfer validation, settlement, key lifecycle, and immutable-record resolution rules. The desktop opens the community record core from bootstrap metadata and shows its health, but member-owned application records and their multiwriter write path are not yet wired. The admin application should be added when its first concrete workflows are understood.
 
 ## Local development topology
 
@@ -109,19 +109,23 @@ The development community node exists to make local testing repeatable. The depl
 
 ## Possible shared packages
 
-These are potential boundaries. `timebank-domain` now covers the initial listings and agreement rules, and `timebank-ledger` covers pure attested settlement and balance derivation:
+These are concrete and potential boundaries. The current packages cover the initial agreement, authorization, settlement-linkage, and balance rules:
 
 ```text
 packages/
-├── identity/      # Keys, identities, and device authorization
-├── timebank-domain/ # Member profiles, offers, requests, and exchange consent
-├── timebank-ledger/ # Attested time-credit transfers and derived balances
+├── timebank-domain/     # Member profiles, listings, and exchange consent
+├── timebank-identity/   # Member-key lifecycle records and Ed25519 verification
+├── timebank-ledger/     # Attested time-credit transfers and derived balances
+├── timebank-records/    # Immutable event envelope and deterministic timebank resolver
+├── timebank-settlement/ # Accepted-proposal to settlement-transfer validation
 ├── sync/          # Replication and conflict handling
 ├── protocol/      # Network message formats and serialization
 └── policy/        # Community-configurable rules
 ```
 
 Packages should be created when there is a real reuse case or a stable domain boundary. We should avoid creating a generic `core` package simply because the repository has a `packages/` directory.
+
+The current member-key events are deterministic, replicated-ready records; they do not yet establish who is allowed to authorize a key. A future community authorization protocol must make that authority explicit and replicate its signed decisions before these records can be trusted from the network.
 
 ## First useful prototype
 

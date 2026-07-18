@@ -1,0 +1,140 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createRecordEnvelope } from "../src/envelope.js";
+import {
+  ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  LEDGER_TRANSFER_RECORD_KIND,
+  RecordMappingError,
+  decodeAcceptedExchangeProposalRecord,
+  decodeLedgerTransferRecord,
+  reduceAcceptedExchangeProposalRecords,
+  reduceLedgerTransferRecords,
+  toAcceptedExchangeProposalRecord,
+  toLedgerTransferRecord,
+} from "../src/timebank-records.js";
+
+const communityId = "peer-hours/earth/US/CA/east-bay";
+const otherCommunityId = "peer-hours/earth/US/CA/san-francisco";
+const recordMetadata = { occurredAt: "2026-07-18T08:00:00.000Z", authorId: "member-provider" };
+
+/** Creates one generic envelope using the fixed timebank mapping schema metadata. */
+function envelope(input: { readonly id: string; readonly communityId: string; readonly kind: string; readonly payload: object }) {
+  return createRecordEnvelope({
+    ...input,
+    schema: "peer-hours/timebank-record/v1",
+    version: 1,
+    ...recordMetadata,
+  });
+}
+
+/** Creates an immutable accepted exchange proposal fixture. */
+function acceptedProposal(id = "proposal-1") {
+  return {
+    id,
+    communityId,
+    offerId: "offer-1",
+    requestId: "request-1",
+    providerMemberId: "member-provider",
+    receiverMemberId: "member-recipient",
+    creatorMemberId: "member-provider",
+    acceptedByMemberId: "member-recipient",
+    minutes: 60,
+    status: "accepted" as const,
+  };
+}
+
+/** Creates a structurally valid ledger transfer fixture with both participant attestations. */
+function transfer(id = "transfer-1") {
+  return {
+    id,
+    communityId,
+    sourceProposalId: "proposal-1",
+    providerMemberId: "member-provider",
+    recipientMemberId: "member-recipient",
+    minutes: 60,
+    attestations: [
+      { memberId: "member-provider", keyId: "provider-key", payloadDigest: "digest", signature: "provider-signature" },
+      { memberId: "member-recipient", keyId: "recipient-key", payloadDigest: "digest", signature: "recipient-signature" },
+    ],
+  };
+}
+
+test("maps and decodes an immutable accepted exchange proposal", () => {
+  const record = toAcceptedExchangeProposalRecord(acceptedProposal(), recordMetadata);
+
+  assert.equal(record.kind, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND);
+  assert.equal(record.communityId, communityId);
+  assert.deepEqual(decodeAcceptedExchangeProposalRecord(record), acceptedProposal());
+});
+
+test("maps and decodes a ledger transfer without losing attestations", () => {
+  const expected = transfer();
+  const record = toLedgerTransferRecord(expected, recordMetadata);
+
+  assert.equal(record.kind, LEDGER_TRANSFER_RECORD_KIND);
+  assert.deepEqual(decodeLedgerTransferRecord(record), expected);
+});
+
+test("rejects malformed proposal and transfer record payloads", () => {
+  const malformedProposal = envelope({
+    id: "proposal-1",
+    communityId,
+    kind: ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+    payload: { ...acceptedProposal(), acceptedByMemberId: "" },
+  });
+  const malformedTransfer = envelope({
+    id: "transfer-1",
+    communityId,
+    kind: LEDGER_TRANSFER_RECORD_KIND,
+    payload: { ...transfer(), attestations: [] },
+  });
+
+  assert.throws(() => decodeAcceptedExchangeProposalRecord(malformedProposal), RecordMappingError);
+  assert.throws(() => decodeLedgerTransferRecord(malformedTransfer), RecordMappingError);
+});
+
+test("rejects records whose kind or community does not match their payload", () => {
+  const wrongKind = envelope({
+    id: "proposal-1",
+    communityId,
+    kind: LEDGER_TRANSFER_RECORD_KIND,
+    payload: acceptedProposal(),
+  });
+  const crossCommunity = envelope({
+    id: "proposal-1",
+    communityId: otherCommunityId,
+    kind: ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+    payload: acceptedProposal(),
+  });
+
+  assert.throws(() => decodeAcceptedExchangeProposalRecord(wrongKind), RecordMappingError);
+  assert.throws(() => decodeAcceptedExchangeProposalRecord(crossCommunity), RecordMappingError);
+});
+
+test("reduces duplicate proposal records and rejects conflicting or cross-community records", () => {
+  const proposal = acceptedProposal();
+  const duplicate = toAcceptedExchangeProposalRecord(proposal, recordMetadata);
+  const conflict = toAcceptedExchangeProposalRecord({ ...proposal, minutes: 30 }, recordMetadata);
+  const crossCommunity = toAcceptedExchangeProposalRecord(
+    { ...proposal, id: "proposal-2", communityId: otherCommunityId },
+    recordMetadata,
+  );
+
+  assert.deepEqual(reduceAcceptedExchangeProposalRecords([duplicate, duplicate], communityId), [proposal]);
+  assert.throws(() => reduceAcceptedExchangeProposalRecords([duplicate, conflict], communityId), RecordMappingError);
+  assert.throws(() => reduceAcceptedExchangeProposalRecords([duplicate, crossCommunity], communityId), RecordMappingError);
+});
+
+test("reduces duplicate transfer records, preserves attestations, and rejects conflicts", () => {
+  const expected = transfer();
+  const duplicate = toLedgerTransferRecord(expected, recordMetadata);
+  const conflict = toLedgerTransferRecord({ ...expected, minutes: 30 }, recordMetadata);
+  const crossCommunity = toLedgerTransferRecord(
+    { ...expected, id: "transfer-2", communityId: otherCommunityId },
+    recordMetadata,
+  );
+
+  assert.deepEqual(reduceLedgerTransferRecords([duplicate, duplicate], communityId), [expected]);
+  assert.throws(() => reduceLedgerTransferRecords([duplicate, conflict], communityId), RecordMappingError);
+  assert.throws(() => reduceLedgerTransferRecords([duplicate, crossCommunity], communityId), RecordMappingError);
+});

@@ -4,9 +4,12 @@ import test from "node:test";
 import { applyTransfers, createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   canonicalTransferPayload,
+  createMemberSigningKeyAuthorizationEvent,
   createEd25519SignatureVerifier,
   createMemberSigningKeyAuthorization,
+  reduceMemberSigningKeyAuthorizationEvents,
   transferPayloadDigest,
+  type MemberSigningKeyAuthorizationEvent,
   type MemberSigningKeyAuthorization,
 } from "../src/index.js";
 
@@ -39,6 +42,29 @@ function authorization(input: {
     keyId: input.keyId,
     publicKeyPem: input.publicKey.export({ format: "pem", type: "spki" }).toString(),
     active: input.active ?? true,
+  });
+}
+
+/** Creates a valid immutable member signing-key authorization event for reducer tests. */
+function authorizationEvent(input: {
+  readonly eventId: string;
+  readonly memberId?: string;
+  readonly keyId?: string;
+  readonly action: "activate" | "revoke";
+  readonly occurredAt: string;
+  readonly publicKey?: ReturnType<typeof memberKeyPair>["publicKey"];
+  readonly community?: string;
+}): MemberSigningKeyAuthorizationEvent {
+  return createMemberSigningKeyAuthorizationEvent({
+    eventId: input.eventId,
+    communityId: input.community ?? communityId,
+    memberId: input.memberId ?? providerMemberId,
+    keyId: input.keyId ?? "provider-key",
+    action: input.action,
+    occurredAt: input.occurredAt,
+    ...(input.action === "activate"
+      ? { publicKeyPem: (input.publicKey ?? memberKeyPair().publicKey).export({ format: "pem", type: "spki" }).toString() }
+      : {}),
   });
 }
 
@@ -175,4 +201,105 @@ test("rejects a valid signature after any signed transfer term is tampered with"
 
   assert.equal(verifyAttestation({ transfer: tamperedTransfer, attestation: tamperedTransfer.attestations[0] }), false);
   assert.equal(verifyAttestation({ transfer: tamperedTransfer, attestation: tamperedTransfer.attestations[1] }), false);
+});
+
+test("reduces an unordered activation history into an active community-scoped authorization", () => {
+  const keys = memberKeyPair();
+  const event = authorizationEvent({
+    eventId: "event-provider-activate",
+    action: "activate",
+    occurredAt: "2026-07-18T12:00:00.000Z",
+    publicKey: keys.publicKey,
+  });
+
+  const authorizations = reduceMemberSigningKeyAuthorizationEvents([event]);
+
+  assert.deepEqual(authorizations, [
+    createMemberSigningKeyAuthorization({
+      communityId,
+      memberId: providerMemberId,
+      keyId: "provider-key",
+      publicKeyPem: keys.publicKey.export({ format: "pem", type: "spki" }).toString(),
+      active: true,
+    }),
+  ]);
+  assert.equal(Object.isFrozen(event), true);
+  assert.equal(Object.isFrozen(authorizations[0]), true);
+});
+
+test("reduces a later revocation to an inactive authorization regardless of arrival order", () => {
+  const keys = memberKeyPair();
+  const activation = authorizationEvent({
+    eventId: "event-provider-activate",
+    action: "activate",
+    occurredAt: "2026-07-18T12:00:00.000Z",
+    publicKey: keys.publicKey,
+  });
+  const revocation = authorizationEvent({
+    eventId: "event-provider-revoke",
+    action: "revoke",
+    occurredAt: "2026-07-18T12:01:00.000Z",
+  });
+
+  const authorizations = reduceMemberSigningKeyAuthorizationEvents([revocation, activation]);
+
+  assert.equal(authorizations.length, 1);
+  assert.equal(authorizations[0].active, false);
+  assert.equal(authorizations[0].publicKeyPem, activation.publicKeyPem);
+});
+
+test("keeps independently active rotated keys and scopes them by community and member", () => {
+  const originalKeys = memberKeyPair();
+  const rotatedKeys = memberKeyPair();
+  const otherMemberKeys = memberKeyPair();
+  const otherCommunityKeys = memberKeyPair();
+  const authorizations = reduceMemberSigningKeyAuthorizationEvents([
+    authorizationEvent({ eventId: "event-other-community", action: "activate", occurredAt: "2026-07-18T12:04:00.000Z", publicKey: otherCommunityKeys.publicKey, community: anotherCommunityId }),
+    authorizationEvent({ eventId: "event-original", action: "activate", occurredAt: "2026-07-18T12:00:00.000Z", publicKey: originalKeys.publicKey }),
+    authorizationEvent({ eventId: "event-other-member", action: "activate", occurredAt: "2026-07-18T12:03:00.000Z", publicKey: otherMemberKeys.publicKey, memberId: recipientMemberId }),
+    authorizationEvent({ eventId: "event-rotated", action: "activate", occurredAt: "2026-07-18T12:02:00.000Z", publicKey: rotatedKeys.publicKey, keyId: "provider-key-rotated" }),
+  ]);
+
+  assert.deepEqual(
+    authorizations.map(({ communityId: authorizationCommunityId, memberId, keyId, active }) => ({ authorizationCommunityId, memberId, keyId, active })),
+    [
+      { authorizationCommunityId: communityId, memberId: providerMemberId, keyId: "provider-key", active: true },
+      { authorizationCommunityId: communityId, memberId: providerMemberId, keyId: "provider-key-rotated", active: true },
+      { authorizationCommunityId: communityId, memberId: recipientMemberId, keyId: "provider-key", active: true },
+      { authorizationCommunityId: anotherCommunityId, memberId: providerMemberId, keyId: "provider-key", active: true },
+    ],
+  );
+});
+
+test("deduplicates identical replicated events but rejects conflicting events with the same id", () => {
+  const keys = memberKeyPair();
+  const event = authorizationEvent({ eventId: "event-provider-activate", action: "activate", occurredAt: "2026-07-18T12:00:00.000Z", publicKey: keys.publicKey });
+  const conflict = authorizationEvent({ eventId: "event-provider-activate", action: "revoke", occurredAt: "2026-07-18T12:01:00.000Z" });
+
+  assert.deepEqual(
+    reduceMemberSigningKeyAuthorizationEvents([event, event]),
+    reduceMemberSigningKeyAuthorizationEvents([event]),
+  );
+  assert.throws(
+    () => reduceMemberSigningKeyAuthorizationEvents([event, conflict]),
+    /same event id/i,
+  );
+});
+
+test("rejects malformed authorization lifecycle events before reduction", () => {
+  const keys = memberKeyPair();
+
+  assert.throws(
+    () =>
+      createMemberSigningKeyAuthorizationEvent({
+        eventId: "event-invalid-timestamp",
+        communityId,
+        memberId: providerMemberId,
+        keyId: "provider-key",
+        action: "activate",
+        occurredAt: "tomorrow",
+        publicKeyPem: keys.publicKey.export({ format: "pem", type: "spki" }).toString(),
+      }),
+    /canonical UTC ISO-8601/i,
+  );
 });

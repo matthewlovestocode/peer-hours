@@ -1,0 +1,29 @@
+{
+  "name": "@peer-hours/timebank-settlement",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "tsc -p tsconfig.json --clean",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@peer-hours/timebank-domain": "file:../timebank-domain",
+    "@peer-hours/timebank-ledger": "file:../timebank-ledger"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.0"
+  }
+}

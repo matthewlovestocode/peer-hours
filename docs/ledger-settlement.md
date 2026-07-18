@@ -30,4 +30,6 @@ The ledger requires each participant attestation to name a signing `keyId`, carr
 
 The authorization registry is not yet a replicated protocol record. A formally versioned canonical JSON profile and verified linkage from `sourceProposalId` to an accepted proposal in `@peer-hours/timebank-domain` are still required.
 
+`@peer-hours/timebank-settlement` now provides the in-memory validation for that linkage: a normal transfer must exactly preserve an accepted proposal's community, source ID, participants, and minute amount. It still needs a replicated record resolver before it becomes a network-level guarantee. See [proposal settlement integration](proposal-settlement-integration.md).
+
 Credit limits, disputes, multi-device keys, membership revocation, and replicated ledger persistence are intentionally deferred. Negative balances are currently allowed because balance-limit enforcement needs a deterministic concurrent-spend protocol.

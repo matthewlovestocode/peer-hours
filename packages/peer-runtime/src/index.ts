@@ -3,6 +3,9 @@ import { get as httpGet } from "node:http";
 import { get as httpsGet } from "node:https";
 import Corestore from "corestore";
 import Hyperswarm from "hyperswarm";
+import { HypercoreRecordStore, type JsonValue } from "./record-store.js";
+
+export * from "./record-store.js";
 
 export type PeerLifecycleState = "discovered" | "connecting" | "connected" | "stale" | "offline";
 
@@ -21,6 +24,7 @@ export type LocalPeerStatus = {
   discovery: { connecting: number; connected: number };
   peers: PeerStatus[];
   replication: { coreKey: string; length: number };
+  records: { coreKey: string; length: number; state: "local" | "community" | "unavailable" };
   error: string | null;
   bootstrap: { url: string | null; state: "not-configured" | "fetching" | "fetched" | "error" };
   community: CommunityManifest | null;
@@ -31,6 +35,7 @@ export type CommunityManifest = {
   displayName: string;
   protocolVersion: number;
   coreKey: string;
+  recordCoreKey?: string;
   bootstrapNodes: string[];
 };
 
@@ -53,8 +58,11 @@ export class PeerRuntime {
   private readonly bootstrapKey: Buffer | null;
   private readonly bootstrapUrl: string | null;
   private readonly now: () => number;
+  private readonly configuredRecordCoreKey: string | null;
+  private readonly networkingEnabled: boolean;
   private store: any;
   private core: any;
+  private recordStore: HypercoreRecordStore | null = null;
   private bootstrapCore: any;
   private swarm: any;
   private listening = false;
@@ -69,11 +77,20 @@ export class PeerRuntime {
   private readonly offlineRetentionMs = 30_000;
 
   /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and clock. */
-  constructor(dataDirectory: string, bootstrapKey?: string, bootstrapUrl?: string, now: () => number = Date.now) {
+  constructor(
+    dataDirectory: string,
+    bootstrapKey?: string,
+    bootstrapUrl?: string,
+    now: () => number = Date.now,
+    recordCoreKey?: string,
+    networkingEnabled = true,
+  ) {
     this.dataDirectory = dataDirectory;
     this.bootstrapKey = bootstrapKey ? Buffer.from(bootstrapKey, "hex") : null;
     this.bootstrapUrl = bootstrapUrl ?? null;
     this.now = now;
+    this.configuredRecordCoreKey = recordCoreKey ?? null;
+    this.networkingEnabled = networkingEnabled;
   }
 
   /** Subscribes to local and community status changes and returns an unsubscribe function. */
@@ -95,47 +112,77 @@ export class PeerRuntime {
       this.store = new Corestore(this.dataDirectory);
       this.core = this.store.get({ name: "peer-hours-network", valueEncoding: "json" });
       await this.core.ready();
-      this.swarm = new Hyperswarm();
-      this.swarm.on("connection", (connection: PeerConnection) => {
-        const id = connection.remotePublicKey?.toString("hex") ?? `peer-${this.peers.size + 1}`;
-        const now = new Date(this.now()).toISOString();
-        this.peers.set(id, { id, connectedAt: now, lastSeenAt: now, lifecycleState: "connecting", source: "hyperswarm" });
-        this.store.replicate(connection);
-        queueMicrotask(() => {
-          const peer = this.peers.get(id);
-          if (peer?.lifecycleState === "connecting") {
-            this.peers.set(id, { ...peer, lifecycleState: "connected", lastSeenAt: new Date(this.now()).toISOString() });
-            this.notifyStatusChange();
-          }
-        });
-        connection.on("close", () => {
-          const peer = this.peers.get(id);
-          if (peer) {
-            this.peers.set(id, { ...peer, lifecycleState: "offline", lastSeenAt: new Date(this.now()).toISOString() });
-            this.notifyStatusChange();
-          }
-        });
-      });
-      void this.swarm.listen().then(() => { this.listening = true; });
-      this.join(this.core.discoveryKey);
+      const recordCoreKey = this.configuredRecordCoreKey ?? this.community?.recordCoreKey;
+      this.recordStore = await HypercoreRecordStore.open(this.store, "peer-hours-timebank-records", recordCoreKey);
+      if (this.networkingEnabled) {
+        this.startNetworking();
+      }
       if (this.bootstrapKey) this.bootstrapState = "fetched";
       const bootstrapKey = this.bootstrapKey ?? await this.fetchBootstrapKey();
       if (bootstrapKey) {
         this.bootstrapCore = this.store.get({ key: bootstrapKey, valueEncoding: "json" });
         await this.bootstrapCore.ready();
-        this.join(this.bootstrapCore.discoveryKey);
+        if (this.networkingEnabled) this.join(this.bootstrapCore.discoveryKey);
       }
+      await this.openCommunityRecordStore();
       if (this.bootstrapUrl) {
         this.statusTimer = setInterval(() => void this.refreshCommunityPeers(), 2_000);
         void this.refreshCommunityPeers();
       }
-      void this.swarm.flush().catch((cause: unknown) => {
-        console.error("peer discovery flush failed:", cause);
-      });
+      if (this.networkingEnabled) {
+        void this.swarm.flush().catch((cause: unknown) => {
+          console.error("peer discovery flush failed:", cause);
+        });
+      }
     } catch (cause) {
       this.error = cause instanceof Error ? cause.message : "Unable to start local peer";
       throw cause;
     }
+  }
+
+  /** Starts Hyperswarm discovery and direct Corestore replication for a network-enabled runtime. */
+  private startNetworking(): void {
+    this.swarm = new Hyperswarm();
+    this.swarm.on("connection", (connection: PeerConnection) => {
+      const id = connection.remotePublicKey?.toString("hex") ?? `peer-${this.peers.size + 1}`;
+      const now = new Date(this.now()).toISOString();
+      this.peers.set(id, { id, connectedAt: now, lastSeenAt: now, lifecycleState: "connecting", source: "hyperswarm" });
+      this.store.replicate(connection);
+      queueMicrotask(() => {
+        const peer = this.peers.get(id);
+        if (peer?.lifecycleState === "connecting") {
+          this.peers.set(id, { ...peer, lifecycleState: "connected", lastSeenAt: new Date(this.now()).toISOString() });
+          this.notifyStatusChange();
+        }
+      });
+      connection.on("close", () => {
+        const peer = this.peers.get(id);
+        if (peer) {
+          this.peers.set(id, { ...peer, lifecycleState: "offline", lastSeenAt: new Date(this.now()).toISOString() });
+          this.notifyStatusChange();
+        }
+      });
+    });
+    void this.swarm.listen().then(() => { this.listening = true; });
+    this.join(this.core.discoveryKey);
+  }
+
+  /** Returns the public key for the active local or community-provided immutable record core. */
+  get recordCoreKey(): string {
+    return this.recordStore?.publicKey ?? "";
+  }
+
+  /** Appends one immutable JSON record when this runtime owns the active record core. */
+  async appendRecord(record: JsonValue): Promise<number> {
+    if (this.recordStore === null) throw new Error("The record core is not ready.");
+    const index = await this.recordStore.append(record);
+    this.notifyStatusChange();
+    return index;
+  }
+
+  /** Reads every immutable JSON record currently available from the active record core. */
+  async readRecords(): Promise<readonly JsonValue[]> {
+    return this.recordStore?.readAll() ?? Object.freeze([]);
   }
 
   /** Registers a development-only simulated peer for UI and topology testing. */
@@ -170,6 +217,14 @@ export class PeerRuntime {
       console.error("bootstrap failed:", cause);
       return null;
     }
+  }
+
+  /** Opens the configured community record core after bootstrap metadata becomes available. */
+  private async openCommunityRecordStore(): Promise<void> {
+    const recordCoreKey = this.configuredRecordCoreKey ?? this.community?.recordCoreKey;
+    if (recordCoreKey === undefined || recordCoreKey === this.recordStore?.publicKey) return;
+    this.recordStore = await HypercoreRecordStore.open(this.store, "peer-hours-timebank-records", recordCoreKey);
+    this.notifyStatusChange();
   }
 
   /** Reads the community node's peer roster for development visibility and diagnostics. */
@@ -227,6 +282,11 @@ export class PeerRuntime {
       discovery: { connecting: this.swarm?.connecting ?? 0, connected: this.swarm?.connections?.size ?? 0 },
       peers: [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))],
       replication: { coreKey: this.core?.key?.toString("hex") ?? "", length: this.core?.length ?? 0 },
+      records: {
+        coreKey: this.recordStore?.publicKey ?? "",
+        length: this.recordStore?.length ?? 0,
+        state: this.recordStore === null ? "unavailable" : (this.configuredRecordCoreKey ?? this.community?.recordCoreKey) ? "community" : "local",
+      },
       error: this.error,
       bootstrap: { url: this.bootstrapUrl, state: this.bootstrapState },
       community: this.community,

@@ -20,6 +20,11 @@ sequenceDiagram
 ## Current boundary
 
 - A member signing-key authorization belongs to one community and one member.
+- Immutable authorization lifecycle events carry a stable event id, community, member, key id,
+  UTC timestamp, and either an `activate` action with an Ed25519 public key or a `revoke` action.
+- Receiving runtimes deterministically reduce an unordered event history by timestamp and event
+  id. Repeated identical events are idempotent; conflicting records with the same event id are
+  rejected rather than silently resolved.
 - The implementation accepts only active Ed25519 public keys.
 - Each attestation stores the member's authorized Ed25519 `keyId`, a base64url SHA-256 `payloadDigest`, and an Ed25519 `signature`.
 - The verifier signs deterministic transfer terms, excluding the attestation envelope so both participants sign identical bytes. It recomputes the digest before verifying the signature.
@@ -43,4 +48,8 @@ sequenceDiagram
 
 ## Remaining protocol hardening
 
-The verifier is intentionally local and in-memory. Replicated settlement still needs a formally versioned canonical JSON profile, community-issued authorization events, key rotation and revocation rules, and replicated storage for member-key authorizations. Private keys must remain local to a member’s device and never enter the renderer or a community node’s public API.
+The verifier is intentionally local and in-memory. The identity package now defines the
+replicated-ready event shape and deterministic key lifecycle reduction, including independent
+key rotation and revocation. Persisting and replicating those events still needs a formally
+versioned canonical JSON profile and network storage. Private keys must remain local to a
+member’s device and never enter the renderer or a community node’s public API.

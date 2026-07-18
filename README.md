@@ -36,9 +36,9 @@ peer-hours/earth/online/caregivers
 
 ## Current state
 
-This is an early, working foundation—not yet a production timebank. The desktop app, community node, embedded peer runtime, and development-peer simulator currently focus on making network connectivity visible and testable. The shared domain, identity, and ledger packages define and test member eligibility, exchange consent, Ed25519 attestations, and deterministic balance derivation in memory. Replicated application records, community authorization events, dispute handling, and a complete member workflow are still ahead.
+This is an early, working foundation—not yet a production timebank. The desktop app, community node, embedded peer runtime, and development-peer simulator currently focus on making network connectivity visible and testable. A community-owned generic record core is live and observable; the shared domain, identity, settlement, ledger, and record packages define and test member eligibility, exchange consent, Ed25519 attestations, deterministic record resolution, and balance derivation. Member-originated replicated records, community authorization events, dispute handling, and a complete member workflow are still ahead.
 
-For the living technical direction, see [network architecture](docs/network-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
+For the living technical direction, see [network architecture](docs/network-architecture.md). For the active record-core topology, see [record replication](docs/record-replication.md). For the package map and dependency direction, see [package architecture](docs/package-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
 
 ## Repository
 
@@ -56,7 +56,9 @@ peer-hours/
 │   ├── peer-runtime/        # Platform-neutral local peer runtime
 │   ├── timebank-domain/     # Member, listing, and exchange-agreement rules
 │   ├── timebank-identity/   # Community member signing-key verification
-│   └── timebank-ledger/     # Attested time-credit settlement and balance derivation
+│   ├── timebank-ledger/     # Attested time-credit settlement and balance derivation
+│   ├── timebank-records/    # Replicated-record envelope and deterministic resolver
+│   └── timebank-settlement/ # Accepted-proposal to ledger-transfer validation
 ├── package.json             # Root workspace and shared scripts
 ├── package-lock.json        # Locked dependency versions
 ├── tsconfig.json            # Root TypeScript project references
@@ -81,7 +83,7 @@ Packages are for reusable code shared by two or more applications, such as UI co
 
 Do not create a shared package speculatively. Add one when there is a concrete reuse case.
 
-`@peer-hours/timebank-domain` is the pure, test-first model for member eligibility, listings, and exchange consent. `@peer-hours/timebank-ledger` is a separate settlement boundary for dual-attested, integer-minute transfers and derived balances. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier for community member keys. See [the domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
+`@peer-hours/timebank-domain` is the pure, test-first model for member eligibility, listings, and exchange consent. `@peer-hours/timebank-records` supplies the immutable replicated-record envelope and resolves record history into the existing timebank rules. `@peer-hours/timebank-settlement` validates that a non-reversal transfer exactly matches one accepted proposal. `@peer-hours/timebank-ledger` provides dual-attested, integer-minute transfers and derived balances. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier for community member keys. See [the domain model](docs/timebank-domain-model.md), [proposal settlement integration](docs/proposal-settlement-integration.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
 
 ## Prerequisites
 
@@ -123,6 +125,7 @@ Confirm that it is available:
 curl http://127.0.0.1:10000/health
 curl http://127.0.0.1:10000/status
 curl http://127.0.0.1:10000/bootstrap
+curl http://127.0.0.1:10000/records
 ```
 
 In terminal 2, start the Vite development server and Electron together:
@@ -131,7 +134,7 @@ In terminal 2, start the Vite development server and Electron together:
 npm --workspace @peer-hours/desktop run dev
 ```
 
-The desktop defaults to `http://127.0.0.1:10000/bootstrap`, fetches the community manifest and public core key, and joins its discovery topic. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status.
+The desktop defaults to `http://127.0.0.1:10000/bootstrap`, fetches the community manifest and public core key, and joins its discovery topic. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status. Bootstrap metadata also includes `recordCoreKey`: the desktop opens that community-owned record core as a reader and the Network workspace shows its key, availability, and locally available record count. Desktop member writes and multiwriter policy are not implemented yet.
 
 Peer lifecycle status is reported as `discovered`, `connecting`, `connected`, `stale`, or `offline`. A peer becomes stale after 10 seconds without a fresh heartbeat and is retained for up to 30 seconds so the desktop can show the transition before removing it.
 

@@ -1,49 +1,54 @@
 # Lesson 22: What Is a Record Envelope?
 
-A record envelope is a small, consistent wrapper around a record’s actual payload. It gives every replicated fact enough shared metadata to be identified, scoped, ordered, and safely replayed.
-
-## What you already know
-
-An HTTP API often returns a JSON object designed for one endpoint:
-
-```json
-{ "id": "offer-1", "description": "Garden help" }
-```
-
-In a replicated log, different record types travel together. A common envelope makes it possible to inspect a record before the application interprets its type-specific contents.
+A record envelope is the common JSON wrapper around a type-specific Peer Hours fact. It gives a replicated record enough metadata to be checked, de-duplicated, scoped, and routed to its decoder before domain rules inspect the payload.
 
 ```mermaid
 flowchart TB
-  E["Record envelope"] --> I["id"]
-  E --> C["communityId"]
-  E --> K["kind"]
-  E --> T["occurredAt"]
-  E --> P["payload"]
+  E["record envelope"] --> I[id]
+  E --> S["schema + version"]
+  E --> C[communityId]
+  E --> K[kind]
+  E --> T[occurredAt]
+  E --> A[authorId]
+  E --> P[payload]
 ```
 
-## A tiny example
+## A representative shape
 
 ```json
 {
-  "id": "proposal-42",
+  "id": "listing-42",
+  "schema": "peer-hours/timebank-record/v1",
+  "version": 1,
   "communityId": "peer-hours/earth/US/CA/east-bay",
-  "kind": "timebank.accepted-proposal.v1",
+  "kind": "peer-hours/published-listing/v1",
   "occurredAt": "2026-07-18T12:00:00.000Z",
-  "payload": { "proposalId": "proposal-42", "minutes": 60 }
+  "authorId": "alice",
+  "payload": { "id": "listing-42", "kind": "offer", "title": "Garden help", "minutes": 60 }
 }
 ```
 
-**Expected observation:** a reader can reject this record if its ID, community ID, kind, or timestamp is malformed before it tries to use the proposal payload. Two identical deliveries of this envelope can be reduced to one. Two different envelopes using `proposal-42` as the same record ID are a conflict and must be rejected.
+**Expected observation:** a reader can reject malformed metadata or non-JSON payloads before interpreting a listing. An identical replay of the complete normalized envelope is harmless; two different envelopes claiming the same ID are a conflict, not a choice for the UI to make.
+
+## Envelope is not trust
+
+The envelope answers basic structural questions. It does not prove the author owns the feed, that the record has a valid member signature, or that the proposed business transition is allowed.
+
+```mermaid
+flowchart LR
+  E["normalize envelope"] --> D["decode known kind"]
+  D --> S["verify signature + feed provenance"]
+  S --> R["apply timebank rules"]
+  R --> V["admit to resolved state"]
+```
 
 ## Peer Hours connection
 
-`@peer-hours/timebank-records` implements `createRecordEnvelope` and `reduceRecordEnvelopes`. It validates the required metadata, accepts only JSON-compatible payloads, deep-freezes normalized records, and reduces an unordered history deterministically. It then maps recognized record kinds into identity lifecycle events, accepted proposals, and ledger transfers.
-
-An envelope is not a signature and does not establish trust. It is a reliable transport shape. Signatures and authorization checks happen in the identity and settlement layers after the record is decoded.
+`@peer-hours/timebank-records` creates normalized, deep-frozen envelopes and reduces an unordered history deterministically. It maps supported kinds for member-feed declarations, published listings, pending and accepted exchange proposals, settlement acknowledgements, and transfers. The main process signs member-authored records; the resolver validates signatures and authorization before they can affect verified state.
 
 ## Takeaway
 
-The envelope answers basic questions—what is this, which community is it for, and is this a duplicate—before business rules inspect the payload.
+An envelope is a consistent transport shape. It makes a record inspectable, but it is not itself a signature, authorization decision, or settlement.
 
 ## Next lesson
 

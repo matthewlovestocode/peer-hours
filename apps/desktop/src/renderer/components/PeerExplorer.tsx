@@ -58,7 +58,7 @@ function PeerDetailsEmptyState() {
 }
 
 /** Narrows the visible peer list according to a case-insensitive identity query. */
-function filterPeers<T extends { id: string }>(peers: T[], query: string): T[] {
+function filterPeers<T extends { id: string }>(peers: readonly T[], query: string): T[] {
   const normalizedQuery = query.toLowerCase();
   return peers.filter((peer) => peer.id.toLowerCase().includes(normalizedQuery));
 }

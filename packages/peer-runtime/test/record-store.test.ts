@@ -62,6 +62,27 @@ test("appends and reads frozen JSON records", async () => {
   }
 });
 
+test("serializes concurrent appends so every caller receives its distinct immutable sequence index", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-record-store-concurrent-"));
+  const corestore = new Corestore(directory);
+
+  try {
+    const store = await HypercoreRecordStore.open<TestRecord>(corestore, "generic-records");
+    const writes = await Promise.all(
+      Array.from({ length: 24 }, (_, index) => store.append(record(`record-${index}`, `Concurrent record ${index}`))),
+    );
+
+    assert.deepEqual(writes, Array.from({ length: 24 }, (_, index) => index));
+    assert.deepEqual(
+      (await store.readAll()).map(({ id }) => id),
+      Array.from({ length: 24 }, (_, index) => `record-${index}`),
+    );
+  } finally {
+    await corestore.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("rejects malformed public keys before attempting to open an untrusted remote record feed", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-record-store-invalid-key-"));
   const corestore = new Corestore(directory);

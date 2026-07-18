@@ -57,10 +57,12 @@ export function resolveTimebankMemberFeeds(
 
   for (const history of histories) {
     assertFeedPublicKey(history.feedPublicKey);
+    const sourceFeedPublicKey = history.feedPublicKey.toLowerCase();
     for (const record of history.records) {
+      assertRecordLike(record);
       if (record.communityId === communityId && isMemberAuthoredDomainRecord(record)) {
         const declaredKeys = memberFeedKeys.get(record.authorId);
-        if (declaredKeys === undefined || !declaredKeys.has(history.feedPublicKey)) {
+        if (declaredKeys === undefined || !declaredKeys.has(sourceFeedPublicKey)) {
           throw new MemberFeedResolutionError("A member-authored record must arrive through a feed declared by its self-owned identity.");
         }
       }
@@ -85,13 +87,21 @@ export function resolveTimebankMemberFeeds(
 /** Collects valid root-signed declarations before admitting any domain record from a member feed. */
 function declaredFeedKeysByMember(communityId: string, histories: readonly MemberFeedHistory[]): ReadonlyMap<string, ReadonlySet<string>> {
   const keysByMember = new Map<string, Set<string>>();
+  const membersByFeedKey = new Map<string, string>();
   for (const history of histories) {
     assertFeedPublicKey(history.feedPublicKey);
     for (const record of history.records) {
+      assertRecordLike(record);
       if (record.communityId !== communityId || record.kind !== MEMBER_FEED_DECLARATION_RECORD_KIND) continue;
       const declaration = memberFeedDeclarationFromRecord(record);
+      const feedPublicKey = declaration.feedPublicKey.toLowerCase();
+      const declaredMemberId = membersByFeedKey.get(feedPublicKey);
+      if (declaredMemberId !== undefined && declaredMemberId !== declaration.memberId) {
+        throw new MemberFeedResolutionError("A member feed public key cannot be declared by more than one member.");
+      }
+      membersByFeedKey.set(feedPublicKey, declaration.memberId);
       const keys = keysByMember.get(declaration.memberId) ?? new Set<string>();
-      keys.add(declaration.feedPublicKey);
+      keys.add(feedPublicKey);
       keysByMember.set(declaration.memberId, keys);
     }
   }
@@ -111,5 +121,12 @@ function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
 function assertFeedPublicKey(value: string): void {
   if (!/^[a-f0-9]{64}$/i.test(value)) {
     throw new MemberFeedResolutionError("A member feed history must use a 64-character hexadecimal Hypercore key.");
+  }
+}
+
+/** Rejects malformed transport input before provenance checks inspect envelope fields. */
+function assertRecordLike(record: unknown): asserts record is RecordEnvelope | MemberSignedRecord {
+  if (typeof record !== "object" || record === null || Array.isArray(record)) {
+    throw new MemberFeedResolutionError("A member feed history must contain record envelopes.");
   }
 }

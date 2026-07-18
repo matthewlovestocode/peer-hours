@@ -4,7 +4,7 @@ An Ed25519 signature proves that the holder of a particular private key approved
 
 ```mermaid
 flowchart LR
-  T["Canonical transfer terms"] --> H["SHA-256 digest"]
+  T["Canonical record or transfer terms"] --> H["SHA-256 digest"]
   T --> S["Ed25519 signature"]
   K["Authorized public key"] --> V["Verify key + bytes + signature"]
   H --> V
@@ -26,7 +26,7 @@ verify(alexPublicKey, canonicalize({ minutes: 61, provider: "alex", recipient: "
 
 ## Peer Hours connection
 
-`@peer-hours/timebank-identity` recomputes canonical transfer bytes and a SHA-256 digest before it verifies an attestation. It also checks that the key is active for the correct member and community. The ledger adds independent balance and settlement rules afterward.
+`@peer-hours/timebank-identity` recomputes canonical transfer bytes and a SHA-256 digest before it verifies an attestation. The records resolver also verifies member-authored envelope signatures and role provenance. Active keys must be scoped to the correct member and community; settlement and ledger rules add independent checks afterward.
 
 ## Takeaway
 

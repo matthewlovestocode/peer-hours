@@ -8,7 +8,7 @@ In client/server development, a server usually accepts requests, runs business l
 
 ## One new idea
 
-A community peer is availability and replication infrastructure, not automatically the sole authority over timebank truth. It keeps durable local storage, participates in peer discovery and replication, and reports health. A separate, minimal bootstrap service publishes onboarding metadata.
+A community node is availability and replication infrastructure, not automatically the sole authority over timebank truth. It keeps durable local storage, participates in peer discovery and replication, and reports health. A separate, minimal bootstrap service publishes onboarding metadata.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,11 @@ If the node is temporarily unavailable, Alice's existing local records still exi
 
 The `apps/node` application is the current community-peer implementation. It maintains persistent Hypercore/Corestore data and exposes health, status, and opt-in local development simulator diagnostics. `apps/bootstrap` separately serves only configured discovery metadata at `GET /bootstrap`.
 
-It does not own a writable shared record core. It is an always-on peer without a human attached: useful for availability and discovery, but not entitled to approve members, author their records, or decide validity.
+It does not own a writable shared record core. It is an always-on peer without a human attached: useful for availability and discovery, but not entitled to approve members, author their records, or decide validity. Its HTTP endpoints are operational diagnostics, not a records API.
+
+**Operational boundary:** the node operator still controls uptime, hardware, backups, and
+network exposure. That makes it important infrastructure, but does not make the operator
+the owner of a member identity or the author of a member's record.
 
 Use the precise term **community node**: it describes its role in supporting a timebank community. A **peer** is any connected runtime, including a member desktop and the community node itself.
 

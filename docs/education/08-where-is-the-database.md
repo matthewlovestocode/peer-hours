@@ -14,7 +14,7 @@ The server database is normally the authoritative place to ask for a member's cu
 
 ## One new idea
 
-In Peer Hours, each participating runtime can hold a local copy of replicated records. The desktop reads its local data first. A community node also keeps a durable copy available for the community. They can synchronize the same append-only record history.
+In Peer Hours, each participating runtime can hold local copies of the feeds it knows. The desktop reads its local data first. A community node can keep durable copies available for the community. Compatible peers can synchronize the same append-only histories.
 
 ```mermaid
 flowchart LR
@@ -36,11 +36,25 @@ Imagine a completed two-hour exchange becomes a transfer record:
 }
 ```
 
-After replication, Alice's desktop, Bob's desktop, and the community node may each store that immutable record locally. Each can independently calculate the same balance change from it.
+After replication, Alice's desktop, Bob's desktop, and the community node may each store that immutable record locally. Each can independently calculate the same balance change from it—provided it also has the declarations, proposals, acceptances, and acknowledgements that the resolver requires.
 
 ## Peer Hours connection
 
-Today, every member runtime owns a writable member feed. An always-on community peer can retain and replicate feeds it knows, but it does not own a shared record core or expose a record API. Signed, expiring feed announcements already let compatible runtimes discover a declared feed on a shared discovery core; the member-facing publish workflow is still later work.
+Today, every member runtime owns a writable member feed. An always-on community node can retain and replicate feeds it knows, but it does not own a shared record core or expose a record API. Signed, expiring feed announcements let compatible runtimes discover a declared feed on a shared discovery core; the desktop publishes listings and exchange workflow records through a narrow main-process boundary.
+
+## Copies are not a vote
+
+```mermaid
+flowchart TB
+  R["A record arrives from a feed"] --> P{"Feed provenance\nand signature valid?"}
+  P -- no --> X["Keep raw evidence;\nexclude from resolved state"]
+  P -- yes --> T{"Terms and linked\nrecords satisfy rules?"}
+  T -- no --> X
+  T -- yes --> L["Use in local resolved view\nand derived ledger"]
+```
+
+Replication makes evidence available. Local validation decides whether that evidence can
+affect a useful screen.
 
 This does **not** mean every local copy is automatically trustworthy. Later lessons explain signatures and validation. For now, remember: Peer Hours moves records between local stores instead of asking one central database for every screen.
 

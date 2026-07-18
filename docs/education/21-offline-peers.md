@@ -1,43 +1,37 @@
 # Lesson 21: What Happens When a Peer Is Offline?
 
-An offline peer keeps the records it already has. It cannot receive new records or participate in an online interaction until it reconnects, but its local data does not disappear just because the network is unavailable.
-
-## What you already know
-
-In a browser-only app, a failed API request often means the screen cannot load current data. You may show a spinner, error, or empty state because the server response is missing.
-
-In a local-first runtime, the app can first read its local Corestore. Network availability affects freshness, not whether all known history suddenly ceases to exist.
+An offline peer retains the records it has already stored. It cannot receive newly replicated records until it reconnects, but local history does not disappear with the network.
 
 ```mermaid
 flowchart LR
-  O["Peer offline"] --> L["Read locally stored records"]
-  L --> V["Show last resolved state"]
-  O --> W["Wait to receive new records"]
-  W --> R["Reconnect and replicate missing blocks"]
+  O["offline"] --> L["read local Corestore"]
+  L --> V["resolve last locally available history"]
+  O --> W["cannot receive missing blocks"]
+  W --> R["reconnect and replicate"]
   R --> V
 ```
 
-## A tiny example
-
 ```text
-At 9:00: desktop has records 0–12 and is online.
-At 9:05: internet drops; desktop still has records 0–12.
-At 9:20: it reconnects and downloads records 13–15.
+09:00  desktop has records 0–12 and is online
+09:05  connection drops; it can still read records 0–12
+09:20  it reconnects and receives records 13–15
 ```
 
-**Expected observation:** while offline, the app can display information derived from records `0–12`, ideally marked with its connection or freshness status. After reconnecting, it resolves the expanded local history and updates the view.
+**Expected observation:** the locally derived view remains available at 09:05, but it may be stale. After reconnection the runtime resolves the larger local history again.
 
-Offline does not grant magic powers. A member cannot complete a workflow that requires another participant’s online attestation merely by changing a local screen. Peer Hours intentionally treats transaction settlement as an online, verifiable interaction.
+## Important boundaries
+
+Offline does not permit a member to manufacture a counterparty’s signature or acknowledgement. A member can only append to their own writable feed. An exchange requires records from more than one participant, and the resolver will not treat a lone acknowledgement as dual confirmation.
+
+Likewise, “dual-confirmed” is not a statement that all peers have replicated the records. In the current protocol it means the local resolver found both valid participant acknowledgements for the accepted proposal. Replication visibility and any stronger finality policy are separate concerns.
 
 ## Peer Hours connection
 
-The `PeerRuntime` status snapshot distinguishes runtime state and peer freshness. The desktop Network workspace reports connection and record-core availability so a user or developer can see whether the runtime is working from local records or is connected to community infrastructure.
-
-Peer Hours aims to let people draft or post needs and offers with local-first behavior, while signed settlement records must be exchanged and verified online. The exact member-facing offline workflow is still future work.
+The desktop Network workspace shows runtime and record-core status, while its Records workspace presents a last valid resolved snapshot, loading/retry states, and raw records separately. Member-facing offline composition is intentionally limited: listing publication and proposal/settlement actions require the protected local identity and a configured community scope; current connectivity affects when other peers can learn about them.
 
 ## Takeaway
 
-Offline means “working from the history you already have,” not “the system has forgotten everything” and not “new shared settlement is complete.”
+Offline means “work from the history already on this device.” It does not mean “the history is current everywhere” or “a multi-party exchange is complete.”
 
 ## Next lesson
 

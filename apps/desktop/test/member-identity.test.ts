@@ -199,6 +199,22 @@ test("does not append a settlement acknowledgement when the local member is not 
   assert.equal(fixture.feed.records.length, 1);
 });
 
+test("does not append a duplicate acknowledgement when a repeated local action races the renderer refresh", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: memberId,
+    creatorMemberId: "member-provider", acceptedByMemberId: memberId, minutes: 60, status: "accepted" as const,
+  };
+
+  await fixture.identity.acknowledgeSettlement(proposal);
+  await assert.rejects(fixture.identity.acknowledgeSettlement(proposal), /already acknowledged/i);
+  assert.equal(fixture.feed.records.length, 2);
+});
+
 test("restart loads the same member identity from protected persisted material", async () => {
   const first = service();
   const created = await first.identity.createAndAnnounce();

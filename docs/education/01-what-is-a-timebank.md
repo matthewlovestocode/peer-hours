@@ -36,7 +36,9 @@ Ben:  -45 minutes
 
 ## Peer Hours connection
 
-Peer Hours is software for communities that want to run this kind of exchange. It will help members publish offers and requests, agree on exchanges, and record completed time. The important idea is that a balance is not a number someone edits by hand. It is calculated from verified exchange records.
+Peer Hours is software for communities that want to run this kind of exchange. The desktop can publish signed offers and requests, propose an exchange, accept it as the other participant, and publish a signed completion acknowledgement. The important idea is that a balance is not a number someone edits by hand. It is calculated from locally verified, ledger-admitted exchange records.
+
+**Not yet guaranteed:** a displayed balance is a local derivation. It is not a bank guarantee, a claim that every peer has received the same records, or a replacement for a community's dispute process.
 
 This lesson is about the social model, not the network technology. Before learning how data moves between computers, we need to know who the software is for: a community.
 

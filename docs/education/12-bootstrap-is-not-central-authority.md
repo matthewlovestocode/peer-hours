@@ -26,6 +26,8 @@ flowchart LR
 
 Bootstrap does not name a community record core. Even after peers exchange member-feed keys, a valid transfer still needs the correct proposal linkage, declared feed provenance, authorized keys, matching payload digest, and participant signatures.
 
+**Verified today:** the runtime treats bootstrap metadata as bounded, validated discovery input. A configured discovery-core key can avoid a bootstrap fetch altogether. Neither mechanism turns bootstrap into a record authority.
+
 ## Small example
 
 Imagine a response contains a record-core key. Two desktops use that key and receive this transfer record:

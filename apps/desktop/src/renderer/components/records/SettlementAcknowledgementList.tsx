@@ -1,10 +1,15 @@
 import { useState } from "react";
 import type { AcceptedProposal, SettlementConfirmation } from "./types.js";
+import { settlementLifecycleMessage, settlementProgress } from "./settlementPresentation.js";
 
-/** Presents eligible accepted exchanges and publishes only the local participant's completion acknowledgement. */
-export function SettlementAcknowledgementList({ proposals, confirmations, memberId, onComplete }: {
+/**
+ * Presents eligible accepted exchanges and publishes only the local participant's signed
+ * completion acknowledgement, never a purported counterparty attestation or finality claim.
+ */
+export function SettlementAcknowledgementList({ proposals, confirmations, settledProposalIds, memberId, onComplete }: {
   proposals: readonly AcceptedProposal[];
   confirmations: readonly SettlementConfirmation[];
+  settledProposalIds: readonly string[];
   memberId: string;
   onComplete: () => Promise<void>;
 }) {
@@ -38,12 +43,11 @@ export function SettlementAcknowledgementList({ proposals, confirmations, member
         </div>
         <span className="count-badge" aria-label={`${eligible.length} accepted exchanges`}>{eligible.length}</span>
       </div>
-      <p className="muted">An acknowledgement records that you completed the exchange. It does not create a transfer or finalize balances; both participants must sign for dual confirmation.</p>
+      <p className="muted">Your acknowledgement is a signed statement of completion. It never signs for the other participant or itself establishes a transfer, balance, replication, or network finality.</p>
       <ol className="proposal-list">
         {eligible.map((proposal) => {
           const confirmation = confirmationByProposalId.get(proposal.id);
-          const acknowledged = confirmation?.acknowledgements.some((item) => item.acknowledgedByMemberId === memberId) ?? false;
-          const dualConfirmed = confirmation?.status === "dual-confirmed";
+          const progress = settlementProgress(proposal, confirmation, memberId, settledProposalIds);
           const isAcknowledging = acknowledgingId === proposal.id;
           return (
             <li key={proposal.id} className="proposal-card">
@@ -52,9 +56,10 @@ export function SettlementAcknowledgementList({ proposals, confirmations, member
                 <span>Provider: <code>{proposal.providerMemberId}</code></span>
                 <span>Receiver: <code>{proposal.receiverMemberId}</code></span>
               </div>
-              {dualConfirmed ? <p className="proposal-card__status">Dual-confirmed by both participants.</p>
-                : acknowledged ? <p className="proposal-card__status">Awaiting the other participant’s acknowledgement.</p>
-                  : <button type="button" disabled={acknowledgingId !== null} onClick={() => void acknowledge(proposal.id)}>{isAcknowledging ? "Signing acknowledgement…" : "Acknowledge completion"}</button>}
+              <div className="settlement-action">
+                <p className="proposal-card__status">{settlementLifecycleMessage(progress.lifecycle)}</p>
+                {progress.lifecycle === "ready-to-acknowledge" && <button type="button" disabled={acknowledgingId !== null} onClick={() => void acknowledge(proposal.id)}>{isAcknowledging ? "Signing acknowledgement…" : "Acknowledge completion"}</button>}
+              </div>
             </li>
           );
         })}

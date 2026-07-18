@@ -27,13 +27,13 @@ That peer receives a replicated copy of Maya's announced feed.
 Maya closes her desktop.
 ```
 
-**Expected observation:** after the signed record is replicated, a community peer can retain Maya's feed for other connected participants. The bootstrap service never receives the offer or feed. Maya does not need to keep her laptop running all day. The desktop offer-publishing screen is not implemented yet.
+**Expected observation:** after the signed record is replicated, a community node can retain Maya's feed for other connected participants. The bootstrap service never receives the offer or feed. Maya does not need to keep her laptop running all day. Publishing requires a locally protected member identity and an available community discovery scope.
 
 ## Peer Hours connection
 
 The repository contains `apps/desktop` for the Electron member application, `apps/node` for the headless community peer, and `apps/bootstrap` for the minimal discovery-metadata service. Keeping these roles separate protects the member experience from server-operations concerns while keeping bootstrap from quietly becoming a central authority.
 
-HTTP is used for bootstrap and diagnostics; peer-to-peer replication is the path for sharing timebank records.
+HTTP is used for bootstrap and diagnostics; peer-to-peer replication is the path for sharing timebank records. The renderer cannot access the root signing key: Electron's main process owns protected identity material and exposes narrow actions to the UI.
 
 ## Takeaway
 

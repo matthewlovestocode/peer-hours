@@ -58,11 +58,15 @@ test("requires bootstrap nodes to be an array of HTTP(S) URLs", () => {
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: "https://node.example.test" })), /bootstrapNodes must be an array/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["file:///private/data"] })), /bootstrapNodes\[0\] must be a valid HTTP\(S\) URL/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["not a url"] })), /bootstrapNodes\[0\] must be a valid HTTP\(S\) URL/);
+  assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: Array.from({ length: 17 }, () => "https://bootstrap.example.test") })), /at most 16 URLs/);
+  assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["https://member:secret@bootstrap.example.test"] })), /must be a valid HTTP\(S\) URL/);
+  assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["https://bootstrap.example.test/#fragment"] })), /must be a valid HTTP\(S\) URL/);
 });
 
 test("accepts an optional community-peer diagnostics URL but rejects other URL schemes", () => {
   assert.equal(parseCommunityManifest(manifest({ communityNodeUrl: undefined })).communityNodeUrl, null);
   assert.throws(() => parseCommunityManifest(manifest({ communityNodeUrl: "file:///private/data" })), /communityNodeUrl must be a valid HTTP\(S\) URL/);
+  assert.throws(() => parseCommunityManifest(manifest({ communityNodeUrl: "https://operator:secret@peer.example.test" })), /communityNodeUrl must be a valid HTTP\(S\) URL/);
 });
 
 test("rejects arrays and null rather than treating them as manifest objects", () => {
@@ -94,4 +98,5 @@ test("rejects ambiguous or noncanonical community diagnostics identities and tim
   assert.throws(() => parseCommunityPeerRoster({ peers: [peer, peer] }), /duplicate peer ids/);
   assert.throws(() => parseCommunityPeerRoster({ peers: [{ ...peer, id: "x".repeat(257) }] }), /no longer than 256/);
   assert.throws(() => parseCommunityPeerRoster({ peers: [{ ...peer, connectedAt: "2026-07-18T12:00:00Z" }] }), /canonical ISO timestamp/);
+  assert.throws(() => parseCommunityPeerRoster({ peers: Array.from({ length: 257 }, (_, index) => ({ ...peer, id: `peer-${index}` })) }), /at most 256 entries/);
 });

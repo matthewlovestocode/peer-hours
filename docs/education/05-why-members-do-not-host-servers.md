@@ -31,7 +31,7 @@ Consider two evenings:
 
 This is why Peer Hours plans for independently deployed community nodes. They support discovery, persistence, and replication for a particular timebank. They do not make ordinary members responsible for uptime.
 
-Peer Hours now has a first answer for that question: after two compatible peers meet through a shared discovery scope, a member can send a root-signed, short-lived announcement naming their feed. The announcement contains the feed identity and expiry, not private contact information. The receiving peer validates the signature and opens the feed for replication. The remaining work is to put that deliberate publication choice into the desktop UI and test it over real Hyperswarm discovery, not just direct test connections.
+Peer Hours now has a first answer for that question: after two compatible peers meet through a shared discovery scope, a member can send a root-signed, short-lived announcement naming their feed. The announcement contains the feed identity and expiry, not private contact information. The receiving peer validates the signature and opens the feed for replication. The desktop has an explicit identity-creation path; broader real-network usability and operational testing remain ongoing work.
 
 ## Takeaway
 

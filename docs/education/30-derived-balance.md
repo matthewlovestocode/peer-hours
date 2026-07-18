@@ -1,41 +1,41 @@
 # Lesson 30: Why Balance Is Derived Instead of Stored
 
-Peer Hours treats balance as the result of valid transfers, not a mutable number that one server owns. Any peer with the same valid history can calculate the same answer.
+Peer Hours treats a balance as a local conclusion from verified, ledger-admitted transfers—not as a mutable number owned by a server.
 
 ```mermaid
 flowchart LR
-  H["Verified transfer history"] --> F["Filter accepted settlements"]
-  F --> P["Create equal-and-opposite postings"]
-  P --> B["Sum postings by member"]
-  B --> V["Local balance view"]
+  R["Replicated raw records"] --> V["Local verification\nproposal + acknowledgement + signature rules"]
+  V --> T["Admitted transfers"]
+  T --> P["Equal-and-opposite postings"]
+  P --> B["Derived local balances"]
 ```
 
-## What you already know
-
-A central database might update a row like this:
-
-```sql
-UPDATE balances SET minutes = minutes + 60 WHERE member_id = 'alex';
-```
-
-That row is convenient, but it requires trust in the system that writes it. A derived balance keeps the supporting facts inspectable.
+## One small example
 
 ```ts
-const balances = deriveBalances([
-  transfer({ provider: "alex", recipient: "bri", minutes: 60 }),
-]);
-// alex: +60, bri: -60
+const ledger = applyTransfers({
+  communityId,
+  transfers: [verifiedSettlement],
+  verifyAttestation,
+});
+
+// provider: +60; recipient: -60
+console.log(ledger.balances);
 ```
 
-**Expected observation:** replaying the exact transfer does not change balances a second time. A rejected or invalid transfer produces no postings.
+**Expected observation:** replaying the same deterministic settlement does not create another posting. A transfer rejected for missing acknowledgements, bad signatures, mismatched proposal terms, duplication, or the credit rule changes no balance.
 
-## Peer Hours connection
+## Determinism is part of safety
 
-`@peer-hours/timebank-ledger` derives balances from immutable postings. It rejects a duplicate settlement ID and applies ordinary transfers in stable transfer-ID order when enforcing the current -50-hour credit boundary. A desktop balance screen must eventually explain which local records produced its number.
+The ledger evaluates valid transfers in stable transfer-ID order, including the current ordinary-transfer credit boundary. This avoids one device accepting a history merely because it happened to receive records in another order. The supporting transfer records remain inspectable, so a balance view can explain its inputs instead of asking members to trust an opaque total.
+
+## Local view, not universal truth
+
+Two devices with the same verified transfer history derive the same balance. A device that has not yet replicated a record may show an older local view. Therefore UI language should say “locally resolved” or “locally ledger-admitted,” not “globally final.”
 
 ## Takeaway
 
-The balance is a conclusion, not the authoritative record. The authoritative evidence is the verified history that produced it.
+The evidence is authoritative for local calculation; the balance is a reproducible summary of that evidence.
 
 ## Next lesson
 

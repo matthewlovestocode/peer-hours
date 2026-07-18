@@ -1,52 +1,41 @@
 # Lesson 26: Why Order-Independent Results Matter
 
-Peers do not receive records in one shared, perfect order. Alice may receive a proposal before its key authorization; Bob may receive the authorization first. Both must reach the same answer once they have the same complete history.
-
-## What you already know
-
-An HTTP server often applies writes in one database transaction order:
-
-```text
-POST /authorizations  → row exists
-POST /transfers       → server validates the row
-```
-
-Replication is different. Arrival is transport timing, not the meaning of the records.
+Peers do not receive records in a shared perfect order. A device can receive a settlement transfer before a pending proposal, or Bri’s acknowledgement before Alex’s. Arrival timing is a network fact, not protocol meaning.
 
 ```mermaid
 sequenceDiagram
-  participant A as Alice's runtime
-  participant B as Bob's runtime
-  participant R as Resolver
-  A->>R: authorization, then settlement
-  B->>R: settlement, then authorization
-  R->>R: sort + validate complete local history
-  Note over A,B: Same history → same accepted settlement and balances
+  participant A as Alex's runtime
+  participant B as Bri's runtime
+  participant R as Local resolver
+  A->>R: proposal, acceptance, Alex acknowledgement
+  B->>R: transfer, Bri acknowledgement, proposal, acceptance
+  R->>R: deduplicate, sort, verify complete local history
+  Note over A,B: Same complete records → same accepted state
 ```
 
-## One small example
+## A progressive example
 
 ```ts
-const receivedInDifferentOrders = [
-  [authorization, acceptedProposal, transfer],
-  [transfer, authorization, acceptedProposal],
-];
+const early = resolveTimebankMemberFeeds([proposal, acceptance, transfer]);
+// transfer is not admitted: acknowledgements are absent.
 
-for (const records of receivedInDifferentOrders) {
-  const result = resolveTimebankMemberFeeds(records);
-  console.log(result.balances);
-}
+const complete = resolveTimebankMemberFeeds([
+  transfer, briAcknowledgement, proposal, acceptance, alexAcknowledgement,
+]);
+// same result on every peer that has this same complete set.
 ```
 
-**Expected observation:** the resolver does not settle the transfer until the supporting records are present, but both complete inputs produce the same balances. A duplicate identical record changes nothing; two different records with one ID are rejected as a conflict.
+**Expected observation:** before both valid acknowledgements and attestations are present, no normal settlement is admitted. After the complete set is present, the deterministic transfer ID and stable resolver ordering give each peer the same candidate result.
 
-## Peer Hours connection
+## What “same result” does—and does not—mean
 
-`@peer-hours/timebank-records` normalizes envelopes, deduplicates identical records, sorts them deterministically, and then passes recognized records to identity, proposal, and ledger rules. A desktop screen should show what the resolver knows locally—not assume that the last network message is true.
+The resolver deduplicates exact replays and rejects conflicting records that claim the same identity. It verifies signatures, checks that acceptance preserves pending terms, and evaluates ledger policy in deterministic transfer-ID order. This prevents “first message wins” behavior.
+
+It does **not** mean every peer has the same records now, that a record is durable everywhere, or that a quorum has agreed. Different local histories can legitimately produce different temporary local views.
 
 ## Takeaway
 
-Arrival order is an unreliable network detail. A deterministic resolver turns a shared set of immutable facts into a shared result.
+Replication order is transport noise. Deterministic resolution makes a complete shared history useful without pretending the network has a single clock.
 
 ## Next lesson
 

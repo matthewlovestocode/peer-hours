@@ -10,7 +10,7 @@ flowchart LR
     B --> C["Learn append-only records"]
     C --> D["See how records become state"]
     D --> E["Learn signatures and trust"]
-    E --> F["Understand the unfinished write path"]
+    E --> F["Follow a verified exchange workflow"]
 ```
 
 ## How to use this course
@@ -20,7 +20,21 @@ Each lesson aims for roughly 3–8 minutes. Look for these recurring sections:
 - **What you already know** translates from a familiar client/server idea.
 - **One small example** focuses on one behavior, not a full application.
 - **Peer Hours connection** explains why the idea matters in this repository.
-- **Verified today** and **not solved yet** keep implementation facts separate from future design.
+- **Verified today** and **Not yet guaranteed** keep implementation facts separate from future design.
+
+## Reading the accuracy labels
+
+This course deliberately does not use a diagram to turn a design goal into a fact. Watch
+for these labels:
+
+- **Verified today** describes behavior covered by the current repository's code and tests.
+- **Proposed direction** describes a useful design idea that is not a protocol promise.
+- **Not yet guaranteed** calls out an important boundary: for example, a locally admitted
+  transfer is not a claim that every peer has replicated it or that a community has a final
+  dispute-resolution policy.
+
+The examples use names and small numbers to teach a concept. They are not production
+records, credentials, or a substitute for a community's own agreements.
 
 ## Part 1 — Start with the people and the community
 
@@ -74,15 +88,15 @@ Each lesson aims for roughly 3–8 minutes. Look for these recurring sections:
 36. [Why a transfer has two attestations](36-two-attestations.md)
 37. [What a payload digest is](37-payload-digest.md)
 38. [Why replicated does not automatically mean trusted](38-replicated-is-not-trusted.md)
-39. The unresolved community-authority problem
+39. The unresolved community-authority problem *(planned)*
 
 ## Planned later lessons
 
 These lessons will be added as the corresponding desktop and protocol paths become stable.
 
-### Part 6 — The unfinished desktop workflow
+### Part 6 — Future protocol and product lessons
 
-40. Why desktop members cannot submit protocol records from the UI yet
+40. How desktop members publish protocol records safely
 41. Single-writer and multiwriter logs
 42. Why per-member feeds help
 43. What conflict resolution means here

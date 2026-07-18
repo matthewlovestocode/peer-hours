@@ -9,7 +9,7 @@ flowchart LR
   S --> P["Public record + signature"]
   K -. "never" .-> R["Electron renderer"]
   K -. "never" .-> N["Community peer / bootstrap service"]
-  K -. "never" .-> L["Replicated Hypercore feed"]
+  K -. "never" .-> L["Replicated Hypercore feed\nor signed record payload"]
 ```
 
 ## What you already know
@@ -27,7 +27,7 @@ const signature = await signingService.sign(canonicalBytes);
 
 ## Peer Hours connection
 
-The current design keeps member private keys out of the desktop renderer and community-peer public API. Hardware-backed or operating-system-backed key storage is a production hardening path, not a current implementation claim.
+The desktop main process keeps member private keys out of the renderer and community-peer public API, and signs only through its narrow local boundary. Protected OS storage is used when available; hardware-backed key custody remains a production hardening path, not a claim that every device has a hardware key.
 
 ## Takeaway
 

@@ -55,6 +55,10 @@ The desktop has an Electron preload bridge so renderer code does not reach direc
 
 The exact visual layout will evolve, but the separation should remain: React presents state, Electron coordinates privileged desktop access, and `PeerRuntime` owns peer/network lifecycle. This keeps timebank rules and transport logic out of UI components.
 
+If bootstrap is unavailable, startup should remain informative rather than destructive: the
+desktop can retain and show its last locally verified records while reporting that it has
+no current discovery scope.
+
 ## Takeaway
 
 Desktop startup opens local data first, then obtains optional bootstrap metadata and begins peer discovery. A screen can explain each stage without pretending bootstrap is a community database connection.

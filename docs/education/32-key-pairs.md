@@ -4,7 +4,7 @@ A key pair is two mathematically related values: a private key kept by its owner
 
 ```mermaid
 flowchart LR
-  K["Private key\nkept on member device"] --> S["Sign exact record terms"]
+  K["Private key\nkept on member device"] --> S["Sign exact canonical terms"]
   S --> R["Record + signature"]
   P["Public key\nshared in authorization"] --> V["Verify signature"]
   R --> V
@@ -23,7 +23,7 @@ const valid = verify(publicKey, canonicalTransferBytes, signature);
 
 ## Peer Hours connection
 
-Peer Hours currently uses Ed25519 signing keys for member-key authorizations and transfer attestations. A root identity also signs the declaration that binds a member identity to a member feed. These roles are related but should not be blurred into one all-purpose secret.
+Peer Hours uses Ed25519 signing keys for member-authored proposal, acceptance, acknowledgement, and transfer-attestation records. A root identity also signs the declaration that binds a member identity to a member feed. These roles are related but should not be blurred into one all-purpose secret.
 
 ## Takeaway
 

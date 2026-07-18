@@ -28,7 +28,7 @@ export type LocalPeerStatus = {
   uptimeMs: number;
   listening: boolean;
   discovery: { connecting: number; connected: number };
-  peers: PeerStatus[];
+  peers: readonly PeerStatus[];
   replication: { coreKey: string; length: number };
   memberFeed: { coreKey: string; length: number; state: "ready" | "unavailable" };
   discoveredMemberFeeds: readonly DiscoveredMemberFeed[];
@@ -45,7 +45,7 @@ export type CommunityManifest = {
   role: "bootstrap";
   capabilities: readonly BootstrapCapability[];
   coreKey: string;
-  bootstrapNodes: string[];
+  bootstrapNodes: readonly string[];
   communityNodeUrl: string | null;
 };
 
@@ -65,6 +65,10 @@ type JsonRecord = Record<string, unknown>;
 
 const MAX_HTTP_JSON_RESPONSE_BYTES = 64 * 1024;
 const HTTP_JSON_REQUEST_TIMEOUT_MS = 10_000;
+const MAX_BOOTSTRAP_NODES = 16;
+const MAX_COMMUNITY_DIAGNOSTIC_PEERS = 256;
+const MAX_DISCOVERED_MEMBER_FEEDS = 1_024;
+const MAX_ENDPOINT_URL_LENGTH = 2_048;
 
 /** Parses untrusted bootstrap JSON into the complete community metadata the runtime can safely use. */
 export function parseCommunityManifest(payload: unknown): CommunityManifest {
@@ -129,30 +133,31 @@ function bootstrapCapabilities(value: unknown): readonly BootstrapCapability[] {
 /** Validates bootstrap node locations without accepting non-web URL schemes. */
 function validBootstrapNodes(value: unknown): string[] {
   if (!Array.isArray(value)) throw new Error("Bootstrap metadata field bootstrapNodes must be an array of HTTP(S) URLs.");
-  return value.map((node, index) => {
-    if (typeof node !== "string") {
-      throw new Error(`Bootstrap metadata bootstrapNodes[${index}] must be an HTTP(S) URL string.`);
-    }
-    try {
-      const url = new URL(node);
-      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported protocol");
-      return url.toString();
-    } catch {
-      throw new Error(`Bootstrap metadata bootstrapNodes[${index}] must be a valid HTTP(S) URL.`);
-    }
-  });
+  if (value.length > MAX_BOOTSTRAP_NODES) {
+    throw new Error(`Bootstrap metadata field bootstrapNodes must contain at most ${MAX_BOOTSTRAP_NODES} URLs.`);
+  }
+  return value.map((node, index) => validOperationalUrl(node, `Bootstrap metadata bootstrapNodes[${index}]`));
 }
 
 /** Parses an optional diagnostics endpoint for an independently deployed community peer. */
 function optionalCommunityNodeUrl(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string") throw new Error("Bootstrap metadata field communityNodeUrl must be an HTTP(S) URL string when provided.");
+  return validOperationalUrl(value, "Bootstrap metadata field communityNodeUrl");
+}
+
+/** Validates bounded public operational URLs without permitting embedded credentials or fragments. */
+function validOperationalUrl(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_ENDPOINT_URL_LENGTH) {
+    throw new Error(`${label} must be a valid HTTP(S) URL.`);
+  }
   try {
     const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported protocol");
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || url.hash) {
+      throw new Error("unsupported URL shape");
+    }
     return url.toString();
   } catch {
-    throw new Error("Bootstrap metadata field communityNodeUrl must be a valid HTTP(S) URL when provided.");
+    throw new Error(`${label} must be a valid HTTP(S) URL.`);
   }
 }
 
@@ -161,6 +166,9 @@ export function parseCommunityPeerRoster(payload: unknown): PeerStatus[] {
   if (!isJsonRecord(payload)) throw new Error("Community diagnostics must be a JSON object.");
   if (payload.peers === undefined) return [];
   if (!Array.isArray(payload.peers)) throw new Error("Community diagnostics field peers must be an array.");
+  if (payload.peers.length > MAX_COMMUNITY_DIAGNOSTIC_PEERS) {
+    throw new Error(`Community diagnostics field peers must contain at most ${MAX_COMMUNITY_DIAGNOSTIC_PEERS} entries.`);
+  }
   const peers = payload.peers.map((value, index) => parseCommunityPeer(value, index));
   const ids = new Set<string>();
   for (const peer of peers) {
@@ -243,6 +251,7 @@ export class PeerRuntime {
   private readonly offlineRetentionMs = 30_000;
   private started = false;
   private stopped = false;
+  private stopPromise: Promise<void> | null = null;
 
   /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and optional local member feed. */
   constructor(
@@ -272,7 +281,14 @@ export class PeerRuntime {
   /** Publishes the current status to subscribers after a meaningful runtime change. */
   private notifyStatusChange(): void {
     const snapshot = this.status();
-    for (const listener of this.statusListeners) listener(snapshot);
+    for (const listener of this.statusListeners) {
+      try {
+        listener(snapshot);
+      } catch (cause) {
+        // A UI or diagnostics observer must never prevent storage or transport lifecycle work.
+        console.error("peer status listener failed:", cause);
+      }
+    }
   }
 
   /** Starts local storage and peer discovery, then accepts replicated connections. */
@@ -290,7 +306,7 @@ export class PeerRuntime {
         this.memberRecordStore = await HypercoreRecordStore.open(this.store, "peer-hours-member-records");
       }
       if (this.networkingEnabled) {
-        this.startNetworking();
+        await this.startNetworking();
       }
       if (this.bootstrapKey) this.bootstrapState = "fetched";
       const bootstrapKey = this.bootstrapKey ?? await this.fetchBootstrapKey();
@@ -317,7 +333,7 @@ export class PeerRuntime {
   }
 
   /** Starts Hyperswarm discovery and direct Corestore replication for a network-enabled runtime. */
-  private startNetworking(): void {
+  private async startNetworking(): Promise<void> {
     this.swarm = new Hyperswarm();
     this.swarm.on("connection", (connection: PeerConnection) => {
       const id = connection.remotePublicKey?.toString("hex") ?? `peer-${this.peers.size + 1}`;
@@ -339,7 +355,8 @@ export class PeerRuntime {
         }
       });
     });
-    void this.swarm.listen().then(() => { this.listening = true; });
+    await this.swarm.listen();
+    this.listening = true;
     this.join(this.core.discoveryKey);
   }
 
@@ -467,6 +484,7 @@ export class PeerRuntime {
     const key = `${announcement.declaration.communityId}\u0000${announcement.declaration.memberId}\u0000${announcement.declaration.feedPublicKey}`;
     const existing = this.discoveredMemberFeedAnnouncements.get(key);
     if (existing !== undefined && JSON.stringify(existing) === JSON.stringify(announcement)) return false;
+    if (existing === undefined && this.discoveredMemberFeedAnnouncements.size >= MAX_DISCOVERED_MEMBER_FEEDS) return false;
     this.discoveredMemberFeedAnnouncements.set(key, announcement);
     return true;
   }
@@ -579,34 +597,48 @@ export class PeerRuntime {
       if (peer.source === "simulated" && lastSeen < offlineExpiry) this.peers.delete(id);
       if (peer.lifecycleState === "offline" && Date.parse(peer.lastSeenAt) < offlineExpiry) this.peers.delete(id);
     }
-    return {
+    const peers = [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))]
+      .map((peer) => Object.freeze({ ...peer }));
+    const community = this.community === null ? null : Object.freeze({
+      ...this.community,
+      capabilities: Object.freeze([...this.community.capabilities]),
+      bootstrapNodes: Object.freeze([...this.community.bootstrapNodes]),
+    });
+    const snapshot: LocalPeerStatus = {
       state: this.error ? "error" : this.core ? "online" : "starting",
       peerId: this.core?.key?.toString("hex") ?? "",
       startedAt: this.startedAt,
       uptimeMs: Math.max(0, now - this.startedAtMs),
       listening: this.listening,
       discovery: { connecting: this.swarm?.connecting ?? 0, connected: this.swarm?.connections?.size ?? 0 },
-      peers: [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))],
+      peers: Object.freeze(peers),
       replication: { coreKey: this.core?.key?.toString("hex") ?? "", length: this.core?.length ?? 0 },
       memberFeed: {
         coreKey: this.memberRecordStore?.publicKey ?? "",
         length: this.memberRecordStore?.length ?? 0,
         state: this.memberRecordStore === null ? "unavailable" : "ready",
       },
-      discoveredMemberFeeds: this.knownMemberFeeds(),
+      discoveredMemberFeeds: Object.freeze(this.knownMemberFeeds().map((feed) => Object.freeze({ ...feed }))),
       error: this.error,
       bootstrap: { url: this.bootstrapUrl, state: this.bootstrapState },
-      community: this.community,
+      community,
     };
+    return Object.freeze(snapshot);
   }
 
   /** Stops discovery and closes local storage during application shutdown. */
   async stop(): Promise<void> {
-    if (this.stopped) return;
+    if (this.stopPromise) return this.stopPromise;
     this.stopped = true;
-    if (this.statusTimer) clearInterval(this.statusTimer);
-    this.memberFeedAnnouncementExtension?.destroy();
-    if (this.swarm) await this.swarm.destroy();
-    if (this.store) await this.store.close();
+    this.stopPromise = (async () => {
+      if (this.statusTimer) clearInterval(this.statusTimer);
+      this.statusTimer = null;
+      this.memberFeedAnnouncementExtension?.destroy();
+      this.memberFeedAnnouncementExtension = null;
+      if (this.swarm) await this.swarm.destroy();
+      this.listening = false;
+      if (this.store) await this.store.close();
+    })();
+    return this.stopPromise;
   }
 }

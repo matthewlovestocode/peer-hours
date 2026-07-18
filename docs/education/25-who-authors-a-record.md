@@ -1,34 +1,42 @@
-# Lesson 25: Who Is Allowed to Author a Record?
+# Lesson 25: Who Authors a Record—and Who Agrees With It?
 
-“Signed” can mean two different things in Peer Hours. A record envelope has an **author**: the member whose key signed the complete immutable record before it entered replicated history. A settlement transfer also has **attestations**: the provider and recipient each sign the transfer terms to show that both agree.
+Peer Hours deliberately separates two questions that are easy to blur:
+
+1. **Who appended this immutable statement to their member feed?** That member is the record author.
+2. **Whose agreement does the statement require before it counts?** That depends on the record type.
 
 ```mermaid
 flowchart LR
-    A["Accepted proposal"] --> B["Only the accepting member\nauthors the signed envelope"]
-    T["Settlement transfer"] --> S["Either participant\nmay author its envelope"]
-    P["Provider attestation"] --> V["Ledger verifies\nboth attestations"]
-    R["Recipient attestation"] --> V
-    S --> V
+  P["Pending proposal"] --> PC["Creator signs and publishes"]
+  PC --> PA["Other participant signs acceptance"]
+  PA --> A["Accepted proposal"]
+  A --> X["Each participant signs an acknowledgement"]
+  X --> D["Dual-confirmed completion"]
+  D --> T["Either participant may publish\nthe dual-attested transfer"]
 ```
 
-## One small example
+## One exchange, several authorship rules
 
-Alex proposes to give Bri 60 minutes of gardening help. Bri accepts. The accepted-proposal record must be authored by Bri, because Bri performed the acceptance. Alex cannot publish a valid acceptance record for Bri.
+Alex offers gardening; Bri requests it. Alex creates the pending proposal, so the proposal record must be signed by Alex. Bri—not Alex—must sign the later acceptance record. The acceptance preserves every proposal term; it is not a mutable edit of Alex’s record.
 
-After the work is complete, Alex and Bri both attest to a 60-minute transfer. Either Alex or Bri may author the record envelope that carries that transfer into history. The resolver accepts that envelope only if its author is a participant, and the ledger derives balances only if **both** participant attestations verify.
+After the work, Alex and Bri may each publish their own acknowledgement. An acknowledgement is signed by the participant named as `acknowledgedByMemberId`. Once both acknowledgements resolve, either participant may publish the settlement-transfer envelope. That envelope is still admitted only when it contains **both** participants’ valid attestations over the exact transfer terms.
 
-**Expected observation:** a transfer envelope signed only by Alex still fails if Bri's transfer attestation is missing or invalid.
+```text
+record author       answers: “who published this record?”
+transfer attestor   answers: “who approved these transfer terms?”
+ledger admission    answers: “does this locally verified transfer count?”
+```
 
-## Verified today and not solved yet
+**Expected observation:** Alex can publish a transfer envelope, but it is rejected if Bri’s required attestation is absent, invalid, or signs different terms.
 
-These authorship and attestation checks are verified in the in-memory record resolver. They distinguish “who submitted this immutable record?” from “who consented to the settlement?”
+## Peer Hours connection
 
-The runtime has a real local member feed and can announce its declared feed to connected peers, but the desktop does not yet provide composition screens or a safe user-facing submission workflow for these records. The self-owned identity/feed relationship is implemented as a root-signed declaration; its future UI must not turn into membership approval.
+The records resolver verifies authorized member signatures and enforces provenance: proposal creator, accepting counterparty, acknowledgement participant, or transfer participant. The settlement package separately checks dual confirmation and both cryptographic transfer attestations. Neither check claims that every peer has replicated the records or that the exchange is globally final.
 
 ## Takeaway
 
-One signature can authenticate a record author. Settlement needs the stronger evidence of two participants attesting to the same transfer terms.
+Record authorship tells us who made a statement available. Participant attestations tell us who agreed to a settlement. Both matter, and neither is a community administrator’s approval.
 
 ## Next lesson
 
-The next lesson will explain why a resolver must produce the same result even when records arrive in different orders.
+The next lesson explains why those rules must produce the same result even when records arrive in different orders.

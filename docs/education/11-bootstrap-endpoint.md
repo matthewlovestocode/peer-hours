@@ -48,7 +48,7 @@ For development, the desktop commonly points at `http://127.0.0.1:10001/bootstra
 
 Bootstrap metadata must be treated carefully. It tells the runtime *what to try connecting to*; it does not itself prove that a transfer is valid, that a member is authorized, or that the node has every record.
 
-The current runtime does more than just parse JSON. It requires a successful HTTP response and checks that the manifest has nonblank community information, a positive protocol version, correctly shaped 64-character core keys, and HTTP(S) bootstrap URLs. That catches many broken responses before the runtime uses them. It does **not** yet prove who operated the endpoint, pin a known key, or verify a signature. Think of it as checking that a map is readable without yet having a way to prove who printed the map.
+The current runtime does more than just parse JSON. It requires a successful bounded HTTP response and checks that the manifest has nonblank community information, the supported protocol version, correctly shaped 64-character core keys, and safe HTTP(S) bootstrap URLs. A deployment can configure `PEER_HOURS_BOOTSTRAP_KEY` to use a known discovery key without fetching bootstrap metadata. When the runtime does fetch a manifest, shape validation makes the map readable; it does **not** by itself authenticate who operated the endpoint or verify a signed manifest.
 
 This small HTTP bridge is useful because it lets a traditional desktop app discover a peer-to-peer community without hard-coding every network detail into the app.
 

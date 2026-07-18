@@ -15,7 +15,7 @@ test("community scope copy treats the identifier as public verification context"
 });
 
 test("records trust copy never upgrades raw history to settlement finality", () => {
-  const ready = recordsTrustStatus({ state: "ready", publishedListings: [], proposedProposals: [], acceptedProposals: [], settlementConfirmations: [], transfers: [] }, 2);
+  const ready = recordsTrustStatus({ state: "ready", publishedListings: [], proposedProposals: [], acceptedProposals: [], settlementConfirmations: [], settledProposalIds: [], transferCount: 0 }, 2);
   assert.equal(ready.tone, "ready");
   assert.match(ready.detail, /not a claim of replication or settlement finality/i);
 

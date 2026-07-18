@@ -1,49 +1,46 @@
 # Lesson 20: What Is Replication?
 
-Replication is the process of copying verified blocks of the same Hypercore between connected peers. It lets each runtime build a local copy of the history it needs.
-
-## What you already know
-
-With a REST API, a browser often asks a server for the latest data:
-
-```text
-GET /records
-→ server sends JSON response
-```
-
-With replication, two runtimes exchange blocks for a known core. Each runtime stores received blocks locally, so the next screen can read local data instead of treating every view as a fresh server request.
+Replication copies verified missing blocks of a known Hypercore between connected peers. Each runtime persists the blocks it receives locally, then reads and resolves that local snapshot.
 
 ```mermaid
 sequenceDiagram
-  participant A as Desktop runtime
-  participant B as Community node
-  A->>B: Connect and request known record-core blocks
-  B-->>A: Verified missing blocks
-  A->>A: Persist blocks in local Corestore
-  A->>A: Resolve local records into app state
+  participant A as Alice desktop
+  participant N as Community node
+  participant B as Bob desktop
+  A->>N: replicate opened member feeds
+  N-->>A: missing verified blocks
+  N->>B: retain/replicate opened feeds
+  B->>B: persist blocks in Corestore
+  B->>B: verify and resolve local history
 ```
 
 ## A tiny example
 
 ```text
-Alice's member feed: blocks 0, 1, 2
-Desktop before connection: blocks 0, 1
-Desktop after replication: blocks 0, 1, 2
+Alice feed:              blocks 0, 1, 2
+Bob's local copy before: blocks 0, 1
+Bob's local copy after:  blocks 0, 1, 2
 ```
 
-**Expected observation:** the desktop now reads block `2` from its own local Corestore. It did not need to trust a JSON response as the only record of the fact; Hypercore verifies the block belongs to the core identified by its key.
+**Expected observation:** Bob can read block `2` from his own Corestore after replication. Hypercore verifies that the block belongs to Alice’s feed key; Bob does not have to treat an HTTP JSON response as the only evidence of the claim.
 
-Replication is not the same as business validation. A replicated transfer can be structurally well-formed yet still be rejected by Peer Hours rules because its signatures, proposal linkage, or authorization are invalid.
+## Three separate questions
+
+```mermaid
+flowchart LR
+  C["Can I copy this block?\nHypercore verification"] --> P["Can I use this feed?\nannouncement/provenance"]
+  P --> M["Does this record count?\nPeer Hours resolver"]
+```
+
+Replication is not business validation, authorization, or finality. A replicated record may still be discarded from the resolved view because it has an invalid signature, the wrong community, an undeclared feed, or terms that violate the protocol. Conversely, a locally accepted record is not proof that every community peer has received it yet.
 
 ## Peer Hours connection
 
-`HypercoreRecordStore` in `@peer-hours/peer-runtime` has a two-Corestore integration test: one runtime appends an immutable record to its member feed, another opens that feed key, replication runs, and the second reads the equivalent record sequence. The always-on community peer has no special writer role; it can retain the same known feed like any other peer.
-
-That is a real replication path, but it is not yet member-originated writing or a full distributed authority model.
+`PeerRuntime` replicates its Corestore over Hyperswarm connections. Its integration tests cover appending an immutable member-feed record in one runtime, opening the feed by public key in another, replicating, and reading the equivalent sequence. Community nodes can be always available retainers of opened feeds, but they have no privileged writer role and do not expose a canonical `/records` API.
 
 ## Takeaway
 
-Replication makes a verified local copy. It does not by itself decide what the copied data means or whether the community should accept it.
+Replication gives a peer a verified local copy of a feed. The Peer Hours resolver decides what that copy means.
 
 ## Next lesson
 

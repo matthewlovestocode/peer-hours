@@ -1,6 +1,6 @@
 # Lesson 7: Offline Work and Online Settlement
 
-Peer Hours separates activities that are useful offline from actions that change the shared timebank record. Members can prepare or view some information without a connection, but a completed exchange must be settled online so the participating runtimes can share and verify it.
+Peer Hours separates activities that are useful offline from actions that change the shared timebank record. Members can prepare or view some information without a connection, but a completed exchange needs both participants' signed evidence and a path to share it before another runtime can independently admit it.
 
 ## What you already know
 
@@ -28,9 +28,30 @@ Result: the signed transfer can be replicated and balances update.
 
 **Expected observation:** drafting alone does not change either balance. Both attestations and online replication are required before the shared ledger treats it as settled.
 
+## What “online” does and does not mean
+
+Being online is not a single final step. A member may be connected to one peer while the
+counterparty is offline, or may publish an acknowledgement that has not reached a
+community node yet.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Drafted: prepare listing or terms
+  Drafted --> Proposed: signed proposal is published
+  Proposed --> Accepted: other participant signs acceptance
+  Accepted --> AwaitingAcknowledgements: each participant may acknowledge completion
+  AwaitingAcknowledgements --> DualConfirmed: both acknowledgements resolve locally
+  DualConfirmed --> LocallyAdmitted: deterministic transfer passes local ledger rules
+```
+
+`LocallyAdmitted` is intentionally not labelled “globally final.” It means this runtime
+has the evidence and rules needed to include the transfer in its local derived ledger.
+
 ## Peer Hours connection
 
-The current packages model this distinction: proposals describe an intended exchange; settlement validates a transfer against an accepted proposal; identity verifies the participants’ signatures; the ledger derives the two balance changes. The network-write portion is still being built, so this describes the intended member workflow rather than a finished desktop feature.
+The current packages and desktop model this distinction: proposals describe an intended exchange; the other participant signs acceptance; each participant can sign a separate completion acknowledgement; settlement validates a deterministic transfer against the accepted proposal and both attestations; identity verifies the signatures; and the ledger derives the two balance changes. The UI presents acknowledgement and locally ledger-admitted state separately.
+
+**Not yet guaranteed:** replication to every participant, conflict/dispute resolution, and social finality are not inferred from one local admission.
 
 This boundary is deliberate. It lets people record needs and offers in everyday life while treating shared time-credit settlement as a verifiable, connected action.
 

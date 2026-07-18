@@ -1,28 +1,13 @@
 # Lesson 27: What Is a Member-Key Authorization?
 
-A member-key authorization says that one public signing key may act for one member in one community. It is not approval to participate, and it is not a password.
+A member-key authorization binds a public signing key to one member in one community. It lets a verifier answer a narrow question: “may this public key verify a signature for this member here?” It is not an account, a password, or permission to join.
 
 ```mermaid
 flowchart LR
-  M["Member identity"] --> A["Authorization event\nmember + community + keyId"]
-  A --> K["Public Ed25519 key"]
-  K --> S["May verify this member's signatures"]
-  S -. "does not grant" .-> G["Gatekeeping or account control"]
-```
-
-## What you already know
-
-An OAuth access token often grants a list of server-controlled permissions. Peer Hours uses a narrower idea: a signed record is checked against a public key that the member has made active for a particular community.
-
-```json
-{
-  "action": "activate",
-  "memberId": "member-alex",
-  "communityId": "peer-hours/earth/US/CA/east-bay/oakland",
-  "keyId": "laptop-2026",
-  "publicKey": "base64url-ed25519-public-key",
-  "occurredAt": "2026-07-18T12:00:00.000Z"
-}
+  M["Member identity"] --> D["Root-signed member-feed declaration"]
+  D --> K["Active public signing key\nfor one community"]
+  K --> V["Verify member-signed records"]
+  V -. "does not grant" .-> G["Gatekeeping, balances, or\ncommunity authority"]
 ```
 
 ## One small example
@@ -30,19 +15,23 @@ An OAuth access token often grants a list of server-controlled permissions. Peer
 ```ts
 const active = reduceMemberKeyAuthorizations([activateLaptop, revokeOldPhone]);
 const key = active.get("member-alex", "laptop-2026");
-verifyRecordSignature(record, key);
+verifyMemberSignedRecord(record, [key]);
 ```
 
-**Expected observation:** a signature made with an active key for Alex in Oakland can verify. The same key cannot silently authorize a record for a different member or community. A later revocation makes it inactive.
+**Expected observation:** a signature made by Alex’s active Oakland key can verify an Alex-authored Oakland proposal. The same key cannot silently authorize a record for Bri or for another community. A revocation removes the key from the active set used for new verification.
+
+## Why scope is important
+
+The same human may use different devices, rotate keys, or participate in several communities. Community scope prevents a key declaration intended for one record history from becoming a blanket authorization everywhere. The resolver also checks the record-specific role after signature verification: a valid key cannot make Alex author Bri’s acceptance.
 
 ## Peer Hours connection
 
-`@peer-hours/timebank-identity` reduces activation and revocation events deterministically. Its verifier is used by record resolution to check authorship and transfer attestations. This provides self-managed cryptographic identity; it does not introduce a membership administrator.
+The implemented resolver combines legacy key events with self-owned, root-signed feed declarations, then verifies member-originated domain records against that public authorization material. This supports self-managed identity; it does not establish a membership authority or a central recovery service.
 
 ## Takeaway
 
-The authorization answers “which public key can prove this member signed here?” It does not answer “may this person join?”
+Authorization answers “which public key may prove this member signed this community-scoped record?” It does not answer “may this person participate?”
 
 ## Next lesson
 
-Continue with [Lesson 28: What is an accepted proposal?](28-accepted-proposal.md).
+Continue with [Lesson 28: What is a pending and accepted proposal?](28-accepted-proposal.md).

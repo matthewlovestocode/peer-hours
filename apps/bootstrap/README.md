@@ -40,7 +40,7 @@ The bootstrap service is a convenience trust entry point: it tells a newly insta
 
 Obtain `DISCOVERY_CORE_KEY` from the community peer operator's published configuration or from that peer's `/status` response during local development. The bootstrap service does not generate, persist, or inspect the key.
 
-The process validates `PORT` before listening and rejects blank entries in `BOOTSTRAP_NODES` rather than silently changing the configured fallback set. It accepts `SIGINT` and `SIGTERM` by stopping HTTP intake; repeated signals share the same close operation. Deploy it behind HTTPS when it is internet-facing. Its CORS response remains intentionally public because the manifest is public discovery metadata, not a credential or authorization decision.
+The process validates `PORT` before listening and rejects blank entries in `BOOTSTRAP_NODES` rather than silently changing the configured fallback set. It permits at most 16 fallback URLs and rejects URLs with embedded credentials, fragments, unsupported schemes, or more than 2,048 characters so the service cannot publish metadata that the runtime will refuse. It accepts `SIGINT` and `SIGTERM` by stopping HTTP intake; repeated signals share the same close operation. Deploy it behind HTTPS when it is internet-facing. Its CORS response remains intentionally public because the manifest is public discovery metadata, not a credential or authorization decision.
 
 ## Development
 

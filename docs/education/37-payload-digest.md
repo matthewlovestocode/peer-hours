@@ -4,7 +4,7 @@ A payload digest is a short fixed-length fingerprint of canonical data. Peer Hou
 
 ```mermaid
 flowchart LR
-  J["Canonical JSON bytes"] --> H["SHA-256"]
+  J["Canonical transfer JSON bytes"] --> H["SHA-256"]
   H --> D["payloadDigest"]
   J --> S["Signature"]
   D --> V["Verifier recomputes digest"]
@@ -20,11 +20,11 @@ const digest = sha256base64url(terms);
 const attestation = { keyId: "alex-laptop", payloadDigest: digest, signature };
 ```
 
-**Expected observation:** if a receiver changes `minutes` from `60` to `61`, the recomputed digest differs before signature verification can succeed.
+**Expected observation:** if a receiver changes `minutes` from `60` to `61`, the recomputed digest differs and the signature over the original canonical bytes cannot verify for the changed terms.
 
 ## Peer Hours connection
 
-The digest is not a secret and is not a replacement for the signature. It gives useful, explicit evidence about exactly which canonical payload was signed, and helps the verifier reject malformed or altered attestation data.
+The digest is not a secret and is not a replacement for the signature. It gives useful, explicit evidence about exactly which canonical transfer payload was signed, and helps the verifier reject malformed or altered attestation data. A matching digest alone never admits a transfer: authorization, dual acknowledgement, proposal linkage, both signatures, and ledger policy still apply.
 
 ## Takeaway
 

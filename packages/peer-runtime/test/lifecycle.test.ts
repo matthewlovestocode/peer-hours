@@ -72,3 +72,29 @@ test("restores a stale simulated peer when its heartbeat resumes", () => {
   assert.equal(resumed.lifecycleState, "connected");
   assert.equal(resumed.connectedAt, firstConnection);
 });
+
+test("returns detached immutable status snapshots", () => {
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-status-snapshot-test", undefined, undefined, () => now, false);
+  runtime.registerSimulatedPeer("simulated-peer-a");
+
+  const snapshot = runtime.status();
+  assert.throws(() => { (snapshot.peers[0] as { id: string }).id = "tampered"; }, TypeError);
+  assert.throws(() => { (snapshot as { peerId: string }).peerId = "tampered"; }, TypeError);
+  assert.equal(runtime.status().peers[0]?.id, "simulated-peer-a");
+});
+
+test("isolates failing status listeners from later observers and runtime updates", () => {
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-listener-test", undefined, undefined, () => now, false);
+  const received: string[] = [];
+  const originalConsoleError = console.error;
+  console.error = () => undefined;
+  try {
+    runtime.onStatusChange(() => { throw new Error("listener failure"); });
+    runtime.onStatusChange((status) => received.push(status.peers[0]?.id ?? "none"));
+    runtime.registerSimulatedPeer("simulated-peer-a");
+  } finally {
+    console.error = originalConsoleError;
+  }
+  assert.deepEqual(received, ["simulated-peer-a"]);
+  assert.equal(runtime.status().peers[0]?.id, "simulated-peer-a");
+});

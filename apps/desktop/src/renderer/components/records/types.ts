@@ -40,5 +40,8 @@ export type ResolvedMemberState =
     proposedProposals: readonly PendingProposal[];
     acceptedProposals: readonly AcceptedProposal[];
     settlementConfirmations: readonly SettlementConfirmation[];
-    transfers: readonly unknown[];
+    /** Proposal ids whose matching transfer this device locally admitted to its ledger. */
+    settledProposalIds: readonly string[];
+    /** Count of locally admitted transfers; this is not a replication-finality claim. */
+    transferCount: number;
   };

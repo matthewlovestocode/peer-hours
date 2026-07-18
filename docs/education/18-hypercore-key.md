@@ -1,47 +1,35 @@
 # Lesson 18: What Is a Hypercore Key?
 
-A Hypercore public key identifies one particular append-only log. If two peers know the same key, they are talking about the same log and can verify blocks received for it.
-
-## What you already know
-
-You may be used to identifying a database with a connection string:
-
-```text
-postgres://app:password@db.example.com/peer_hours
-```
-
-That string tells a client where a central service lives and how to authenticate to it. A Hypercore key is different. It identifies data itself, not a web server location. Peer discovery and connection happen separately.
+A Hypercore public key identifies one exact append-only log. If two peers open the same key, they can exchange and verify blocks for that same history.
 
 ```mermaid
 flowchart LR
-  K["Record-core public key"] --> A["Peer A opens this log"]
-  K --> B["Peer B opens this log"]
-  A <-->|"replicate verified blocks"| B
+  K["member-feed public key"] --> A["Alice's desktop\nopens the feed"]
+  K --> N["community node\nopens the same feed"]
+  K --> B["Bob's desktop\nopens the same feed"]
+  A <-->|"verified blocks"| N
+  N <-->|"verified blocks"| B
 ```
 
-## A tiny example
+## What a key is not
+
+A key identifies data, not a web-server address, a member identity, or permission to write. It is normally shown as 64 hexadecimal characters, although the protocol works with binary key material.
 
 ```text
-member feed key:
-ab12...ef90
-
-Peer A opens core ab12...ef90
-Peer B opens core ab12...ef90
+member feed key:  ab12...ef90
 ```
 
-**Expected observation:** both peers refer to the same ordered history, even though each stores its own local copy. The key is normally displayed or configured as a hexadecimal string, but the real key material is binary.
-
-A public key is safe to share. It is not a password and does not grant someone the ability to append to a log. Writing is controlled by the log's writer key and the application’s authorization design.
+**Expected observation:** every peer that opens this public key refers to the same ordered feed, while each stores its own local copy. A remote opener is read-only; only the runtime with the feed’s private writer material can append.
 
 ## Peer Hours connection
 
-`PeerRuntime` exposes its local `memberFeed.coreKey` in status data. This is the public key of the member feed owned by that runtime. A bootstrap response carries only discovery metadata; it does not select a community-owned record history.
+`PeerRuntime` exposes the local member feed’s `coreKey` in its status. A signed, short-lived member-feed announcement tells connected peers that a particular member, community, and feed key belong together. Peers validate and cache those announcements before opening discovered remote feeds.
 
-This key identifies one append-only member feed, not a community authority. Root signing keys used to attest declarations and transfers are a separate identity concept managed by `@peer-hours/timebank-identity`.
+That feed key remains distinct from the member’s root signing key. The feed key says **which Hypercore history**; the root signing key helps the resolver answer **which member signed a record**. Neither key turns a community node into a central authority.
 
 ## Takeaway
 
-A core key answers “which append-only history?” It does not answer “where is the server?” or “who is this member?”
+A Hypercore key answers “which immutable history?” Discovery answers “how might I reach a peer carrying it?” and Peer Hours authorization answers “should this record count?”
 
 ## Next lesson
 

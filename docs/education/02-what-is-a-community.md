@@ -42,6 +42,20 @@ Peer Hours includes `communityId` on important records. That lets the software r
 
 A community is not necessarily a company running a central app. It is the shared social and data boundary that participating computers recognize.
 
+## Scope is checked at more than one layer
+
+```mermaid
+flowchart LR
+  M["Bootstrap metadata\ncommunityId"] --> R["Runtime discovery scope"]
+  R --> F["Member-feed declaration\ncommunityId"]
+  F --> X["Listing, proposal, and\nsettlement records"]
+  X --> V["Local resolver accepts only\nmatching community scope"]
+```
+
+The repeated `communityId` is not proof that a record is good by itself. It prevents a
+record from one community being casually interpreted as part of another community's
+accounting.
+
 ## Takeaway
 
 A community ID scopes records and shared rules. It names a social/accounting boundary, not a route through the network or an organization that controls people.

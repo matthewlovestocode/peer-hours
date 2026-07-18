@@ -1,6 +1,6 @@
 # Lesson 9: Your Desktop Has Local Data
 
-The Peer Hours desktop application is not just a window around a remote website. It includes an embedded peer runtime with its own local storage and networking work.
+The Peer Hours desktop application is not just a window around a remote website. It includes an embedded peer runtime with its own local storage and networking work, while Electron's main process owns privileged identity operations.
 
 ## What you already know
 
@@ -20,6 +20,20 @@ flowchart TB
 ```
 
 The dotted connection is important. Synchronization improves the local view; it is not the only way the desktop can show data.
+
+## Not every local file has the same sensitivity
+
+```mermaid
+flowchart LR
+  U["Renderer UI\nuntrusted display layer"] -->|"narrow IPC request"| M["Electron main process"]
+  M --> I["Encrypted root identity\nprivate key material"]
+  M --> R["Peer runtime and\nlocal feed storage"]
+  R --> V["Verified state sent\nback to UI"]
+```
+
+The renderer is allowed to ask to publish a listing or acknowledge its own completion. It
+does not receive the root private key and cannot sign as another member. Protected storage
+helps on a supported desktop; it is not a substitute for device security or recovery policy.
 
 ## Small example
 

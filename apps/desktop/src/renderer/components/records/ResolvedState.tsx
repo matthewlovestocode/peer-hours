@@ -19,7 +19,7 @@ export function ResolvedState({ state }: { state: ResolvedMemberState | null }) 
         <div><dt>Listings</dt><dd>{state.publishedListings.length}</dd></div>
         <div><dt>Awaiting acceptance</dt><dd>{state.proposedProposals.length}</dd></div>
         <div><dt>Accepted exchanges</dt><dd>{state.acceptedProposals.length}</dd></div>
-        <div><dt>Transfers</dt><dd>{state.transfers.length}</dd></div>
+        <div><dt>Locally admitted transfers</dt><dd>{state.transferCount}</dd></div>
       </dl>
       <ol className="accepted-listings">
         {state.publishedListings.map((listing) => (

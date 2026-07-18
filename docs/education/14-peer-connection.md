@@ -37,6 +37,10 @@ Peer Hours uses peer networking to make local record histories converge. The des
 
 A connection does not guarantee that every record is present, valid, or settled. It only says that a transport path currently exists between runtimes. The next lesson explains why that makes a single green “connected” label too vague.
 
+**Verified today:** a discovered feed must be named by an unexpired, root-signed feed
+announcement before the runtime treats it as a member feed to open. Transport discovery
+does not confer authorship or ledger authority.
+
 ## Takeaway
 
 A peer connection makes exchange of known data possible. It says nothing by itself about completeness, trust, or settlement.

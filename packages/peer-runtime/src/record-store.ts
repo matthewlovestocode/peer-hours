@@ -48,6 +48,9 @@ function normalizeRecord<TRecord extends JsonValue>(value: unknown): TRecord {
  * second RecordStore opened with this instance's public key.
  */
 export class HypercoreRecordStore<TRecord extends JsonValue = JsonValue> {
+  /** Serializes local appends so each caller receives the index Hypercore assigned to its record. */
+  private appendTail: Promise<void> = Promise.resolve();
+
   private constructor(private readonly core: HypercoreLike) {}
 
   /** Opens a named local core, or opens an existing core by its hexadecimal public key. */
@@ -86,9 +89,18 @@ export class HypercoreRecordStore<TRecord extends JsonValue = JsonValue> {
   async append(record: TRecord): Promise<number> {
     if (!this.writable) throw new Error("This record core is read-only.");
     const normalized = normalizeRecord<TRecord>(record);
-    const index = this.core.length;
-    await this.core.append(normalized);
-    return index;
+    let complete!: () => void;
+    const previous = this.appendTail;
+    this.appendTail = new Promise<void>((resolve) => { complete = resolve; });
+    await previous;
+    try {
+      if (!this.writable) throw new Error("This record core is read-only.");
+      const index = this.core.length;
+      await this.core.append(normalized);
+      return index;
+    } finally {
+      complete();
+    }
   }
 
   /** Reads one immutable JSON record by zero-based sequence index, or null when unavailable. */
@@ -100,10 +112,14 @@ export class HypercoreRecordStore<TRecord extends JsonValue = JsonValue> {
 
   /** Reads the complete immutable record sequence currently available in this core. */
   async readAll(): Promise<readonly TRecord[]> {
+    // Capture the boundary before reading. A live writer may keep appending, but one refresh must
+    // still finish with a coherent prefix rather than chasing an unbounded moving length.
+    const length = this.core.length;
     const records: TRecord[] = [];
-    for (let index = 0; index < this.core.length; index += 1) {
+    for (let index = 0; index < length; index += 1) {
       const record = await this.read(index);
-      if (record) records.push(record);
+      if (record === null) throw new Error("A record core changed while its immutable history was being read.");
+      records.push(record);
     }
     return Object.freeze(records);
   }

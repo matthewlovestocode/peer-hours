@@ -10,6 +10,9 @@ export interface BootstrapManifest {
   readonly communityNodeUrl: string | null;
 }
 
+const MAX_BOOTSTRAP_NODES = 16;
+const MAX_ENDPOINT_URL_LENGTH = 2_048;
+
 /** Builds a validated bootstrap manifest from deployment configuration without operating a peer. */
 export function createBootstrapManifest(input: {
   readonly communityId: string;
@@ -24,7 +27,11 @@ export function createBootstrapManifest(input: {
   if (!/^[a-f0-9]{64}$/.test(coreKey)) {
     throw new TypeError("Discovery core key must be a 64-character hexadecimal Hypercore key.");
   }
-  const bootstrapNodes = Object.freeze((input.bootstrapNodes ?? []).map((url, index) => validBootstrapUrl(url, index)));
+  const configuredBootstrapNodes = input.bootstrapNodes ?? [];
+  if (configuredBootstrapNodes.length > MAX_BOOTSTRAP_NODES) {
+    throw new TypeError(`At most ${MAX_BOOTSTRAP_NODES} bootstrap nodes may be configured.`);
+  }
+  const bootstrapNodes = Object.freeze(configuredBootstrapNodes.map((url, index) => validBootstrapUrl(url, index)));
   const communityNodeUrl = input.communityNodeUrl === undefined ? null : validBootstrapUrl(input.communityNodeUrl, 0);
   return Object.freeze({
     communityId,
@@ -46,9 +53,14 @@ function requiredText(value: string, label: string): string {
 
 /** Limits optional fallback bootstrap endpoints to safe web URLs. */
 function validBootstrapUrl(value: string, index: number): string {
+  if (value.length === 0 || value.length > MAX_ENDPOINT_URL_LENGTH) {
+    throw new TypeError(`Bootstrap node ${index + 1} must be a valid HTTP(S) URL.`);
+  }
   try {
     const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported protocol");
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || url.hash) {
+      throw new Error("unsupported URL shape");
+    }
     return url.toString();
   } catch {
     throw new TypeError(`Bootstrap node ${index + 1} must be an HTTP(S) URL.`);

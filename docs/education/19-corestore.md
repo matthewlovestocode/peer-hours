@@ -1,45 +1,36 @@
 # Lesson 19: What Is Corestore?
 
-Corestore is local storage that manages a collection of Hypercores. A Peer Hours runtime uses one Corestore directory as the home for the logs it opens and replicates.
-
-## What you already know
-
-In a web application, you might configure one database connection and create many tables inside that database. Corestore is not a relational database, but the mental model is helpful: it is one local storage home that can manage many separate logs.
+[Corestore](https://github.com/holepunchto/corestore) is a local storage manager for a collection of Hypercores. One Peer Hours runtime gives it a directory and uses it to persist the logs it owns or has opened from other peers.
 
 ```mermaid
 flowchart TB
-  S["One local Corestore directory"] --> N["Network core"]
-  S --> D["Discovery core"]
-  S --> F["Local member feed"]
-  S --> R["Known remote member feeds"]
+  S["one local Corestore directory"] --> D["network/discovery core"]
+  S --> M["local writable member feed"]
+  S --> R1["remote member feed A\nread-only locally"]
+  S --> R2["remote member feed B\nread-only locally"]
 ```
 
-Each core still has its own public key, ordered blocks, and replication behavior. Corestore gives the runtime a convenient place to open, persist, and replicate them together.
+Each core still has its own key, ordered blocks, and writer permissions. Corestore is not a relational database, a global shared disk, or a source of timebank policy; it is the local home that lets a runtime reopen available data after restart.
 
-## A tiny example
+## A concrete restart example
 
 ```text
-app-data/
-  corestore/
-    network core
-    timebank record core
+first start:  replicate a known remote member feed to local Corestore
+restart:      reopen the local Corestore and read its available blocks immediately
+later:        connect again and receive any missing blocks
 ```
 
-Imagine starting the desktop app twice with the same app-data directory.
-
-**Expected observation:** the second start can reopen the same local cores and read records already downloaded during the first start. It does not need to fetch every record again before showing locally available information.
-
-The exact files on disk are Corestore implementation details. Applications should treat the data directory as runtime state, not as a folder for manually editing records.
+**Expected observation:** a restart can show a locally available history before the network is reachable. The app should treat the Corestore directory as runtime state, not manually edit its internal files.
 
 ## Peer Hours connection
 
-`@peer-hours/peer-runtime` creates and owns an application-supplied Corestore. It opens a local discovery core and, for a member runtime, a named `peer-hours-member-records` feed through `HypercoreRecordStore`. After a valid signed feed announcement, it can open a known remote member feed too. When it receives a replication connection, it replicates the Corestore, allowing the other runtime to exchange blocks for cores both sides have opened.
+`PeerRuntime` opens `peer-hours-network` for discovery and, for a member runtime, a writable `peer-hours-member-records` Hypercore. Once a valid member-feed announcement is known, it can open that feed key as a remote read-only record store in the same Corestore. Corestore replication exchanges blocks for cores both connected peers have opened.
 
-Corestore does not decide which records should be trusted or how a balance is calculated. `@peer-hours/timebank-records` and the pure timebank packages do that after records arrive locally.
+`@peer-hours/timebank-records` runs after this storage layer. It decides whether locally stored envelopes form authorized listings, proposals, acknowledgements, or ledger entries; Corestore does not.
 
 ## Takeaway
 
-Corestore is the local container for many Hypercores. It makes a runtime’s replicated data durable across restarts.
+Corestore makes a runtime’s collection of local and replicated Hypercores durable. It does not merge them into one authority or decide their business meaning.
 
 ## Next lesson
 

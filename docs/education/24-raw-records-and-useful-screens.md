@@ -1,50 +1,47 @@
 # Lesson 24: Raw Records Versus a Useful Screen
 
-A replicated record is not yet a screen a member can understand. A Peer Hours app needs a repeatable way to turn raw, append-only records into a useful local view: known signing keys, current offers, accepted proposals, valid transfers, and derived balances.
-
-## What you already know
-
-In a typical web application, the server may query database tables and send the browser a ready-made JSON response:
-
-```text
-GET /api/balance/me  ->  { "minutes": 120 }
-```
-
-In a local-first system, a runtime can receive individual records in a different order, or receive the same record more than once. The screen should not trust arrival order or a node's current response as the source of truth. It should resolve the immutable history it has locally.
+A replicated record is not automatically a fact the application should show as accepted. Peer Hours turns raw immutable records into a **verified local view** by validating and resolving the history available on this device.
 
 ```mermaid
 flowchart LR
-    H["Replicated record history"] --> V["Check envelope and authority"]
-    V --> R["Resolve deterministic local view"]
-    R --> S["Offers, proposals, transfers, balances"]
-    S --> U["Useful desktop screen"]
+  H["raw blocks from local + discovered feeds"] --> E["normalize and de-duplicate envelopes"]
+  E --> P["check feed provenance\nand member signatures"]
+  P --> D["decode domain records\nand verify links"]
+  D --> R["deterministic resolved state"]
+  R --> U["member-facing screen"]
 ```
 
-## One small example
-
-Imagine a runtime has these three records:
+## One exchange, in stages
 
 ```text
-1. Member A's key is authorized for East Bay
-2. A proposal between Member A and Member B is accepted for 60 minutes
-3. The accepting member authors the signed accepted-proposal record
-4. Either transfer participant submits a signed transfer record, carrying a dual-attested transfer that refers to that accepted proposal
+1. Alice publishes an offer; Bob publishes a compatible request.
+2. Alice or Bob signs a pending proposal from those listings.
+3. The other participant signs an acceptance with identical terms.
+4. Each participant may sign a settlement acknowledgement.
+5. Only a valid, dual-attested settlement transfer can be admitted to the local ledger.
 ```
 
-The resolver checks that the key was valid, that the proposal was accepted, and that the transfer exactly matches the proposal. If it does, it derives `+60` minutes for A and `-60` minutes for B. If record 3 arrives before records 1 and 2, the runtime can keep it as unresolved and try again when the rest of the history arrives. It must not invent a settled balance just because it saw a transfer-shaped object.
+**Expected observation:** receiving step 4 before the proposal, or receiving only one acknowledgement, does not create a settled balance. The resolver may keep a record unavailable to the useful view until the required linked history is present and valid. Complete compatible histories resolve to the same result despite delivery order and identical replays.
 
-**Expected observation:** compatible complete histories produce the same view even if records arrived in a different order or a duplicate was replayed.
+## Raw and resolved views answer different questions
+
+| View | Question it answers | Must not imply |
+| --- | --- | --- |
+| Raw records | “What bytes/JSON did this runtime read from opened feeds?” | That every record is valid or authorized |
+| Resolved state | “Which facts did local rules accept from this snapshot?” | That every peer has replicated them or that stronger finality is reached |
+
+The desktop deliberately keeps raw inspection separate and presents loading, retry, and last-valid-snapshot behavior around resolved state. That helps a user distinguish an unavailable/rejected refresh from a verified zero balance.
 
 ## Peer Hours connection
 
-`@peer-hours/timebank-records` already tests deterministic in-memory resolution of compatible record envelopes into authorizations, accepted proposals, verified transfers, and derived balances. Proposal and transfer envelopes must now also carry a valid active member signature before the resolver admits them. That is a verified package-level capability.
+`resolveTimebankMemberFeeds` combines feed histories only after checking declaration provenance, then `resolveTimebankRecords` validates envelopes, signatures, identity authorization, listing/proposal linkage, settlement acknowledgements, and ledger admission. The Electron main process sends a small renderer-safe projection of that result to the untrusted UI; it does not ask the renderer to decide which records count.
 
-The running desktop does **not** yet resolve and display member offers, proposals, or balances from known member feeds. Each runtime has its own feed and can exchange signed, expiring feed announcements over a shared discovery core, but the connection from resolver to member-facing screens is still future work.
+At present, a dual-confirmed acknowledgement remains distinct from a locally ledger-admitted settlement, and neither phrase claims network-wide replication finality. This is an intentional safety boundary, not a cosmetic wording choice.
 
 ## Takeaway
 
-Replication gives a runtime a history. Resolution turns that history into a view a person can use. The resolver must be stricter than the screen: an attractive number is not a balance unless valid records support it.
+Replication provides history. Resolution provides a locally verified interpretation. A polished screen must never blur the difference.
 
 ## Next lesson
 
-Continue with [Lesson 25: Who is allowed to author a record?](25-who-authors-a-record.md).
+Continue with [Lesson 25: Who is allowed to author a record?](./25-who-authors-a-record.md).

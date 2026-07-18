@@ -5,6 +5,7 @@ import { type ExchangeProposal } from "@peer-hours/timebank-domain";
 import {
   canonicalMemberFeedDeclarationPayload,
   canonicalTransferPayload,
+  createMemberFeedDeclaration,
   createSelfOwnedMemberIdentity,
   createMemberSigningKeyAuthorizationEvent,
   transferPayloadDigest,
@@ -178,6 +179,45 @@ test("admits an accepted proposal from a self-owned root identity without a comm
   assert.throws(
     () => resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: "b".repeat(64), records: [signedAcknowledgement, declarationRecord] }]),
     /declared.*identity/i,
+  );
+});
+
+test("rejects conflicting self-owned declarations that assign one member feed to different members", () => {
+  const firstKeys = generateKeyPairSync("ed25519");
+  const secondKeys = generateKeyPairSync("ed25519");
+  const firstRootPublicKeyPem = publicKeyPem(firstKeys.publicKey);
+  const secondRootPublicKeyPem = publicKeyPem(secondKeys.publicKey);
+  const firstMemberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: firstRootPublicKeyPem }).memberId;
+  const secondMemberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: secondRootPublicKeyPem }).memberId;
+  const feedPublicKey = "c".repeat(64);
+  const declarationFor = (
+    memberId: string,
+    rootPublicKeyPem: string,
+    privateKey: ReturnType<typeof generateKeyPairSync>["privateKey"],
+  ) => {
+    const unsigned = {
+      schema: "peer-hours/member-feed-declaration/v1" as const,
+      memberId,
+      communityId,
+      feedPublicKey,
+      occurredAt: "2026-07-18T13:00:00.000Z",
+      rootPublicKeyPem,
+    };
+    return memberFeedDeclarationToRecord(createMemberFeedDeclaration({
+      ...unsigned,
+      signature: sign(null, canonicalMemberFeedDeclarationPayload(unsigned), privateKey).toString("base64url"),
+    }));
+  };
+
+  assert.throws(
+    () => resolveTimebankMemberFeeds(communityId, [{
+      feedPublicKey,
+      records: [
+        declarationFor(firstMemberId, firstRootPublicKeyPem, firstKeys.privateKey),
+        declarationFor(secondMemberId, secondRootPublicKeyPem, secondKeys.privateKey),
+      ],
+    }]),
+    /cannot be declared by more than one member/i,
   );
 });
 

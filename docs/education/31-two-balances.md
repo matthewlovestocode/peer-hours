@@ -1,18 +1,16 @@
 # Lesson 31: How One Transfer Changes Two Balances
 
-Every valid time transfer creates two equal-and-opposite postings. The person who provides time gains hours; the person who receives time spends hours. The community total stays at zero.
+Every locally admitted normal time transfer creates two equal-and-opposite postings. The provider earns time; the recipient spends the same amount. No time is minted by the exchange.
 
 ```mermaid
 flowchart LR
-  T["60-minute verified transfer"] --> A["Alex, provider\n+60 minutes"]
+  T["60-minute admitted transfer"] --> A["Alex, provider\n+60 minutes"]
   T --> B["Bri, recipient\n−60 minutes"]
-  A --> Z["Total change: 0"]
+  A --> Z["Sum: 0"]
   B --> Z
 ```
 
-## What you already know
-
-Double-entry accounting is a useful comparison: instead of minting money, one event affects at least two sides so the totals can be checked.
+## One small example
 
 ```ts
 const postings = postingsFor({
@@ -20,19 +18,28 @@ const postings = postingsFor({
   recipientMemberId: "bri",
   minutes: 60,
 });
-
 // [{ memberId: "alex", minutes: 60 }, { memberId: "bri", minutes: -60 }]
 ```
 
-**Expected observation:** the postings sum to `0`. If a resolver sees only one half, it has a broken record model and must not claim the exchange settled.
+**Expected observation:** the postings sum to zero. A one-sided acknowledgement, a dual-confirmed state without a valid transfer, or a transfer rejected by the ledger produces no postings at all.
 
-## Peer Hours connection
+## Why the distinction matters
 
-The ledger package derives these postings only after the transfer passes its community, participant, attestation, proposal-linkage, idempotency, and credit-boundary rules. Corrections are separate dual-attested reversal transfers; they do not edit the old event.
+The workflow has several meaningful milestones:
+
+| Milestone | Changes balance? |
+| --- | --- |
+| Pending proposal | No |
+| Accepted proposal | No |
+| One acknowledgement | No |
+| Dual-confirmed acknowledgements | No |
+| Locally admitted transfer | Yes, two postings |
+
+This keeps completion evidence distinct from accounting evidence. A later correction is a separate valid reversal transfer; it does not rewrite the original immutable record.
 
 ## Takeaway
 
-One exchange changes two members’ balances by the same amount in opposite directions. That invariant makes the shared accounting easier to inspect and verify.
+One admitted exchange moves equal time in opposite directions. The zero-sum invariant makes local accounting auditable.
 
 ## Next lesson
 

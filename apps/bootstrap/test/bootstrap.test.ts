@@ -53,4 +53,6 @@ test("rejects incomplete or unsafe manifest configuration", () => {
   assert.throws(() => createBootstrapManifest({ communityId: "", displayName: "Test", coreKey }));
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey: "not-a-core-key" }));
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: ["ftp://example.test"] }));
+  assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: ["https://operator:secret@bootstrap.example.test"] }));
+  assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: Array.from({ length: 17 }, () => "https://bootstrap.example.test") }), /At most 16/);
 });

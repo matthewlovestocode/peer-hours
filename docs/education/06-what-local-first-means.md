@@ -45,6 +45,22 @@ Peer Hours’ tested record resolver turns immutable replicated records into use
 
 Local-first does not mean “ignore the network.” It means the network improves and synchronizes local knowledge rather than being the sole gatekeeper for every screen.
 
+## Three different kinds of “current”
+
+```mermaid
+flowchart LR
+  A["Present on this device"] --> B["Locally verified\nand resolved"]
+  B --> C["Replicated to a\nparticular remote peer"]
+  C --> D["Accepted as final by\na future community policy"]
+```
+
+These are deliberately different claims. The current desktop can make the first two
+local claims visible. It must not imply the last claim merely because a record is on disk
+or a peer is connected.
+
+**Verified today:** the resolver retains a last valid local snapshot if a refresh fails,
+so a temporary read problem does not silently replace known state with an empty screen.
+
 ## Takeaway
 
 Open the app, read what is already local, then replicate newer records when possible. Connection affects freshness; it should not erase known history.

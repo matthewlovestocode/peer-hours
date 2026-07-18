@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { acceptExchangeProposal, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord } from "@peer-hours/timebank-records";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord } from "@peer-hours/timebank-records";
 import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
@@ -36,6 +36,9 @@ export type MemberFeedRuntime = {
 
 /** Owns root-key persistence and explicit declaration and announcement actions in Electron's main process. */
 export class MemberIdentityService {
+  /** Tracks local acknowledgement appends so concurrent IPC calls cannot create conflicting envelopes. */
+  private readonly settlementAcknowledgementsInProgress = new Set<string>();
+
   /** Creates a service from narrow secure-storage, persistence, and member-feed adapters. */
   constructor(
     private readonly secureStorage: SecureStorageAdapter,
@@ -126,8 +129,31 @@ export class MemberIdentityService {
     this.assertStoredIdentity(stored); const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
     if (proposal.communityId !== communityId) throw new Error("The accepted proposal is outside the current community scope.");
     const acknowledgement = createSettlementAcknowledgement(proposal, memberId);
-    const record = toSettlementAcknowledgementRecord(acknowledgement, { occurredAt: new Date().toISOString(), authorId: memberId });
-    await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
+    if (this.settlementAcknowledgementsInProgress.has(acknowledgement.id)) {
+      throw new Error("This member is already acknowledging completion of this exchange.");
+    }
+    this.settlementAcknowledgementsInProgress.add(acknowledgement.id);
+    try {
+      if (await this.hasSettlementAcknowledgement(acknowledgement.id)) {
+        throw new Error("This member has already acknowledged completion of this exchange.");
+      }
+      const record = toSettlementAcknowledgementRecord(acknowledgement, { occurredAt: new Date().toISOString(), authorId: memberId });
+      await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
+    } finally {
+      this.settlementAcknowledgementsInProgress.delete(acknowledgement.id);
+    }
+  }
+
+  /** Checks the member-owned feed for a prior immutable acknowledgement before appending again. */
+  private async hasSettlementAcknowledgement(acknowledgementId: string): Promise<boolean> {
+    const records = await this.memberFeed.readRecords();
+    return records.some((record) => {
+      try {
+        return decodeSettlementAcknowledgementRecord(record).id === acknowledgementId;
+      } catch {
+        return false;
+      }
+    });
   }
 
   /** Generates an Ed25519 root key and persists only its encrypted private PEM. */

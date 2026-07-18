@@ -5,7 +5,7 @@ Public keys are intended to be copied into records, announcements, invitations, 
 ```mermaid
 flowchart TB
   P["Public data"] --> F["Member-feed public key\nwhich log to replicate"]
-  P --> K["Signing public key\nwhich signature to verify"]
+  P --> K["Signing public key\nwhich proposal, acknowledgement, or\ntransfer signature to verify"]
   S["Private data"] --> W["Private signing key\nnever share"]
   F -. "does not grant" .-> A["Append permission"]
 ```
@@ -25,7 +25,7 @@ Never place there:
 
 ## Peer Hours connection
 
-The bootstrap manifest includes a public discovery-core key. A member-feed declaration includes a public feed key. Authorization events include public Ed25519 keys. All are shareable identifiers or verification material, not credentials.
+The bootstrap manifest includes a public discovery-core key. A member-feed declaration includes a public feed key and public verification material. Active authorizations supply the public Ed25519 keys used to verify proposals, acceptances, acknowledgements, and transfer attestations. All are shareable identifiers or verification material, not credentials.
 
 ## Takeaway
 

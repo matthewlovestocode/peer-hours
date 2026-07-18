@@ -1,47 +1,48 @@
-# Lesson 29: What Is a Transfer?
+# Lesson 29: What Is a Settlement Transfer?
 
-A transfer is the jointly confirmed statement that an agreed amount of time was delivered. It references one accepted proposal and carries the same participants, community, and minutes.
+A normal settlement transfer is the jointly attested, deterministic record that an accepted exchange was completed. It is downstream of the proposal; it is not an arbitrary “change balance” command.
 
 ```mermaid
 flowchart LR
-  P["Accepted proposal\nAlex gives Bri 60 min"] --> T["Transfer\nsourceProposalId = proposal-42"]
-  A["Alex attests terms"] --> T
-  B["Bri attests same terms"] --> T
-  T --> L["Ledger validates and derives postings"]
+  P["Accepted proposal\nexact community, people, minutes"] --> A1["Alex acknowledgement"]
+  P --> A2["Bri acknowledgement"]
+  A1 --> C["Dual-confirmed"]
+  A2 --> C
+  C --> T["Deterministic transfer\nproposal-id/settlement"]
+  S1["Alex attestation"] --> T
+  S2["Bri attestation"] --> T
+  T --> L["Local ledger admission"]
 ```
 
-## What you already know
+## Two related kinds of proof
 
-This is closer to both people signing a receipt than one person calling a server endpoint that immediately changes a balance.
+An acknowledgement says a participant confirms completion of the accepted proposal’s exact terms. One acknowledgement produces the state `awaiting-counterparty`; both produce `dual-confirmed`. This is necessary before composing a normal transfer, but acknowledgements are not themselves ledger postings.
 
-```json
-{
-  "id": "transfer-42",
-  "sourceProposalId": "proposal-42",
-  "providerMemberId": "alex",
-  "recipientMemberId": "bri",
-  "minutes": 60,
-  "providerAttestation": { "keyId": "alex-laptop", "signature": "…" },
-  "recipientAttestation": { "keyId": "bri-phone", "signature": "…" }
-}
+The transfer then carries two Ed25519 attestations over its canonical terms. Its ID is derived as:
+
+```text
+${proposalId}/settlement
 ```
 
-## One small example
+This gives independent publishers one normal transfer identity instead of competing transfer IDs for the same accepted proposal.
 
 ```ts
-const check = validateSettlementTransfer(transfer, acceptedProposal);
-if (check.ok) ledger.apply(transfer);
+const transfer = createDualConfirmedSettlementTransfer({
+  proposal: acceptedProposal,
+  acknowledgements: [alexAcknowledgement, briAcknowledgement],
+  attestations: [alexSignature, briSignature],
+});
 ```
 
-**Expected observation:** changing even one participant, the minute amount, community, or source proposal causes validation to reject the transfer. A record with one participant’s attestation is not settled.
+**Expected observation:** composing with one acknowledgement fails. Changing the community, participant, minutes, proposal ID, deterministic transfer ID, or either signature’s signed bytes fails validation.
 
-## Peer Hours connection
+## Important boundary: admitted is not final
 
-`@peer-hours/timebank-settlement` validates the proposal-to-transfer match. `@peer-hours/timebank-ledger` verifies both participant attestations and applies a valid transfer once. These are working pure rules; transport and desktop composition remain to be built.
+The settlement package can prove that a transfer is structurally tied to a dual-confirmed proposal and has authorized attestations. The ledger can admit it under its rules. Neither result proves durable replication to a chosen set of peers, network consensus, or irreversible finality.
 
 ## Takeaway
 
-A transfer is not an instruction from a node. It is a two-person agreement that the local ledger can independently validate.
+A settlement transfer is a specific, dual-confirmed and dual-attested statement of completion—not a command issued by a community node.
 
 ## Next lesson
 

@@ -35,7 +35,7 @@ The identity package sits between signed member activity and the accounting rule
 ## Explicit non-responsibilities
 
 - It does not create private keys, store private keys, or expose private keys to the desktop renderer or a community node API.
-- It does not yet admit self-owned identities into the timebank record resolver or define key rotation, recovery, privacy, and feed-discovery rules. The current authorization-event issuer model remains a temporary compatibility boundary and must not become a central admission mechanism.
+- A valid self-owned root declaration is admitted by the feed-aware timebank record resolver for that member's signed records. Key rotation, recovery, privacy, and richer discovery policy remain protocol work. The current authorization-event issuer model remains a temporary compatibility boundary and must not become a central admission mechanism.
 - It does not persist, replicate, discover, synchronize, or fetch authorization events.
 - It does not turn the current event shape into a network protocol. A formally versioned canonical JSON profile and replicated record storage are still needed.
 - It does not create, validate, or settle ledger transfers; `@peer-hours/timebank-ledger` owns settlement invariants and balance derivation.

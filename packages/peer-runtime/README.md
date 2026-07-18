@@ -27,7 +27,7 @@ The package is deliberately separate from the timebank-domain and ledger package
 - Creates an app-owned local data directory and Corestore.
 - Opens the `peer-hours-network` Hypercore and joins its discovery key.
 - Starts a Hyperswarm instance, listens for connections, and replicates the local Corestore over them.
-- Optionally obtains a community manifest from a configured bootstrap URL or uses a supplied bootstrap-core key, then joins that core's discovery key.
+- Optionally obtains a community manifest from one or more configured bootstrap URLs or uses a supplied bootstrap-core key, then joins that core's discovery key. A successful manifest can add structurally validated fallback endpoints for later refreshes.
 - Exchanges root-signed, expiring member-feed announcements over the shared discovery core, validates them, and opens newly announced member feeds for Corestore replication.
 - Tracks direct Hyperswarm connections and derives `connecting`, `connected`, `stale`, and `offline` lifecycle states from peer freshness.
 - Polls a configured community node's `/status` endpoint to include its reported peer roster in the status view.
@@ -55,7 +55,10 @@ The package is deliberately separate from the timebank-domain and ledger package
 const runtime = new PeerRuntime(
   "/path/to/app-data",
   undefined,
-  "http://127.0.0.1:10001/bootstrap",
+  [
+    "http://127.0.0.1:10001/bootstrap",
+    "https://bootstrap-backup.example.org/bootstrap",
+  ],
 );
 
 await runtime.start();
@@ -63,7 +66,7 @@ const status = runtime.status();
 await runtime.stop();
 ```
 
-Its constructor accepts an application-owned data directory, an optional bootstrap core key (hex), an optional bootstrap URL, an optional clock useful for deterministic tests, an optional networking flag, and an optional member-feed flag. Member applications use the default feed-enabled configuration. The headless community-peer application explicitly disables its own member feed because it has no human member identity. `start()` initializes storage and discovery; `stop()` closes the swarm and store.
+Its constructor accepts an application-owned data directory, an optional bootstrap core key (hex), an optional bootstrap URL or ordered URL list, an optional clock useful for deterministic tests, an optional networking flag, and an optional member-feed flag. Member applications use the default feed-enabled configuration. The headless community-node application explicitly disables its own member feed because it has no human member identity. `start()` initializes storage and discovery; `stop()` closes the swarm and store.
 
 ### Status
 
@@ -74,7 +77,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 - the local peer/core ID and replication core length;
 - listening and Hyperswarm discovery counts;
 - direct and community-reported `PeerStatus` entries;
-- bootstrap fetch state and optional `CommunityManifest` metadata.
+- bootstrap fetch state, ordered endpoint list, active endpoint, last successful fetch, consecutive failure count, last fetch error, and optional `CommunityManifest` metadata.
 - local member-feed key and local member-feed record count when the runtime represents a member.
 - validated, unexpired member-feed announcements currently known to the runtime.
 
@@ -94,7 +97,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 
 `CommunityManifest` is the bootstrap metadata currently read from an endpoint. It includes a community ID, display name, protocol version, the narrow `bootstrap` role, a `discovery-metadata` capability, a public discovery-core key, optional community-peer diagnostics URL, and fallback bootstrap URLs. The runtime uses `coreKey` to open and join the associated discovery core. The role is descriptive, not permission to control participation, and the manifest does not carry a community-owned record-feed key.
 
-This is structural validation, not trust establishment. Callers should surface bootstrap errors and avoid presenting fetched metadata as authenticated community authority until the protocol adds a signed or pinned manifest policy.
+On startup and every 30 seconds, the runtime tries the most recently successful endpoint first and then its ordered alternatives. A manifest may add fallback endpoints only after structural validation; a later refresh must preserve the already selected `communityId` and discovery `coreKey` or it is rejected. This provides availability retry, not authentication. Callers should surface bootstrap errors and avoid presenting fetched metadata as authenticated community authority until the protocol adds a signed or pinned manifest policy.
 
 ## Dependencies
 

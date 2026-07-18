@@ -8,11 +8,10 @@ The roadmap preserves Peer Hours' non-governing, not-for-profit direction: a rea
 
 ```mermaid
 flowchart LR
-    A["Today: replicated reads\n+pure timebank rules"] --> B["1. Self-owned member writes"]
-    B --> C["2. One complete exchange"]
-    C --> D["3. Resilient community replication"]
-    D --> E["4. Policy and security"]
-    E --> F["5. Limited pilot operations"]
+    A["Today: signed local workflow\n+local ledger admission"] --> B["1. Durable settlement policy"]
+    B --> C["2. Resilient community replication"]
+    C --> D["3. Policy and security"]
+    D --> E["4. Limited pilot operations"]
 ```
 
 ## What exists today
@@ -27,7 +26,7 @@ The shared packages test these pure rules in memory:
 - immutable time-credit transfers, reversals, idempotency, and derived balances; and
 - immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
 
-These are necessary building blocks, but none makes a record network-authoritative. Each member runtime now owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. A two-runtime integration test now proves a narrow complete protocol exchange with no community peer: a deliberately direct Corestore connection carries feed declarations, signed published listings, an accepted proposal, and a dual-attested settlement, then both sides independently resolve identical balances. A second test begins with no remote feed key: the runtimes share only a discovery-core key, exchange a signed expiring announcement, and automatically open/replicate the announced feed. The resolver accepts declared root keys for member-signed records without a community authorization event, and its feed-aware API rejects a member-authored domain record supplied from a feed its author did not declare. The desktop exposes a read-only local member-feed inspector and can create a self-owned identity in the main process, encrypt its private key with operating-system-backed storage, append a root-signed feed declaration, and publish an announcement; automated desktop tests cover creation, retry, restart, unavailable storage/community scope, and corrupted persistence. Record composition and member-facing resolved balances remain absent. The community peer is an availability participant without a human member identity, not a record writer or authority.
+These are necessary building blocks, but none makes a record network-authoritative. Each member runtime owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. A two-runtime integration test proves a narrow complete protocol exchange with no community peer: a deliberately direct Corestore connection carries feed declarations, signed published listings, an accepted proposal, participant-owned settlement attestations, and a dual-attested settlement, then both sides independently resolve identical balances. A second test begins with no remote feed key: the runtimes share only a discovery-core key, exchange a signed expiring announcement, and automatically open/replicate the announced feed. The resolver accepts declared root keys for member-signed records without a community authorization event, and its feed-aware API rejects a member-authored domain record supplied from a feed its author did not declare. The desktop can create a protected self-owned identity, publish listings and proposals, accept a counterparty proposal, publish a completion acknowledgement, publish its own settlement attestation, and publish the deterministic transfer once both valid attestations are replicated. Its member-facing screen presents raw history separately from locally resolved listings, proposal stages, attestation stages, and locally admitted balances. The community peer is an availability participant without a human member identity, not a record writer or authority.
 
 ## 1. Self-owned member writes
 
@@ -153,4 +152,4 @@ These are not settled by the current code and should be chosen with tests, proto
 | Privacy and retention model | Determines which records may replicate to which nodes and what recovery/export means. |
 | Community-node operating model | Determines redundancy, cost, administration, backup ownership, and incident response. |
 
-The next engineering milestone is Phase 1: a self-owned signed member record that replicates across independent runtimes and is deterministically accepted or rejected. Settlement UI and pilot operations should wait until that boundary is real.
+The next engineering milestone is an explicit durability acknowledgement policy: define when the UI may move from `locally admitted` to a community-visible settled state, then test it across independently operated replicas. The current product deliberately does not claim global finality from local ledger admission.

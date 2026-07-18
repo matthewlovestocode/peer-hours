@@ -3,7 +3,9 @@ import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   createDualConfirmedSettlementTransfer,
   settlementAcknowledgementId,
+  settlementTransferAttestationId,
   type SettlementAcknowledgement,
+  type SettlementTransferAttestation,
 } from "@peer-hours/timebank-settlement";
 import { createRecordEnvelope, type JsonObject, type RecordEnvelope } from "./envelope.js";
 
@@ -28,6 +30,9 @@ export const LEDGER_TRANSFER_RECORD_KIND = "peer-hours/ledger-transfer/v1";
 /** The immutable record kind used to distribute one participant's settlement acknowledgement. */
 export const SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND = "peer-hours/settlement-acknowledgement/v1";
 
+/** The immutable record kind used to distribute one participant transfer attestation. */
+export const SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND = "peer-hours/settlement-transfer-attestation/v1";
+
 /** A normalized record envelope carrying one published member-owned listing. */
 export type PublishedListingRecord = RecordEnvelope<JsonObject>;
 
@@ -41,6 +46,9 @@ export type LedgerTransferRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one participant-owned settlement acknowledgement. */
 export type SettlementAcknowledgementRecord = RecordEnvelope<JsonObject>;
+
+/** A normalized record envelope carrying one participant-owned settlement transfer attestation. */
+export type SettlementTransferAttestationRecord = RecordEnvelope<JsonObject>;
 
 /** Immutable transport metadata supplied when an application creates a timebank record. */
 export interface CreateTimebankRecordMetadata {
@@ -255,6 +263,38 @@ export function decodeSettlementAcknowledgementRecord(record: unknown): Settleme
   return acknowledgement;
 }
 
+/** Encodes one participant-owned signature over deterministic, dual-confirmed settlement terms. */
+export function toSettlementTransferAttestationRecord(
+  settlementAttestation: SettlementTransferAttestation,
+  metadata: CreateTimebankRecordMetadata,
+): SettlementTransferAttestationRecord {
+  const normalized = normalizeSettlementTransferAttestation(settlementAttestation);
+  if (metadata.authorId !== normalized.attestation.memberId) {
+    throw new RecordMappingError("A settlement transfer attestation record must be authored by its attesting participant.");
+  }
+  return createRecordEnvelope({
+    id: normalized.id,
+    schema: TIMEBANK_RECORD_SCHEMA,
+    version: TIMEBANK_RECORD_VERSION,
+    communityId: normalized.communityId,
+    kind: SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND,
+    occurredAt: metadata.occurredAt,
+    authorId: metadata.authorId,
+    payload: normalized as unknown as JsonObject,
+  });
+}
+
+/** Decodes a structurally valid settlement attestation; proposal linkage is resolved separately. */
+export function decodeSettlementTransferAttestationRecord(record: unknown): SettlementTransferAttestation {
+  const normalizedRecord = normalizeRecord(record);
+  assertTimebankEnvelope(normalizedRecord);
+  assertRecordKind(normalizedRecord, SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND, "settlement transfer attestation");
+  const settlementAttestation = normalizeSettlementTransferAttestation(normalizedRecord.payload);
+  assertEnvelopeMatchesPayload(normalizedRecord, settlementAttestation.id, settlementAttestation.communityId, "settlement transfer attestation");
+  assertRecordAuthor(normalizedRecord, settlementAttestation.attestation.memberId, "settlement transfer attestation");
+  return settlementAttestation;
+}
+
 /** Reduces one community's unordered proposal records into unique immutable accepted proposals. */
 export function reduceAcceptedExchangeProposalRecords(
   records: readonly unknown[],
@@ -286,6 +326,15 @@ export function reduceSettlementAcknowledgementRecords(
 ): readonly SettlementAcknowledgement[] {
   assertText(communityId, "Community id");
   return reduceRecords(records, communityId, decodeSettlementAcknowledgementRecord, "settlement acknowledgement");
+}
+
+/** Reduces one community's participant attestations by their proposal-and-member identity. */
+export function reduceSettlementTransferAttestationRecords(
+  records: readonly unknown[],
+  communityId: string,
+): readonly SettlementTransferAttestation[] {
+  assertText(communityId, "Community id");
+  return reduceRecords(records, communityId, decodeSettlementTransferAttestationRecord, "settlement transfer attestation");
 }
 
 /** Normalizes and validates the immutable accepted-proposal form permitted in replicated records. */
@@ -416,6 +465,35 @@ function normalizeSettlementAcknowledgement(value: unknown): SettlementAcknowled
     recipientMemberId: acknowledgement.recipientMemberId,
     minutes: acknowledgement.minutes,
     acknowledgedByMemberId: acknowledgement.acknowledgedByMemberId,
+  });
+}
+
+/** Validates public attestation container shape before proposal-specific resolution checks. */
+function normalizeSettlementTransferAttestation(value: unknown): SettlementTransferAttestation {
+  if (!isRecord(value)) throw new RecordMappingError("A settlement transfer attestation payload must be an object.");
+  const source = value as Partial<SettlementTransferAttestation>;
+  assertText(source.id, "Settlement transfer attestation id");
+  assertText(source.communityId, "Settlement transfer attestation community id");
+  assertText(source.sourceProposalId, "Settlement transfer attestation source proposal id");
+  if (!isRecord(source.attestation)) throw new RecordMappingError("A settlement transfer attestation requires an attestation object.");
+  const attestation = source.attestation as Partial<SettlementTransferAttestation["attestation"]>;
+  assertText(attestation.memberId, "Settlement transfer attesting member id");
+  assertText(attestation.keyId, "Settlement transfer attestation key id");
+  assertText(attestation.payloadDigest, "Settlement transfer attestation payload digest");
+  assertText(attestation.signature, "Settlement transfer attestation signature");
+  if (source.id !== settlementTransferAttestationId(source.sourceProposalId, attestation.memberId)) {
+    throw new RecordMappingError("A settlement transfer attestation record id must name its proposal and attesting participant.");
+  }
+  return Object.freeze({
+    id: source.id,
+    communityId: source.communityId,
+    sourceProposalId: source.sourceProposalId,
+    attestation: Object.freeze({
+      memberId: attestation.memberId,
+      keyId: attestation.keyId,
+      payloadDigest: attestation.payloadDigest,
+      signature: attestation.signature,
+    }),
   });
 }
 

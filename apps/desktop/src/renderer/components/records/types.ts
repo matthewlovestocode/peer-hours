@@ -31,6 +31,12 @@ export type SettlementConfirmation = {
   acknowledgements: readonly { acknowledgedByMemberId: string }[];
 };
 
+/** A replicated participant attestation over deterministic settlement terms, without key material. */
+export type SettlementAttestationState = {
+  proposalId: string;
+  attestations: readonly { memberId: string }[];
+};
+
 /** The verified member-feed state exposed through the narrow Electron bridge. */
 export type ResolvedMemberState =
   | { state: "unavailable" | "rejected"; reason: string }
@@ -40,6 +46,8 @@ export type ResolvedMemberState =
     proposedProposals: readonly PendingProposal[];
     acceptedProposals: readonly AcceptedProposal[];
     settlementConfirmations: readonly SettlementConfirmation[];
+    /** Participant attestations observed for dual-confirmed settlement terms. */
+    settlementAttestations: readonly SettlementAttestationState[];
     /** Proposal ids whose matching transfer this device locally admitted to its ledger. */
     settledProposalIds: readonly string[];
     /** Count of locally admitted transfers; this is not a replication-finality claim. */

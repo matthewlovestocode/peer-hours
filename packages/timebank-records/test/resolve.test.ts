@@ -8,10 +8,15 @@ import {
   createMemberFeedDeclaration,
   createSelfOwnedMemberIdentity,
   createMemberSigningKeyAuthorizationEvent,
+  createParticipantTransferAttestation,
   transferPayloadDigest,
 } from "@peer-hours/timebank-identity";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
-import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
+import {
+  createDualConfirmedSettlementTransferTerms,
+  createSettlementAcknowledgement,
+  createSettlementTransferAttestation,
+} from "@peer-hours/timebank-settlement";
 import {
   memberSigningKeyAuthorizationEventToRecord,
   memberFeedDeclarationToRecord,
@@ -24,6 +29,7 @@ import {
   toLedgerTransferRecord,
   toProposedExchangeProposalRecord,
   toSettlementAcknowledgementRecord,
+  toSettlementTransferAttestationRecord,
   type RecordEnvelope,
 } from "../src/index.js";
 
@@ -337,6 +343,53 @@ test("keeps a one-sided settlement acknowledgement out of final state until the 
   const confirmed = resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement, recipientAcknowledgement]);
   assert.equal(confirmed.settlementConfirmations[0]?.status, "dual-confirmed");
   assert.equal(confirmed.ledger.transfers.length, 0);
+});
+
+test("resolves two independently signed participant attestations before a deterministic transfer is published", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const accepted = proposal();
+  const acknowledgements = [
+    createSettlementAcknowledgement(accepted, providerMemberId),
+    createSettlementAcknowledgement(accepted, recipientMemberId),
+  ];
+  const terms = createDualConfirmedSettlementTransferTerms({ proposal: accepted, acknowledgements });
+  const participantRecord = (
+    memberId: string,
+    keyId: string,
+    privateKey: ReturnType<typeof generateKeyPairSync>["privateKey"],
+    occurredAt: string,
+  ) => {
+    const attestation = createSettlementTransferAttestation({
+      proposal: accepted,
+      acknowledgements,
+      attestation: createParticipantTransferAttestation({
+        transfer: terms,
+        memberId,
+        keyId,
+        signCanonicalPayload: (payload) => sign(null, payload, privateKey).toString("base64url"),
+      }),
+    });
+    return signedRecord(
+      toSettlementTransferAttestationRecord(attestation, { ...metadata, authorId: memberId, occurredAt }),
+      privateKey,
+      keyId,
+    );
+  };
+  const baseRecords: readonly RecordEnvelope[] = [
+    signedRecord(toAcceptedExchangeProposalRecord(accepted, { ...metadata, authorId: recipientMemberId }), recipientKeys.privateKey, "recipient-key"),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({ eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey) })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({ eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey) })),
+    signedRecord(toSettlementAcknowledgementRecord(acknowledgements[0]!, { ...metadata, authorId: providerMemberId, occurredAt: "2026-07-18T13:01:00.000Z" }), providerKeys.privateKey, "provider-key"),
+    signedRecord(toSettlementAcknowledgementRecord(acknowledgements[1]!, { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:01:01.000Z" }), recipientKeys.privateKey, "recipient-key"),
+  ];
+  const providerAttestation = participantRecord(providerMemberId, "provider-key", providerKeys.privateKey, "2026-07-18T13:02:00.000Z");
+  const recipientAttestation = participantRecord(recipientMemberId, "recipient-key", recipientKeys.privateKey, "2026-07-18T13:02:01.000Z");
+
+  assert.equal(resolveTimebankRecords(communityId, [...baseRecords, providerAttestation]).settlementAttestations[0]?.status, "awaiting-attestations");
+  const resolved = resolveTimebankRecords(communityId, [...baseRecords, recipientAttestation, providerAttestation]);
+  assert.equal(resolved.settlementAttestations[0]?.status, "dual-attested");
+  assert.equal(resolved.ledger.transfers.length, 0);
 });
 
 test("rejects an acceptance that changes a creator-signed pending proposal's immutable terms", () => {

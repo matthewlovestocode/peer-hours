@@ -77,7 +77,7 @@ export function RecordsPage() {
             <ListingComposer onComplete={refresh} />
             {resolved?.state === "ready" && <ProposalComposer listings={resolved.publishedListings} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <PendingProposalList proposals={resolved.proposedProposals} memberId={identity.memberId} onComplete={refresh} />}
-            {resolved?.state === "ready" && identity.memberId && <SettlementAcknowledgementList proposals={resolved.acceptedProposals} confirmations={resolved.settlementConfirmations} settledProposalIds={resolved.settledProposalIds} memberId={identity.memberId} onComplete={refresh} />}
+            {resolved?.state === "ready" && identity.memberId && <SettlementAcknowledgementList proposals={resolved.acceptedProposals} confirmations={resolved.settlementConfirmations} settlementAttestations={resolved.settlementAttestations} settledProposalIds={resolved.settledProposalIds} memberId={identity.memberId} onComplete={refresh} />}
           </>
         )}
         {snapshot && <RawRecordList records={snapshot.records} />}

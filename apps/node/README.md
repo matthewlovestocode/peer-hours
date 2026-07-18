@@ -50,3 +50,13 @@ npm --workspace @peer-hours/node run build
 - Bootstrap metadata and diagnostics are untrusted operational inputs; their structural validation does not make a bootstrap endpoint authoritative.
 - The node retains and replicates data but does not settle balances, authorize members, or make finality decisions.
 - Production rollout still needs external probes, backup/restore exercises, storage-capacity alerts, and an explicit community freshness policy.
+
+## Redundancy and recovery runbook
+
+Run at least two independently deployed community nodes for the same discovery scope when availability matters. Give each one its own durable `DATA_DIR`, operator credentials, and failure domain. They should replicate the same member-owned feeds through ordinary peer discovery; neither node receives a special authority over the other or over a member's records.
+
+Bootstrap availability is separate from community-node availability. Configure more than one bootstrap endpoint in the manifest's `bootstrapNodes` list. A runtime can retry a supplied endpoint list, remembers validated manifest-advertised alternatives, and exposes the active endpoint, failure count, last error, and last successful refresh in its runtime status. This prevents one endpoint outage from being silently indistinguishable from a discovery failure. It does not authenticate an endpoint or prove that a fallback is operated by a trusted party.
+
+For a planned restore, stop the affected node cleanly, restore a previously tested *consistent* backup of its entire `DATA_DIR`, then start it and wait for `GET /health` to return `200`. Inspect `GET /status` for its local core key, discovery activity, known member feeds, and bootstrap diagnostics. Finally, compare a known member-feed record history from an independent desktop or community node after replication has had time to catch up. Do not copy individual files into a live Corestore, and do not treat a fresh empty directory as a restore: it is only a new cache that must rediscover and replicate data.
+
+The current API cannot prove catch-up completeness or durable replication across a failure domain. Operators must define a freshness window, backup cadence/retention, restore objective, and an independent evidence source before representing the service as resilient to members.

@@ -7,6 +7,7 @@ export type RendererResolvedMemberState = {
   readonly proposedProposals: readonly { readonly id: string; readonly creatorMemberId: string; readonly providerMemberId: string; readonly receiverMemberId: string; readonly minutes: number }[];
   readonly acceptedProposals: readonly { readonly id: string; readonly providerMemberId: string; readonly receiverMemberId: string; readonly minutes: number }[];
   readonly settlementConfirmations: readonly { readonly proposalId: string; readonly status: "awaiting-counterparty" | "dual-confirmed"; readonly acknowledgements: readonly { readonly acknowledgedByMemberId: string }[] }[];
+  readonly settlementAttestations: readonly { readonly proposalId: string; readonly attestations: readonly { readonly memberId: string }[] }[];
   readonly settledProposalIds: readonly string[];
   readonly transferCount: number;
 };
@@ -31,6 +32,10 @@ export function presentResolvedMemberState(resolved: ResolvedTimebankState): Ren
       proposalId,
       status,
       acknowledgements: acknowledgements.map(({ acknowledgedByMemberId }) => ({ acknowledgedByMemberId })),
+    })),
+    settlementAttestations: resolved.settlementAttestations.map(({ proposalId, attestations }) => ({
+      proposalId,
+      attestations: attestations.map(({ attestation }) => ({ memberId: attestation.memberId })),
     })),
     settledProposalIds,
     transferCount: resolved.ledger.transfers.length,

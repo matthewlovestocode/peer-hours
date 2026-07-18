@@ -1,5 +1,13 @@
 import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto";
-import { createTransfer, type SignatureVerifier, type Transfer, type VerifyAttestationInput } from "@peer-hours/timebank-ledger";
+import {
+  createTransfer,
+  createTransferTerms,
+  type SignatureVerifier,
+  type Transfer,
+  type TransferAttestation,
+  type TransferTerms,
+  type VerifyAttestationInput,
+} from "@peer-hours/timebank-ledger";
 
 /** A stable identifier for an authorized member signing key within one community. */
 export type SigningKeyId = string;
@@ -66,6 +74,21 @@ export interface VerifyMemberSignatureInput {
 
 /** Verifies a detached payload signature using a snapshot of active member authorizations. */
 export type MemberSignatureVerifier = (input: VerifyMemberSignatureInput) => boolean;
+
+/** Main-process capability that signs bytes without exposing the member's private key. */
+export type CanonicalPayloadSigner = (payload: Uint8Array) => string;
+
+/** Input used to create one participant-owned attestation over immutable transfer terms. */
+export interface CreateParticipantTransferAttestationInput {
+  /** Deterministic terms agreed by both exchange participants. */
+  readonly transfer: TransferTerms;
+  /** The participant who controls the signing capability. */
+  readonly memberId: string;
+  /** Active authorization identifier for the signing key. */
+  readonly keyId: SigningKeyId;
+  /** Private-key custodian callback, normally implemented only in the desktop main process. */
+  readonly signCanonicalPayload: CanonicalPayloadSigner;
+}
 
 /** A self-certifying public member identity derived from its root Ed25519 public key. */
 export interface SelfOwnedMemberIdentity {
@@ -324,8 +347,8 @@ export function reduceMemberSigningKeyAuthorizationEvents(
  * The explicit field order and null markers make the payload stable across equivalent transfer
  * objects and distinguish omitted optional terms from all other values.
  */
-export function canonicalTransferPayload(transfer: Transfer): Buffer {
-  const normalized = createTransfer(transfer);
+export function canonicalTransferPayload(transfer: Transfer | TransferTerms): Buffer {
+  const normalized = "attestations" in transfer ? createTransfer(transfer) : createTransferTerms(transfer);
   const canonicalTerms = {
     schema: "peer-hours/ledger-transfer/v1",
     id: normalized.id,
@@ -341,8 +364,41 @@ export function canonicalTransferPayload(transfer: Transfer): Buffer {
 }
 
 /** Returns the canonical base64url SHA-256 digest of the exact bytes participants sign. */
-export function transferPayloadDigest(transfer: Transfer): string {
+export function transferPayloadDigest(transfer: Transfer | TransferTerms): string {
   return createHash("sha256").update(canonicalTransferPayload(transfer)).digest("base64url");
+}
+
+/**
+ * Creates one participant-owned attestation for deterministic transfer terms.
+ *
+ * The signer receives only canonical public bytes and returns a canonical base64url Ed25519
+ * signature. Its private key remains within the caller's key-custody boundary; this package
+ * neither accepts nor stores private-key material.
+ */
+export function createParticipantTransferAttestation(
+  input: CreateParticipantTransferAttestationInput,
+): TransferAttestation {
+  const transfer = createTransferTerms(input.transfer);
+  assertPresent(input.memberId, "Attesting member id");
+  assertPresent(input.keyId, "Attestation signing key id");
+  if (input.memberId !== transfer.providerMemberId && input.memberId !== transfer.recipientMemberId) {
+    throw new IdentityRuleError("Only a transfer participant may create an attestation.");
+  }
+  let signature: string;
+  try {
+    signature = input.signCanonicalPayload(canonicalTransferPayload(transfer));
+  } catch {
+    throw new IdentityRuleError("The member key custodian could not sign the transfer terms.");
+  }
+  if (decodeBase64UrlSignature(signature) === undefined) {
+    throw new IdentityRuleError("A transfer attestation signer must return a canonical Ed25519 signature.");
+  }
+  return Object.freeze({
+    memberId: input.memberId,
+    keyId: input.keyId,
+    payloadDigest: transferPayloadDigest(transfer),
+    signature,
+  });
 }
 
 /**

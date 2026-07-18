@@ -3,9 +3,11 @@ import {
   createTransfer,
   type Transfer,
   type TransferAttestation,
+  type TransferTerms,
 } from "@peer-hours/timebank-ledger";
 import {
   assertAuthorizedTransferAttestations,
+  transferPayloadDigest,
   type MemberSigningKeyAuthorization,
 } from "@peer-hours/timebank-identity";
 import {
@@ -38,6 +40,14 @@ export interface CreateDualConfirmedSettlementTransferInput {
   readonly attestations: readonly TransferAttestation[];
 }
 
+/** Input required to derive deterministic, signable settlement terms after dual confirmation. */
+export interface CreateDualConfirmedSettlementTransferTermsInput {
+  /** The accepted proposal whose exact terms become the transfer terms. */
+  readonly proposal: ExchangeProposal;
+  /** The replicated participant acknowledgements for that accepted proposal. */
+  readonly acknowledgements: readonly SettlementAcknowledgement[];
+}
+
 /** Input used to admit a composed normal transfer from replicated completion evidence. */
 export interface ValidateDualConfirmedSettlementTransferInput extends ValidateSettlementTransferInput {
   /** The participant acknowledgements replicated for the transfer's source proposal. */
@@ -48,6 +58,28 @@ export interface ValidateDualConfirmedSettlementTransferInput extends ValidateSe
 export interface ValidateAuthorizedDualConfirmedSettlementTransferInput extends ValidateDualConfirmedSettlementTransferInput {
   /** Active, community-scoped Ed25519 authorizations used to verify both participant signatures. */
   readonly authorizations: readonly MemberSigningKeyAuthorization[];
+}
+
+/** One participant's independently replicated signature over deterministic settlement terms. */
+export interface SettlementTransferAttestation {
+  /** Lifecycle-specific identity for this participant's immutable attestation. */
+  readonly id: string;
+  /** Community in which the source proposal was accepted. */
+  readonly communityId: string;
+  /** Accepted proposal that deterministically defines the signed transfer terms. */
+  readonly sourceProposalId: string;
+  /** The participant-owned cryptographic attestation. */
+  readonly attestation: TransferAttestation;
+}
+
+/** Resolved signature collection state for one accepted, dual-confirmed proposal. */
+export interface SettlementAttestationState {
+  /** Accepted proposal whose deterministic transfer terms are being attested. */
+  readonly proposalId: string;
+  /** Confirmation and attestation progress; neither state establishes replication finality. */
+  readonly status: "awaiting-confirmation" | "awaiting-attestations" | "dual-attested";
+  /** Valid immutable attestations, sorted by participant identifier. */
+  readonly attestations: readonly SettlementTransferAttestation[];
 }
 
 /**
@@ -99,13 +131,9 @@ export function validateSettlementTransfer(input: ValidateSettlementTransferInpu
 export function createDualConfirmedSettlementTransfer(
   input: CreateDualConfirmedSettlementTransferInput,
 ): Transfer {
+  const terms = createDualConfirmedSettlementTransferTerms(input);
   const transfer = createTransfer({
-    id: settlementTransferId(input.proposal.id),
-    communityId: input.proposal.communityId,
-    sourceProposalId: input.proposal.id,
-    providerMemberId: input.proposal.providerMemberId,
-    recipientMemberId: input.proposal.receiverMemberId,
-    minutes: input.proposal.minutes,
+    ...terms,
     attestations: input.attestations,
   });
   return validateDualConfirmedSettlementTransfer({
@@ -113,6 +141,93 @@ export function createDualConfirmedSettlementTransfer(
     acknowledgements: input.acknowledgements,
     transfer,
   });
+}
+
+/**
+ * Derives the deterministic, attestation-free terms for one dual-confirmed settlement.
+ *
+ * Participants sign these exact terms independently before either participant can publish the
+ * completed transfer. This does not assert signature validity or durable replication.
+ */
+export function createDualConfirmedSettlementTransferTerms(
+  input: CreateDualConfirmedSettlementTransferTermsInput,
+): TransferTerms {
+  const confirmation = resolveSettlementAcknowledgements(input.proposal, input.acknowledgements);
+  if (confirmation.status !== "dual-confirmed") {
+    throw new SettlementRuleError("Both exchange participants must acknowledge completion before deriving settlement terms.");
+  }
+  return Object.freeze({
+    id: settlementTransferId(input.proposal.id),
+    communityId: input.proposal.communityId,
+    sourceProposalId: input.proposal.id,
+    providerMemberId: input.proposal.providerMemberId,
+    recipientMemberId: input.proposal.receiverMemberId,
+    minutes: input.proposal.minutes,
+  });
+}
+
+/** Creates one participant-owned attestation container for a dual-confirmed settlement. */
+export function createSettlementTransferAttestation(
+  input: CreateDualConfirmedSettlementTransferTermsInput & { readonly attestation: TransferAttestation },
+): SettlementTransferAttestation {
+  const terms = createDualConfirmedSettlementTransferTerms(input);
+  const { attestation } = input;
+  if (attestation.memberId !== terms.providerMemberId && attestation.memberId !== terms.recipientMemberId) {
+    throw new SettlementRuleError("Only an exchange participant may attest deterministic settlement terms.");
+  }
+  if (attestation.payloadDigest !== transferPayloadDigest(terms)) {
+    throw new SettlementRuleError("A settlement attestation must name the deterministic transfer payload digest.");
+  }
+  return Object.freeze({
+    id: settlementTransferAttestationId(terms.sourceProposalId ?? "", attestation.memberId),
+    communityId: terms.communityId,
+    sourceProposalId: terms.sourceProposalId ?? "",
+    attestation: Object.freeze({ ...attestation }),
+  });
+}
+
+/** Resolves independently replicated participant attestations without claiming transfer finality. */
+export function resolveSettlementTransferAttestations(
+  input: CreateDualConfirmedSettlementTransferTermsInput & { readonly attestations: readonly SettlementTransferAttestation[] },
+): SettlementAttestationState {
+  const confirmation = resolveSettlementAcknowledgements(input.proposal, input.acknowledgements);
+  if (confirmation.status !== "dual-confirmed") {
+    if (input.attestations.length > 0) {
+      throw new SettlementRuleError("Settlement transfer attestations require both participant acknowledgements.");
+    }
+    return Object.freeze({ proposalId: input.proposal.id, status: "awaiting-confirmation", attestations: Object.freeze([]) });
+  }
+  const terms = createDualConfirmedSettlementTransferTerms(input);
+  const byParticipant = new Map<string, SettlementTransferAttestation>();
+  for (const attestation of input.attestations) {
+    const normalized = validateSettlementTransferAttestation(input, attestation);
+    const existing = byParticipant.get(normalized.attestation.memberId);
+    if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(normalized)) {
+      throw new SettlementRuleError("A participant cannot publish conflicting settlement attestations.");
+    }
+    byParticipant.set(normalized.attestation.memberId, normalized);
+  }
+  const attestations = Object.freeze([...byParticipant.values()].sort((left, right) =>
+    left.attestation.memberId.localeCompare(right.attestation.memberId),
+  ));
+  const dualAttested = byParticipant.has(terms.providerMemberId) && byParticipant.has(terms.recipientMemberId);
+  return Object.freeze({ proposalId: terms.sourceProposalId ?? "", status: dualAttested ? "dual-attested" : "awaiting-attestations", attestations });
+}
+
+/** Validates an attestation container against one accepted, dual-confirmed settlement. */
+export function validateSettlementTransferAttestation(
+  input: CreateDualConfirmedSettlementTransferTermsInput,
+  settlementAttestation: SettlementTransferAttestation,
+): SettlementTransferAttestation {
+  const expected = createSettlementTransferAttestation({ ...input, attestation: settlementAttestation.attestation });
+  if (
+    settlementAttestation.id !== expected.id ||
+    settlementAttestation.communityId !== expected.communityId ||
+    settlementAttestation.sourceProposalId !== expected.sourceProposalId
+  ) {
+    throw new SettlementRuleError("A settlement attestation must preserve its proposal, community, and participant identity.");
+  }
+  return expected;
 }
 
 /**
@@ -163,6 +278,14 @@ export function settlementTransferId(proposalId: string): string {
     throw new SettlementRuleError("Proposal id is required.");
   }
   return `${proposalId}/settlement`;
+}
+
+/** Derives the unique append-only identity for one participant transfer attestation. */
+export function settlementTransferAttestationId(proposalId: string, memberId: string): string {
+  if (proposalId.trim().length === 0 || memberId.trim().length === 0) {
+    throw new SettlementRuleError("Proposal id and attesting member id are required.");
+  }
+  return `${proposalId}/settlement-attestation/${memberId}`;
 }
 
 export * from "./settlement-acknowledgement.js";

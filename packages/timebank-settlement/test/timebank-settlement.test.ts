@@ -13,9 +13,12 @@ import {
   SettlementAcknowledgementRuleError,
   SettlementRuleError,
   createDualConfirmedSettlementTransfer,
+  createDualConfirmedSettlementTransferTerms,
+  createSettlementTransferAttestation,
   createSettlementAcknowledgement,
   resolveSettlementAcknowledgements,
   settlementTransferId,
+  resolveSettlementTransferAttestations,
   validateAuthorizedDualConfirmedSettlementTransfer,
   validateDualConfirmedSettlementTransfer,
   validateSettlementAcknowledgement,
@@ -241,5 +244,44 @@ test("refuses transfer composition until the counterparty also acknowledges", ()
       attestations: settlementTransfer().attestations,
     }),
     SettlementRuleError,
+  );
+});
+
+test("derives signable deterministic terms and waits for both independently published attestations", () => {
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+  const terms = createDualConfirmedSettlementTransferTerms({ proposal, acknowledgements });
+  const providerAttestation = createSettlementTransferAttestation({
+    proposal,
+    acknowledgements,
+    attestation: {
+      memberId: proposal.providerMemberId,
+      keyId: "provider-key",
+      payloadDigest: transferPayloadDigest(terms),
+      signature: "provider-signature",
+    },
+  });
+  const recipientAttestation = createSettlementTransferAttestation({
+    proposal,
+    acknowledgements,
+    attestation: {
+      memberId: proposal.receiverMemberId,
+      keyId: "recipient-key",
+      payloadDigest: transferPayloadDigest(terms),
+      signature: "recipient-signature",
+    },
+  });
+
+  assert.equal(resolveSettlementTransferAttestations({ proposal, acknowledgements, attestations: [providerAttestation] }).status, "awaiting-attestations");
+  assert.equal(resolveSettlementTransferAttestations({ proposal, acknowledgements, attestations: [recipientAttestation, providerAttestation] }).status, "dual-attested");
+  assert.throws(
+    () => createSettlementTransferAttestation({
+      proposal,
+      acknowledgements,
+      attestation: { ...providerAttestation.attestation, payloadDigest: "wrong" },
+    }),
+    /payload digest/i,
   );
 });

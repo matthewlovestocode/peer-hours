@@ -7,7 +7,7 @@ function reader(overrides: Partial<Parameters<typeof readRecordsWorkspace>[0]> =
   return {
     getMemberRecords: async () => [{ id: "raw-1" }],
     getMemberIdentityStatus: async () => ({ state: "ready" as const, memberId: "member-1", communityId: "community-1" }),
-    getResolvedMemberState: async () => ({ state: "ready" as const, publishedListings: [], proposedProposals: [], acceptedProposals: [], settlementConfirmations: [], settledProposalIds: [], transferCount: 0 }),
+    getResolvedMemberState: async () => ({ state: "ready" as const, publishedListings: [], proposedProposals: [], acceptedProposals: [], settlementConfirmations: [], settlementAttestations: [], settledProposalIds: [], transferCount: 0 }),
     ...overrides,
   };
 }

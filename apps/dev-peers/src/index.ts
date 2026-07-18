@@ -3,11 +3,22 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 
 const peerCount = Number(process.env.PEER_COUNT ?? 3);
 const dataRoot = process.env.DATA_DIR ?? join(process.cwd(), "data");
-const bootstrapUrl = process.env.BOOTSTRAP_URL ?? "http://127.0.0.1:10001/bootstrap";
+const bootstrapUrls = configuredBootstrapUrls();
 const communityNodeUrl = process.env.COMMUNITY_NODE_URL ?? "http://127.0.0.1:10000";
-const peers = Array.from({ length: peerCount }, (_, index) => new PeerRuntime(join(dataRoot, `peer-${index + 1}`), undefined, bootstrapUrl));
+const peers = Array.from({ length: peerCount }, (_, index) => new PeerRuntime(join(dataRoot, `peer-${index + 1}`), undefined, bootstrapUrls));
 const peerIds: string[] = [];
 let heartbeatTimer: NodeJS.Timeout | null = null;
+
+/** Reads an explicit comma-separated failover list, retaining the historical single-endpoint development default. */
+function configuredBootstrapUrls(): readonly string[] {
+  const configured = process.env.BOOTSTRAP_URLS;
+  if (configured === undefined) return [process.env.BOOTSTRAP_URL ?? "http://127.0.0.1:10001/bootstrap"];
+  const urls = configured.split(",").map((url) => url.trim());
+  if (urls.length === 0 || urls.some((url) => url.length === 0)) {
+    throw new Error("BOOTSTRAP_URLS must be a comma-separated list of nonblank bootstrap URLs.");
+  }
+  return urls;
+}
 
 /** Ensures simulated roster registration is explicitly enabled for this development-only process. */
 function requireDevelopmentPeerRegistration(): void {

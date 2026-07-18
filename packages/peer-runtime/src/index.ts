@@ -33,7 +33,16 @@ export type LocalPeerStatus = {
   memberFeed: { coreKey: string; length: number; state: "ready" | "unavailable" };
   discoveredMemberFeeds: readonly DiscoveredMemberFeed[];
   error: string | null;
-  bootstrap: { url: string | null; state: "not-configured" | "fetching" | "fetched" | "error" };
+  bootstrap: {
+    /** Endpoint that most recently supplied compatible bootstrap metadata. */
+    url: string | null;
+    /** All configured or manifest-advertised fallback endpoints, in retry order. */
+    urls: readonly string[];
+    state: "not-configured" | "fetching" | "fetched" | "error";
+    lastFetchedAt: string | null;
+    consecutiveFailures: number;
+    lastError: string | null;
+  };
   community: CommunityManifest | null;
 };
 
@@ -69,6 +78,7 @@ const MAX_BOOTSTRAP_NODES = 16;
 const MAX_COMMUNITY_DIAGNOSTIC_PEERS = 256;
 const MAX_DISCOVERED_MEMBER_FEEDS = 1_024;
 const MAX_ENDPOINT_URL_LENGTH = 2_048;
+const BOOTSTRAP_REFRESH_INTERVAL_MS = 30_000;
 
 /** Parses untrusted bootstrap JSON into the complete community metadata the runtime can safely use. */
 export function parseCommunityManifest(payload: unknown): CommunityManifest {
@@ -136,7 +146,9 @@ function validBootstrapNodes(value: unknown): string[] {
   if (value.length > MAX_BOOTSTRAP_NODES) {
     throw new Error(`Bootstrap metadata field bootstrapNodes must contain at most ${MAX_BOOTSTRAP_NODES} URLs.`);
   }
-  return value.map((node, index) => validOperationalUrl(node, `Bootstrap metadata bootstrapNodes[${index}]`));
+  const nodes = value.map((node, index) => validOperationalUrl(node, `Bootstrap metadata bootstrapNodes[${index}]`));
+  if (new Set(nodes).size !== nodes.length) throw new Error("Bootstrap metadata field bootstrapNodes must not contain duplicate URLs.");
+  return nodes;
 }
 
 /** Parses an optional diagnostics endpoint for an independently deployed community peer. */
@@ -226,7 +238,8 @@ export function derivePeerLifecycleState(peer: PeerStatus, now = Date.now(), sta
 export class PeerRuntime {
   private readonly dataDirectory: string;
   private readonly bootstrapKey: Buffer | null;
-  private readonly bootstrapUrl: string | null;
+  private readonly bootstrapUrls: string[];
+  private activeBootstrapUrl: string | null = null;
   private readonly now: () => number;
   private readonly startedAtMs: number;
   private readonly startedAt: string;
@@ -242,9 +255,13 @@ export class PeerRuntime {
   private listening = false;
   private error: string | null = null;
   private bootstrapState: LocalPeerStatus["bootstrap"]["state"] = "not-configured";
+  private bootstrapLastFetchedAt: string | null = null;
+  private bootstrapConsecutiveFailures = 0;
+  private bootstrapLastError: string | null = null;
   private community: CommunityManifest | null = null;
   private communityPeers: PeerStatus[] = [];
   private statusTimer: NodeJS.Timeout | null = null;
+  private bootstrapRefreshTimer: NodeJS.Timeout | null = null;
   private readonly peers = new Map<string, PeerStatus>();
   private readonly statusListeners = new Set<PeerStatusListener>();
   private readonly staleAfterMs = 10_000;
@@ -257,14 +274,14 @@ export class PeerRuntime {
   constructor(
     dataDirectory: string,
     bootstrapKey?: string,
-    bootstrapUrl?: string,
+    bootstrapUrl?: string | readonly string[],
     now: () => number = Date.now,
     networkingEnabled = true,
     memberFeedEnabled = true,
   ) {
     this.dataDirectory = dataDirectory;
     this.bootstrapKey = bootstrapKey ? Buffer.from(validCoreKey(bootstrapKey, "bootstrapKey"), "hex") : null;
-    this.bootstrapUrl = bootstrapUrl ?? null;
+    this.bootstrapUrls = normalizeBootstrapUrls(bootstrapUrl);
     this.now = now;
     this.startedAtMs = this.now();
     this.startedAt = new Date(this.startedAtMs).toISOString();
@@ -316,9 +333,12 @@ export class PeerRuntime {
         this.registerMemberFeedAnnouncementExtension();
         if (this.networkingEnabled) this.join(this.bootstrapCore.discoveryKey);
       }
-      if (this.bootstrapUrl) {
+      if (this.bootstrapUrls.length > 0) {
         this.statusTimer = setInterval(() => void this.refreshCommunityPeers(), 2_000);
         void this.refreshCommunityPeers();
+        this.bootstrapRefreshTimer = setInterval(() => void this.fetchBootstrapKey(), BOOTSTRAP_REFRESH_INTERVAL_MS);
+        // A pinned key is sufficient for discovery, so optional metadata must not delay startup.
+        if (this.bootstrapKey) void this.fetchBootstrapKey();
       }
       if (this.networkingEnabled) {
         void this.swarm.flush().catch((cause: unknown) => {
@@ -430,22 +450,61 @@ export class PeerRuntime {
     this.notifyStatusChange();
   }
 
-  /** Fetches a public network key from the configured bootstrap endpoint. */
+  /** Fetches compatible public discovery metadata, trying configured and learned fallback endpoints in order. */
   private async fetchBootstrapKey(): Promise<Buffer | null> {
-    if (!this.bootstrapUrl) return null;
+    if (this.bootstrapUrls.length === 0) return null;
     this.bootstrapState = "fetching";
-    try {
-      console.log(`fetching bootstrap metadata from ${this.bootstrapUrl}`);
-      const payload = await this.requestJson<unknown>(this.bootstrapUrl);
-      this.community = parseCommunityManifest(payload);
-      this.bootstrapState = "fetched";
-      console.log("bootstrap metadata received");
-      return Buffer.from(this.community.coreKey, "hex");
-    } catch (cause) {
-      this.bootstrapState = "error";
-      this.error = cause instanceof Error ? cause.message : "Unable to reach bootstrap node";
-      console.error("bootstrap failed:", cause);
-      return null;
+    const failures: string[] = [];
+    for (const endpoint of this.bootstrapEndpointsInRetryOrder()) {
+      try {
+        console.log(`fetching bootstrap metadata from ${endpoint}`);
+        const manifest = parseCommunityManifest(await this.requestJson<unknown>(endpoint));
+        this.requireCompatibleCommunityManifest(manifest);
+        this.rememberBootstrapEndpoints(manifest.bootstrapNodes);
+        this.community = manifest;
+        this.activeBootstrapUrl = endpoint;
+        this.bootstrapState = "fetched";
+        this.bootstrapLastFetchedAt = new Date(this.now()).toISOString();
+        this.bootstrapConsecutiveFailures = 0;
+        this.bootstrapLastError = null;
+        this.notifyStatusChange();
+        console.log("bootstrap metadata received");
+        return Buffer.from(manifest.coreKey, "hex");
+      } catch (cause) {
+        failures.push(`${endpoint}: ${cause instanceof Error ? cause.message : "request failed"}`);
+      }
+    }
+    this.bootstrapState = "error";
+    this.bootstrapConsecutiveFailures += 1;
+    this.bootstrapLastError = failures.join("; ");
+    this.notifyStatusChange();
+    console.error("bootstrap failed:", this.bootstrapLastError);
+    return null;
+  }
+
+  /** Keeps only bootstrap metadata that agrees with the community and discovery scope already in use. */
+  private requireCompatibleCommunityManifest(candidate: CommunityManifest): void {
+    const pinnedCoreKey = this.bootstrapKey?.toString("hex");
+    if (pinnedCoreKey !== undefined && candidate.coreKey !== pinnedCoreKey) {
+      throw new Error("Bootstrap metadata does not match the pinned discovery-core key.");
+    }
+    if (this.community === null) return;
+    if (candidate.communityId !== this.community.communityId || candidate.coreKey !== this.community.coreKey) {
+      throw new Error("Bootstrap metadata does not match the already selected community discovery scope.");
+    }
+  }
+
+  /** Returns the last successful endpoint first, followed by configured or advertised alternatives. */
+  private bootstrapEndpointsInRetryOrder(): readonly string[] {
+    return this.activeBootstrapUrl === null
+      ? this.bootstrapUrls
+      : [this.activeBootstrapUrl, ...this.bootstrapUrls.filter((url) => url !== this.activeBootstrapUrl)];
+  }
+
+  /** Adds structurally valid manifest fallbacks without allowing a duplicate endpoint to amplify retries. */
+  private rememberBootstrapEndpoints(endpoints: readonly string[]): void {
+    for (const endpoint of endpoints) {
+      if (!this.bootstrapUrls.includes(endpoint)) this.bootstrapUrls.push(endpoint);
     }
   }
 
@@ -620,7 +679,14 @@ export class PeerRuntime {
       },
       discoveredMemberFeeds: Object.freeze(this.knownMemberFeeds().map((feed) => Object.freeze({ ...feed }))),
       error: this.error,
-      bootstrap: { url: this.bootstrapUrl, state: this.bootstrapState },
+      bootstrap: {
+        url: this.activeBootstrapUrl ?? this.bootstrapUrls[0] ?? null,
+        urls: Object.freeze([...this.bootstrapUrls]),
+        state: this.bootstrapState,
+        lastFetchedAt: this.bootstrapLastFetchedAt,
+        consecutiveFailures: this.bootstrapConsecutiveFailures,
+        lastError: this.bootstrapLastError,
+      },
       community,
     };
     return Object.freeze(snapshot);
@@ -633,6 +699,8 @@ export class PeerRuntime {
     this.stopPromise = (async () => {
       if (this.statusTimer) clearInterval(this.statusTimer);
       this.statusTimer = null;
+      if (this.bootstrapRefreshTimer) clearInterval(this.bootstrapRefreshTimer);
+      this.bootstrapRefreshTimer = null;
       this.memberFeedAnnouncementExtension?.destroy();
       this.memberFeedAnnouncementExtension = null;
       if (this.swarm) await this.swarm.destroy();
@@ -641,4 +709,12 @@ export class PeerRuntime {
     })();
     return this.stopPromise;
   }
+}
+
+/** Normalizes an application-provided primary endpoint or redundant endpoint list before any request occurs. */
+function normalizeBootstrapUrls(value: string | readonly string[] | undefined): string[] {
+  if (value === undefined) return [];
+  const urls = (typeof value === "string" ? [value] : [...value]).map((url, index) => validOperationalUrl(url, `bootstrapUrl[${index}]`));
+  if (new Set(urls).size !== urls.length) throw new Error("bootstrapUrl must not contain duplicate URLs.");
+  return urls;
 }

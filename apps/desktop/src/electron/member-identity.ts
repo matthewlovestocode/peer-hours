@@ -1,8 +1,8 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
 import { acceptExchangeProposal, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
-import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord } from "@peer-hours/timebank-records";
-import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
+import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createParticipantTransferAttestation, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeLedgerTransferRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toDualConfirmedSettlementTransferRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord, toSettlementTransferAttestationRecord, type JsonObject, type RecordEnvelope } from "@peer-hours/timebank-records";
+import { createDualConfirmedSettlementTransferTerms, createSettlementAcknowledgement, createSettlementTransferAttestation, type SettlementAcknowledgement, type SettlementTransferAttestation } from "@peer-hours/timebank-settlement";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
 /** Defines the encrypted identity material persisted only by the Electron main process. */
@@ -11,6 +11,8 @@ export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "rea
 export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
 export type CreateProposalInput = { offer: Listing; request: Listing; minutes: number };
 export type AcceptProposalInput = { proposal: ExchangeProposal; offer: Listing; request: Listing };
+/** Verified replicated evidence needed to advance one settlement from attestation to publication. */
+export type AdvanceSettlementInput = { proposal: ExchangeProposal; acknowledgements: readonly SettlementAcknowledgement[]; attestations: readonly SettlementTransferAttestation[] };
 
 /** Provides OS-backed encryption without exposing Electron to identity domain behavior. */
 export type SecureStorageAdapter = {
@@ -38,6 +40,8 @@ export type MemberFeedRuntime = {
 export class MemberIdentityService {
   /** Tracks local acknowledgement appends so concurrent IPC calls cannot create conflicting envelopes. */
   private readonly settlementAcknowledgementsInProgress = new Set<string>();
+  /** Serializes a participant's attestation and deterministic transfer publication for one proposal. */
+  private readonly settlementAdvancementsInProgress = new Set<string>();
   /** Shares one identity setup operation so repeated renderer clicks cannot create competing root identities. */
   private identitySetupInProgress: Promise<MemberIdentityStatus> | null = null;
 
@@ -158,6 +162,48 @@ export class MemberIdentityService {
     }
   }
 
+  /**
+   * Signs this participant's deterministic transfer terms and, once both valid participant
+   * attestations are available, publishes the one settlement transfer. Private keys remain here.
+   */
+  async advanceSettlement(input: AdvanceSettlementInput): Promise<void> {
+    const communityId = this.memberFeed.communityId();
+    const stored = await this.identityStore.read();
+    if (!communityId || stored === null || !this.secureStorage.isEncryptionAvailable()) throw new Error("A protected identity and community scope are required to advance a settlement.");
+    this.assertStoredIdentity(stored);
+    const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    if (input.proposal.communityId !== communityId) throw new Error("The accepted proposal is outside the current community scope.");
+    if (memberId !== input.proposal.providerMemberId && memberId !== input.proposal.receiverMemberId) throw new Error("Only an exchange participant may attest or publish its settlement.");
+    if (this.settlementAdvancementsInProgress.has(input.proposal.id)) throw new Error("This settlement is already being advanced.");
+    this.settlementAdvancementsInProgress.add(input.proposal.id);
+    try {
+      const terms = createDualConfirmedSettlementTransferTerms({ proposal: input.proposal, acknowledgements: input.acknowledgements });
+      const ownExisting = input.attestations.find(({ attestation }) => attestation.memberId === memberId);
+      const ownAttestation = ownExisting ?? createSettlementTransferAttestation({
+        proposal: input.proposal,
+        acknowledgements: input.acknowledgements,
+        attestation: createParticipantTransferAttestation({
+          transfer: terms,
+          memberId,
+          keyId: rootKeyIdForMember(memberId),
+          signCanonicalPayload: (payload) => this.sign(stored, payload),
+        }),
+      });
+      if (ownExisting === undefined) {
+        const record = toSettlementTransferAttestationRecord(ownAttestation, { occurredAt: new Date().toISOString(), authorId: memberId });
+        await this.memberFeed.appendRecord(this.signRecord(stored, memberId, record));
+      }
+      const attestations = [...input.attestations.filter(({ attestation }) => attestation.memberId !== memberId), ownAttestation];
+      const participantIds = new Set(attestations.map(({ attestation }) => attestation.memberId));
+      if (!participantIds.has(input.proposal.providerMemberId) || !participantIds.has(input.proposal.receiverMemberId)) return;
+      if (await this.hasLedgerTransfer(terms.id)) return;
+      const record = toDualConfirmedSettlementTransferRecord({ proposal: input.proposal, acknowledgements: input.acknowledgements, attestations: attestations.map(({ attestation }) => attestation), metadata: { occurredAt: new Date().toISOString(), authorId: memberId } });
+      await this.memberFeed.appendRecord(this.signRecord(stored, memberId, record));
+    } finally {
+      this.settlementAdvancementsInProgress.delete(input.proposal.id);
+    }
+  }
+
   /** Checks the member-owned feed for a prior immutable acknowledgement before appending again. */
   private async hasSettlementAcknowledgement(acknowledgementId: string): Promise<boolean> {
     const records = await this.memberFeed.readRecords();
@@ -168,6 +214,23 @@ export class MemberIdentityService {
         return false;
       }
     });
+  }
+
+  /** Checks this feed for an already published deterministic transfer before appending again. */
+  private async hasLedgerTransfer(transferId: string): Promise<boolean> {
+    const records = await this.memberFeed.readRecords();
+    return records.some((record) => {
+      try {
+        return decodeLedgerTransferRecord(record).id === transferId;
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  /** Signs one immutable record envelope with the member root key without exposing that key. */
+  private signRecord(stored: StoredMemberIdentity, memberId: string, record: RecordEnvelope<JsonObject>): JsonValue {
+    return createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue;
   }
 
   /** Generates an Ed25519 root key and persists only its encrypted private PEM. */

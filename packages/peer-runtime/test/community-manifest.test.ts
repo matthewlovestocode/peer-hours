@@ -61,6 +61,7 @@ test("requires bootstrap nodes to be an array of HTTP(S) URLs", () => {
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: Array.from({ length: 17 }, () => "https://bootstrap.example.test") })), /at most 16 URLs/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["https://member:secret@bootstrap.example.test"] })), /must be a valid HTTP\(S\) URL/);
   assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["https://bootstrap.example.test/#fragment"] })), /must be a valid HTTP\(S\) URL/);
+  assert.throws(() => parseCommunityManifest(manifest({ bootstrapNodes: ["https://bootstrap.example.test", "https://bootstrap.example.test/"] })), /must not contain duplicate URLs/);
 });
 
 test("accepts an optional community-peer diagnostics URL but rejects other URL schemes", () => {

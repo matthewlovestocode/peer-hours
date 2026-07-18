@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
-import { applyTransfers, createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
+import { applyTransfers, createTransfer, createTransferTerms, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   canonicalTransferPayload,
   canonicalMemberFeedDeclarationPayload,
@@ -12,6 +12,7 @@ import {
   createEd25519SignatureVerifier,
   assertAuthorizedTransferAttestations,
   createMemberSigningKeyAuthorization,
+  createParticipantTransferAttestation,
   createSelfOwnedMemberIdentity,
   reduceMemberSigningKeyAuthorizationEvents,
   transferPayloadDigest,
@@ -177,6 +178,48 @@ test("accepts valid authorized provider and recipient signatures over determinis
     [providerMemberId]: 90,
     [recipientMemberId]: -90,
   });
+});
+
+test("creates a participant attestation through a signing capability without accepting private-key material", () => {
+  const providerKeys = memberKeyPair();
+  const terms = createTransferTerms({
+    id: "proposal-garden-help/settlement",
+    communityId,
+    sourceProposalId: "proposal-garden-help",
+    providerMemberId,
+    recipientMemberId,
+    minutes: 90,
+  });
+  const attestation = createParticipantTransferAttestation({
+    transfer: terms,
+    memberId: providerMemberId,
+    keyId: "provider-key",
+    signCanonicalPayload: (payload) => sign(null, payload, providerKeys.privateKey).toString("base64url"),
+  });
+
+  assert.equal(attestation.payloadDigest, transferPayloadDigest(terms));
+  assert.equal(
+    createEd25519SignatureVerifier([authorization({ memberId: providerMemberId, keyId: "provider-key", publicKey: providerKeys.publicKey })])({
+      transfer: createTransfer({
+        ...terms,
+        attestations: [
+          attestation,
+          { memberId: recipientMemberId, keyId: "recipient-key", payloadDigest: attestation.payloadDigest, signature: "placeholder" },
+        ],
+      }),
+      attestation,
+    }),
+    true,
+  );
+  assert.throws(
+    () => createParticipantTransferAttestation({
+      transfer: terms,
+      memberId: "member-outsider",
+      keyId: "outsider-key",
+      signCanonicalPayload: () => "A".repeat(86),
+    }),
+    /participant/i,
+  );
 });
 
 test("admits a transfer only when both participant signatures are authorized for its exact canonical terms", () => {

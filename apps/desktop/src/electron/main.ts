@@ -108,6 +108,23 @@ app.whenReady().then(() => {
     }
     await memberIdentity.acknowledgeSettlement(proposal);
   });
+  ipcMain.handle("member:advance-settlement", async (_event, proposalId: unknown) => {
+    const settlementProposalId = parseRecordId(proposalId, "Proposal id");
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before advancing a settlement.");
+    const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
+    const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
+    const resolved = resolveTimebankMemberFeeds(communityId, histories);
+    const proposal = resolved.acceptedProposals.find((item) => item.id === settlementProposalId);
+    if (!proposal) throw new Error("Choose a locally accepted proposal before advancing its settlement.");
+    if (resolved.ledger.transfers.some((transfer) => transfer.sourceProposalId === proposal.id)) {
+      throw new Error("This settlement is already locally admitted; it is not a claim of network finality.");
+    }
+    const confirmation = resolved.settlementConfirmations.find((item) => item.proposalId === proposal.id);
+    if (confirmation?.status !== "dual-confirmed") throw new Error("Both participants must acknowledge completion before signing settlement terms.");
+    const attestationState = resolved.settlementAttestations.find((item) => item.proposalId === proposal.id);
+    await memberIdentity.advanceSettlement({ proposal, acknowledgements: confirmation.acknowledgements, attestations: attestationState?.attestations ?? [] });
+  });
   ipcMain.handle("member:resolved", async () => {
     const communityId = runtime.status().community?.communityId;
     if (!communityId) return { state: "unavailable" as const, reason: "No bootstrap discovery community is configured." };

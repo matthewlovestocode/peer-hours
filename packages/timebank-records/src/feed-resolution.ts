@@ -4,6 +4,7 @@ import { type Ledger, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   type SettlementAcknowledgement,
   type SettlementConfirmationState,
+  type SettlementAttestationState,
 } from "@peer-hours/timebank-settlement";
 import { type RecordEnvelope } from "./envelope.js";
 import { MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord } from "./self-owned-identity-records.js";
@@ -15,6 +16,7 @@ import {
   PUBLISHED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
+  SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND,
 } from "./timebank-records.js";
 
 /** A concrete replicated history read from one known member-owned Hypercore feed. */
@@ -34,6 +36,8 @@ export interface FeedResolvedTimebankState {
   readonly settlementAcknowledgements: readonly SettlementAcknowledgement[];
   /** Acknowledgement progress per accepted proposal; this is not transfer finality. */
   readonly settlementConfirmations: readonly SettlementConfirmationState[];
+  /** Participant transfer-signature progress per accepted proposal. */
+  readonly settlementAttestations: readonly SettlementAttestationState[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
 }
@@ -79,6 +83,7 @@ export function resolveTimebankMemberFeeds(
     acceptedProposals: resolved.acceptedProposals,
     settlementAcknowledgements: resolved.settlementAcknowledgements,
     settlementConfirmations: resolved.settlementConfirmations,
+    settlementAttestations: resolved.settlementAttestations,
     transfers: resolved.transfers,
     ledger: resolved.ledger,
   });
@@ -114,6 +119,7 @@ function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
     record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND ||
     record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND ||
     record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND ||
+    record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND ||
     record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 

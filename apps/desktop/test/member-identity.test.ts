@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { MemberFeedAnnouncement } from "@peer-hours/timebank-identity";
+import { transferPayloadDigest, type MemberFeedAnnouncement } from "@peer-hours/timebank-identity";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 import {
   decodeAcceptedExchangeProposalRecord,
   decodePublishedListingRecord,
+  decodeLedgerTransferRecord,
   decodeSettlementAcknowledgementRecord,
+  decodeSettlementTransferAttestationRecord,
 } from "@peer-hours/timebank-records";
+import { createDualConfirmedSettlementTransferTerms, createSettlementAcknowledgement, createSettlementTransferAttestation } from "@peer-hours/timebank-settlement";
 import { MemberIdentityService, type MemberFeedRuntime, type SecureStorageAdapter, type StoredMemberIdentity } from "../src/electron/member-identity.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -227,6 +230,76 @@ test("does not append a duplicate acknowledgement when a repeated local action r
   await fixture.identity.acknowledgeSettlement(proposal);
   await assert.rejects(fixture.identity.acknowledgeSettlement(proposal), /already acknowledged/i);
   assert.equal(fixture.feed.records.length, 2);
+});
+
+test("signs a local transfer attestation and publishes only after both participant attestations are present", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: memberId,
+    creatorMemberId: "member-provider", acceptedByMemberId: memberId, minutes: 60, status: "accepted" as const,
+  };
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, memberId),
+  ];
+  const terms = createDualConfirmedSettlementTransferTerms({ proposal, acknowledgements });
+  const providerAttestation = createSettlementTransferAttestation({
+    proposal,
+    acknowledgements,
+    attestation: { memberId: proposal.providerMemberId, keyId: "provider-key", payloadDigest: transferPayloadDigest(terms), signature: "A".repeat(86) },
+  });
+
+  await fixture.identity.advanceSettlement({ proposal, acknowledgements, attestations: [providerAttestation] });
+
+  assert.equal(fixture.feed.records.length, 3);
+  const localAttestation = decodeSettlementTransferAttestationRecord(fixture.feed.records[1]);
+  assert.equal(localAttestation.attestation.memberId, memberId);
+  const transfer = decodeLedgerTransferRecord(fixture.feed.records[2]);
+  assert.equal(transfer.id, `${proposal.id}/settlement`);
+  assert.deepEqual(new Set(transfer.attestations.map(({ memberId: attestingMemberId }) => attestingMemberId)), new Set([proposal.providerMemberId, memberId]));
+});
+
+test("publishes only the local attestation while a dual-confirmed settlement awaits the counterparty signature", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: memberId,
+    creatorMemberId: "member-provider", acceptedByMemberId: memberId, minutes: 60, status: "accepted" as const,
+  };
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, memberId),
+  ];
+
+  await fixture.identity.advanceSettlement({ proposal, acknowledgements, attestations: [] });
+
+  assert.equal(fixture.feed.records.length, 2);
+  assert.equal(decodeSettlementTransferAttestationRecord(fixture.feed.records[1]).attestation.memberId, memberId);
+});
+
+test("does not sign or publish a settlement transfer before both participants acknowledge completion", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: "offer-garden-help", requestId: "request-garden-help",
+    providerMemberId: "member-provider", receiverMemberId: memberId,
+    creatorMemberId: "member-provider", acceptedByMemberId: memberId, minutes: 60, status: "accepted" as const,
+  };
+
+  await assert.rejects(
+    fixture.identity.advanceSettlement({ proposal, acknowledgements: [createSettlementAcknowledgement(proposal, memberId)], attestations: [] }),
+    /both exchange participants must acknowledge/i,
+  );
+  assert.equal(fixture.feed.records.length, 1);
 });
 
 test("restart loads the same member identity from protected persisted material", async () => {

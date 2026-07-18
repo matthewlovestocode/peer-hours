@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
+import {
+  createDualConfirmedSettlementTransferTerms,
+  createSettlementAcknowledgement,
+  createSettlementTransferAttestation,
+} from "@peer-hours/timebank-settlement";
+import { transferPayloadDigest } from "@peer-hours/timebank-identity";
 import { createRecordEnvelope } from "../src/envelope.js";
 import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
@@ -21,6 +26,9 @@ import {
   decodeSettlementAcknowledgementRecord,
   toPublishedListingRecord,
   toSettlementAcknowledgementRecord,
+  decodeSettlementTransferAttestationRecord,
+  toSettlementTransferAttestationRecord,
+  reduceSettlementTransferAttestationRecords,
 } from "../src/timebank-records.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -158,6 +166,34 @@ test("encodes a deterministic settlement transfer only from dual-confirmed ackno
     ...transfer(),
     id: "proposal-1/settlement",
   });
+});
+
+test("maps one participant-owned deterministic settlement attestation for independent replication", () => {
+  const proposal = acceptedProposal();
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+  const terms = createDualConfirmedSettlementTransferTerms({ proposal, acknowledgements });
+  const settlementAttestation = createSettlementTransferAttestation({
+    proposal,
+    acknowledgements,
+    attestation: {
+      memberId: proposal.providerMemberId,
+      keyId: "provider-key",
+      payloadDigest: transferPayloadDigest(terms),
+      signature: "provider-signature",
+    },
+  });
+  const record = toSettlementTransferAttestationRecord(settlementAttestation, recordMetadata);
+
+  assert.equal(record.id, "proposal-1/settlement-attestation/member-provider");
+  assert.deepEqual(decodeSettlementTransferAttestationRecord(record), settlementAttestation);
+  assert.deepEqual(reduceSettlementTransferAttestationRecords([record, record], communityId), [settlementAttestation]);
+  assert.throws(
+    () => toSettlementTransferAttestationRecord(settlementAttestation, { ...recordMetadata, authorId: "member-recipient" }),
+    /attesting participant/i,
+  );
 });
 
 test("rejects one-sided settlement publication and non-participant authors", () => {

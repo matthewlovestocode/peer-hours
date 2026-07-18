@@ -12,14 +12,19 @@ export interface TransferAttestation {
   readonly signature: string;
 }
 
-/** An immutable, community-scoped transfer awaiting or carrying both attestations. */
-export interface Transfer {
+/** Immutable transfer terms that participants sign before their attestations are assembled. */
+export interface TransferTerms {
   readonly id: TransferId;
   readonly communityId: string;
   readonly sourceProposalId?: string;
   readonly providerMemberId: MemberId;
   readonly recipientMemberId: MemberId;
   readonly minutes: number;
+  readonly reversesTransferId?: TransferId;
+}
+
+/** An immutable, community-scoped transfer awaiting or carrying both attestations. */
+export interface Transfer extends TransferTerms {
   readonly attestations: readonly TransferAttestation[];
   readonly reversesTransferId?: TransferId;
 }
@@ -89,6 +94,23 @@ export class LedgerRuleError extends Error {
  * Attestation signatures are intentionally verified later by the injected verifier.
  */
 export function createTransfer(input: Transfer): Transfer {
+  const terms = createTransferTerms(input);
+
+  const attestations = normalizeAttestations(input);
+  return Object.freeze({
+    ...terms,
+    attestations: Object.freeze(attestations),
+    ...(input.reversesTransferId === undefined ? {} : { reversesTransferId: input.reversesTransferId }),
+  });
+}
+
+/**
+ * Normalizes the immutable terms both participants attest before a complete transfer exists.
+ *
+ * This deliberately excludes attestations so a desktop can ask its private-key custodian to
+ * sign deterministic terms without inventing placeholder signatures for the counterparty.
+ */
+export function createTransferTerms(input: TransferTerms): TransferTerms {
   assertPresent(input.id, "Transfer id");
   assertPresent(input.communityId, "Community id");
   assertPresent(input.providerMemberId, "Provider member id");
@@ -98,18 +120,14 @@ export function createTransfer(input: Transfer): Transfer {
   if (input.providerMemberId === input.recipientMemberId) {
     throw new LedgerRuleError("A transfer cannot have the same provider and recipient.");
   }
-
   if (input.reversesTransferId !== undefined) {
     assertPresent(input.reversesTransferId, "Reversed transfer id");
     if (input.reversesTransferId === input.id) {
       throw new LedgerRuleError("A transfer cannot reverse itself.");
     }
-  }
-  if (input.reversesTransferId === undefined) {
+  } else {
     assertPresent(input.sourceProposalId ?? "", "Source proposal id");
   }
-
-  const attestations = normalizeAttestations(input);
   return Object.freeze({
     id: input.id,
     communityId: input.communityId,
@@ -117,7 +135,6 @@ export function createTransfer(input: Transfer): Transfer {
     providerMemberId: input.providerMemberId,
     recipientMemberId: input.recipientMemberId,
     minutes: input.minutes,
-    attestations: Object.freeze(attestations),
     ...(input.reversesTransferId === undefined ? {} : { reversesTransferId: input.reversesTransferId }),
   });
 }

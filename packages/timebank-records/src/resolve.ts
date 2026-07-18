@@ -1,15 +1,22 @@
 import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import {
   createEd25519SignatureVerifier,
+  canonicalTransferPayload,
+  createEd25519MemberSignatureVerifier,
   type MemberSigningKeyAuthorization,
 } from "@peer-hours/timebank-identity";
 import { applyTransfers, type Ledger, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   resolveSettlementAcknowledgements,
+  createDualConfirmedSettlementTransferTerms,
+  resolveSettlementTransferAttestations,
+  validateSettlementTransferAttestation,
   validateSettlementAcknowledgement,
   validateAuthorizedDualConfirmedSettlementTransfer,
   type SettlementAcknowledgement,
   type SettlementConfirmationState,
+  type SettlementAttestationState,
+  type SettlementTransferAttestation,
 } from "@peer-hours/timebank-settlement";
 import { reduceRecordEnvelopes, type RecordEnvelope } from "./envelope.js";
 import {
@@ -32,16 +39,19 @@ import {
   PUBLISHED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
+  SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
   decodeProposedExchangeProposalRecord,
   decodeLedgerTransferRecord,
   decodePublishedListingRecord,
   decodeSettlementAcknowledgementRecord,
+  decodeSettlementTransferAttestationRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
   reducePublishedListingRecords,
   reduceProposedExchangeProposalRecords,
   reduceSettlementAcknowledgementRecords,
+  reduceSettlementTransferAttestationRecords,
 } from "./timebank-records.js";
 
 /** The deterministic local timebank view derived from one replicated record history. */
@@ -55,6 +65,8 @@ export interface ResolvedTimebankState {
   readonly settlementAcknowledgements: readonly SettlementAcknowledgement[];
   /** Per-proposal acknowledgement state; this does not create ledger postings. */
   readonly settlementConfirmations: readonly SettlementConfirmationState[];
+  /** Per-proposal participant transfer signatures; dual attestation still is not finality. */
+  readonly settlementAttestations: readonly SettlementAttestationState[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
 }
@@ -111,6 +123,10 @@ export function resolveTimebankRecords(
       communityRecords.filter((record) => record.kind === LEDGER_TRANSFER_RECORD_KIND),
       communityId,
     );
+    const transferAttestations = reduceSettlementTransferAttestationRecords(
+      communityRecords.filter((record) => record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND),
+      communityId,
+    );
     assertAcceptedProposalsPreservePublishedTerms(proposedProposals, acceptedProposals);
     const proposalsById = new Map(acceptedProposals.map((proposal) => [proposal.id, proposal]));
     const acknowledgementsByProposalId = new Map<string, SettlementAcknowledgement[]>();
@@ -126,6 +142,36 @@ export function resolveTimebankRecords(
     }
     const settlementConfirmations = Object.freeze(acceptedProposals.map((proposal) =>
       resolveSettlementAcknowledgements(proposal, acknowledgementsByProposalId.get(proposal.id) ?? []),
+    ));
+    const transferAttestationsByProposalId = new Map<string, SettlementTransferAttestation[]>();
+    for (const settlementAttestation of transferAttestations) {
+      const proposal = proposalsById.get(settlementAttestation.sourceProposalId);
+      if (proposal === undefined) {
+        throw new RecordResolutionError("A settlement transfer attestation must resolve its accepted proposal from replicated records.");
+      }
+      const acknowledgements = acknowledgementsByProposalId.get(proposal.id) ?? [];
+      const normalized = validateSettlementTransferAttestation({ proposal, acknowledgements }, settlementAttestation);
+      const terms = createDualConfirmedSettlementTransferTerms({ proposal, acknowledgements });
+      const verifyMemberSignature = createEd25519MemberSignatureVerifier(authorizations);
+      if (!verifyMemberSignature({
+        communityId: terms.communityId,
+        memberId: normalized.attestation.memberId,
+        keyId: normalized.attestation.keyId,
+        payload: canonicalTransferPayload(terms),
+        signature: normalized.attestation.signature,
+      })) {
+        throw new RecordResolutionError("A settlement transfer attestation must have a valid authorized participant signature.");
+      }
+      const attestations = transferAttestationsByProposalId.get(proposal.id) ?? [];
+      attestations.push(normalized);
+      transferAttestationsByProposalId.set(proposal.id, attestations);
+    }
+    const settlementAttestations = Object.freeze(acceptedProposals.map((proposal) =>
+      resolveSettlementTransferAttestations({
+        proposal,
+        acknowledgements: acknowledgementsByProposalId.get(proposal.id) ?? [],
+        attestations: transferAttestationsByProposalId.get(proposal.id) ?? [],
+      }),
     ));
 
     for (const transfer of transfers) {
@@ -156,6 +202,7 @@ export function resolveTimebankRecords(
       acceptedProposals,
       settlementAcknowledgements,
       settlementConfirmations,
+      settlementAttestations,
       transfers,
       ledger,
     });
@@ -242,6 +289,14 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
     return;
   }
 
+  if (record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND) {
+    const settlementAttestation = decodeSettlementTransferAttestationRecord(record);
+    if (record.authorId !== settlementAttestation.attestation.memberId) {
+      throw new RecordResolutionError("A settlement transfer attestation record must be signed by its attesting participant.");
+    }
+    return;
+  }
+
   const transfer = decodeLedgerTransferRecord(record);
   if (record.authorId !== transfer.providerMemberId && record.authorId !== transfer.recipientMemberId) {
     throw new RecordResolutionError("A ledger transfer record must be submitted by one of its participants.");
@@ -250,7 +305,7 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
 
 /** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND || record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

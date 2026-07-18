@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type WorkspaceId = "home" | "network";
+export type WorkspaceId = "home" | "records" | "network";
 
 type NavigationState = {
   activeWorkspace: WorkspaceId;

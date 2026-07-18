@@ -20,6 +20,10 @@ button:hover { background: #2a3137; }
 .home-page { max-width: 43rem; padding: 10vh 0; }
 .home-page h1 { max-width: 10ch; }
 .home-page__copy { max-width: 37rem; color: #aeb5bc; font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.65; }
+.records-page { max-width: 58rem; }
+.record-list { display: grid; gap: 1rem; margin: 1.5rem 0 0; padding: 0; list-style: none; }
+.record-list li { display: grid; gap: 0.6rem; border-top: 1px solid #30363b; padding-top: 1rem; }
+.record-list pre { margin: 0; overflow-x: auto; color: #dce5e8; font: 0.78rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .drawer-scrim { position: fixed; inset: 0; z-index: 20; border: 0; border-radius: 0; background: #05060799; opacity: 0; pointer-events: none; transition: opacity 180ms ease; }
 .drawer-scrim--visible { opacity: 1; pointer-events: auto; }
 .navigation-drawer { position: fixed; z-index: 30; top: 0; bottom: 0; left: 0; display: flex; width: min(22rem, calc(100vw - 2rem)); flex-direction: column; border-right: 1px solid #333a40; background: #15191c; padding: 1.25rem; box-shadow: 1.5rem 0 4rem #00000055; transform: translateX(-105%); transition: transform 180ms ease; }

@@ -1,12 +1,14 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
+import { MemberIdentityService } from "./member-identity.js";
 
 const runtime = new PeerRuntime(
   join(app.getPath("userData"), "peer-hours"),
   process.env.PEER_HOURS_BOOTSTRAP_KEY,
   process.env.PEER_HOURS_BOOTSTRAP_URL ?? "http://127.0.0.1:10001/bootstrap",
 );
+const memberIdentity = new MemberIdentityService(join(app.getPath("userData"), "peer-hours"), runtime);
 
 /** Creates the desktop window and loads either the Vite development UI or built renderer. */
 const createWindow = () => {
@@ -32,6 +34,9 @@ const createWindow = () => {
 app.whenReady().then(() => {
   void runtime.start();
   ipcMain.handle("network:status", () => runtime.status());
+  ipcMain.handle("member:records", () => runtime.readMemberRecords());
+  ipcMain.handle("member:identity-status", () => memberIdentity.status());
+  ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
   runtime.onStatusChange((status) => {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send("network:status-changed", status);
   });

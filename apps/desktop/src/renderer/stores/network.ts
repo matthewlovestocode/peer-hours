@@ -7,6 +7,7 @@ type NetworkState = {
   error: string | null;
   lastUpdatedAt: string | null;
   refresh: () => Promise<void>;
+  subscribe: () => () => void;
 };
 
 /** Owns the desktop client's node connection state and periodic status refresh behavior. */
@@ -24,4 +25,5 @@ export const useNetworkStore = create<NetworkState>((set, get) => ({
       set({ state: "error", error: error instanceof Error ? error.message : "Unable to reach node" });
     }
   },
+  subscribe: () => window.peerHours.onNetworkStatusChanged((status) => set({ status, state: "connected", lastUpdatedAt: new Date().toISOString(), error: null })),
 }));

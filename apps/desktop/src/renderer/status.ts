@@ -19,6 +19,7 @@ export type LocalPeerStatus = {
   state: "starting" | "online" | "error";
   peerId: string;
   listening: boolean;
+  discovery: { connecting: number; connected: number };
   peers: PeerStatus[];
   replication: { coreKey: string; length: number };
   error: string | null;

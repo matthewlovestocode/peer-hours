@@ -5,6 +5,7 @@ declare global {
     peerHours: {
       platform: string;
       getNetworkStatus: () => Promise<LocalPeerStatus>;
+      onNetworkStatusChanged: (listener: (status: LocalPeerStatus) => void) => () => void;
     };
   }
 }

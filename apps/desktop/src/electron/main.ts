@@ -32,6 +32,9 @@ const createWindow = () => {
 app.whenReady().then(() => {
   void runtime.start();
   ipcMain.handle("network:status", () => runtime.status());
+  runtime.onStatusChange((status) => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send("network:status-changed", status);
+  });
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

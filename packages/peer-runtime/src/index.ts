@@ -18,6 +18,7 @@ export type LocalPeerStatus = {
   state: "starting" | "online" | "error";
   peerId: string;
   listening: boolean;
+  discovery: { connecting: number; connected: number };
   peers: PeerStatus[];
   replication: { coreKey: string; length: number };
   error: string | null;
@@ -32,6 +33,8 @@ export type CommunityManifest = {
   coreKey: string;
   bootstrapNodes: string[];
 };
+
+export type PeerStatusListener = (status: LocalPeerStatus) => void;
 
 type PeerConnection = { on: Function; remotePublicKey?: Buffer };
 
@@ -49,6 +52,7 @@ export class PeerRuntime {
   private readonly dataDirectory: string;
   private readonly bootstrapKey: Buffer | null;
   private readonly bootstrapUrl: string | null;
+  private readonly now: () => number;
   private store: any;
   private core: any;
   private bootstrapCore: any;
@@ -60,14 +64,28 @@ export class PeerRuntime {
   private communityPeers: PeerStatus[] = [];
   private statusTimer: NodeJS.Timeout | null = null;
   private readonly peers = new Map<string, PeerStatus>();
+  private readonly statusListeners = new Set<PeerStatusListener>();
   private readonly staleAfterMs = 10_000;
   private readonly offlineRetentionMs = 30_000;
 
-  /** Creates a peer runtime using an app-owned data directory and optional bootstrap core. */
-  constructor(dataDirectory: string, bootstrapKey?: string, bootstrapUrl?: string) {
+  /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and clock. */
+  constructor(dataDirectory: string, bootstrapKey?: string, bootstrapUrl?: string, now: () => number = Date.now) {
     this.dataDirectory = dataDirectory;
     this.bootstrapKey = bootstrapKey ? Buffer.from(bootstrapKey, "hex") : null;
     this.bootstrapUrl = bootstrapUrl ?? null;
+    this.now = now;
+  }
+
+  /** Subscribes to local and community status changes and returns an unsubscribe function. */
+  onStatusChange(listener: PeerStatusListener): () => void {
+    this.statusListeners.add(listener);
+    return () => this.statusListeners.delete(listener);
+  }
+
+  /** Publishes the current status to subscribers after a meaningful runtime change. */
+  private notifyStatusChange(): void {
+    const snapshot = this.status();
+    for (const listener of this.statusListeners) listener(snapshot);
   }
 
   /** Starts local storage and peer discovery, then accepts replicated connections. */
@@ -80,18 +98,22 @@ export class PeerRuntime {
       this.swarm = new Hyperswarm();
       this.swarm.on("connection", (connection: PeerConnection) => {
         const id = connection.remotePublicKey?.toString("hex") ?? `peer-${this.peers.size + 1}`;
-        const now = new Date().toISOString();
+        const now = new Date(this.now()).toISOString();
         this.peers.set(id, { id, connectedAt: now, lastSeenAt: now, lifecycleState: "connecting", source: "hyperswarm" });
         this.store.replicate(connection);
         queueMicrotask(() => {
           const peer = this.peers.get(id);
           if (peer?.lifecycleState === "connecting") {
-            this.peers.set(id, { ...peer, lifecycleState: "connected", lastSeenAt: new Date().toISOString() });
+            this.peers.set(id, { ...peer, lifecycleState: "connected", lastSeenAt: new Date(this.now()).toISOString() });
+            this.notifyStatusChange();
           }
         });
         connection.on("close", () => {
           const peer = this.peers.get(id);
-          if (peer) this.peers.set(id, { ...peer, lifecycleState: "offline", lastSeenAt: new Date().toISOString() });
+          if (peer) {
+            this.peers.set(id, { ...peer, lifecycleState: "offline", lastSeenAt: new Date(this.now()).toISOString() });
+            this.notifyStatusChange();
+          }
         });
       });
       void this.swarm.listen().then(() => { this.listening = true; });
@@ -118,14 +140,16 @@ export class PeerRuntime {
 
   /** Registers a development-only simulated peer for UI and topology testing. */
   registerSimulatedPeer(id: string): void {
-    const now = new Date().toISOString();
+    const now = new Date(this.now()).toISOString();
     const existing = this.peers.get(id);
     this.peers.set(id, { id, connectedAt: existing?.connectedAt ?? now, lastSeenAt: now, lifecycleState: "connected", source: "simulated" });
+    this.notifyStatusChange();
   }
 
   /** Removes a development-only simulated peer from the status view. */
   unregisterSimulatedPeer(id: string): void {
     this.peers.delete(id);
+    this.notifyStatusChange();
   }
 
   /** Fetches a public network key from the configured bootstrap endpoint. */
@@ -155,6 +179,7 @@ export class PeerRuntime {
       const statusUrl = this.bootstrapUrl.replace(/\/bootstrap$/, "/status");
       const payload = await this.requestJson<{ peers?: PeerStatus[] }>(statusUrl);
       this.communityPeers = (payload.peers ?? []).map((peer) => ({ ...peer, lifecycleState: peer.lifecycleState ?? "connected", source: peer.source ?? "hyperswarm" }));
+      this.notifyStatusChange();
     } catch {
       this.communityPeers = [];
     }
@@ -186,7 +211,7 @@ export class PeerRuntime {
 
   /** Returns a serializable snapshot for desktop UIs, node APIs, and diagnostics. */
   status(): LocalPeerStatus {
-    const now = Date.now();
+    const now = this.now();
     const offlineExpiry = now - this.offlineRetentionMs;
     for (const [id, peer] of this.peers) {
       const lastSeen = Date.parse(peer.lastSeenAt);
@@ -199,6 +224,7 @@ export class PeerRuntime {
       state: this.error ? "error" : this.core ? "online" : "starting",
       peerId: this.core?.key?.toString("hex") ?? "",
       listening: this.listening,
+      discovery: { connecting: this.swarm?.connecting ?? 0, connected: this.swarm?.connections?.size ?? 0 },
       peers: [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))],
       replication: { coreKey: this.core?.key?.toString("hex") ?? "", length: this.core?.length ?? 0 },
       error: this.error,

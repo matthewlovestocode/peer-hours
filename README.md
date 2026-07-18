@@ -88,6 +88,8 @@ The desktop defaults to `http://127.0.0.1:10000/bootstrap`, fetches the communit
 
 Peer lifecycle status is reported as `discovered`, `connecting`, `connected`, `stale`, or `offline`. A peer becomes stale after 10 seconds without a fresh heartbeat and is retained for up to 30 seconds so the desktop can show the transition before removing it.
 
+The node API also reports Hyperswarm discovery counters in `status.discovery`: `connecting` counts in-progress handshakes and `connected` counts active encrypted connections. Hyperswarm does not provide a stable peer identity until the connection event, so identity-level `discovered` records will be added when a higher-level discovery registry exists.
+
 To start real simulated peers for the network tree, use a third terminal:
 
 ```sh
@@ -166,6 +168,8 @@ npm --workspace @peer-hours/node test
 ```
 
 Tests live in the workspace’s `test/` directory. The first test covers the node health payload; replication and ledger integration tests should be added as those behaviors are implemented.
+
+Network lifecycle tests use an injected clock, so they can deterministically verify heartbeat, stale, recovery, and offline behavior without waiting in real time. The node test command builds `@peer-hours/peer-runtime` first, ensuring integration tests exercise the current shared runtime implementation.
 
 ## Adding a new application
 

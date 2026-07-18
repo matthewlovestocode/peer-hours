@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { derivePeerLifecycleState, type PeerStatus } from "../src/index.js";
+import { PeerRuntime } from "../src/index.js";
 
 const now = Date.parse("2026-07-18T00:00:30.000Z");
 
@@ -29,4 +30,21 @@ test("marks a peer offline after the retention window", () => {
 test("preserves connecting and discovered states while they are fresh", () => {
   assert.equal(derivePeerLifecycleState(peerAt(1_000, "connecting"), now), "connecting");
   assert.equal(derivePeerLifecycleState(peerAt(1_000, "discovered"), now), "discovered");
+});
+
+test("restores a stale simulated peer when its heartbeat resumes", () => {
+  let clock = now;
+  const runtime = new PeerRuntime("/tmp/peer-hours-lifecycle-test", undefined, undefined, () => clock);
+
+  runtime.registerSimulatedPeer("simulated-peer-a");
+  const firstConnection = runtime.status().peers[0].connectedAt;
+
+  clock += 10_001;
+  assert.equal(runtime.status().peers[0].lifecycleState, "stale");
+
+  clock += 1;
+  runtime.registerSimulatedPeer("simulated-peer-a");
+  const resumed = runtime.status().peers[0];
+  assert.equal(resumed.lifecycleState, "connected");
+  assert.equal(resumed.connectedAt, firstConnection);
 });

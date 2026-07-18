@@ -231,4 +231,4 @@ stateDiagram-v2
     offline --> [*]
 ```
 
-The current runtime emits `connecting`, `connected`, `stale`, and `offline`. The `discovered` state is reserved for the future discovery layer, when a peer can be identified before a connection handshake begins.
+The current runtime emits `connecting`, `connected`, `stale`, and `offline`, and exposes aggregate Hyperswarm `connecting` and `connected` counters through the status API. The `discovered` state is reserved for the future discovery layer, when a peer can be identified before a connection handshake begins.

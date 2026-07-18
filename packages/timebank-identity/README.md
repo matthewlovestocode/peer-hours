@@ -19,6 +19,9 @@ The identity package sits between signed member activity and the accounting rule
 
 ## Current responsibilities
 
+- Derives a self-certifying `memberId` from an Ed25519 root public key.
+- Validates a root-signed declaration that connects that identity to one community-scoped Hypercore member-feed key.
+
 - Validate immutable, community-scoped authorizations for Ed25519 public keys.
 - Create activation and revocation events for a member signing key, with canonical UTC timestamps and stable event IDs.
 - Deterministically reduce an unordered event history into current authorizations.
@@ -32,13 +35,19 @@ The identity package sits between signed member activity and the accounting rule
 ## Explicit non-responsibilities
 
 - It does not create private keys, store private keys, or expose private keys to the desktop renderer or a community node API.
-- It does not yet model the decided open-participation identity policy: self-owned signing identities without community membership approval. The current authorization-event issuer model is unresolved and must not become a central admission mechanism.
+- It does not yet admit self-owned identities into the timebank record resolver or define key rotation, recovery, privacy, and feed-discovery rules. The current authorization-event issuer model remains a temporary compatibility boundary and must not become a central admission mechanism.
 - It does not persist, replicate, discover, synchronize, or fetch authorization events.
 - It does not turn the current event shape into a network protocol. A formally versioned canonical JSON profile and replicated record storage are still needed.
 - It does not create, validate, or settle ledger transfers; `@peer-hours/timebank-ledger` owns settlement invariants and balance derivation.
 - It does not link a transfer to an accepted proposal; `@peer-hours/timebank-settlement` currently provides in-memory validation for that relationship.
 
 ## Public API and concepts
+
+### Self-owned identity and member feeds
+
+`createSelfOwnedMemberIdentity({ rootPublicKeyPem })` derives a stable `phm_…` member ID from the exact Ed25519 root public key. `createMemberFeedDeclaration()` accepts a community ID, a lowercase Hypercore feed key, and a root signature over the canonical declaration. It rejects a changed member ID, feed key, timestamp, or signature.
+
+This is a protocol foundation, not feed discovery or feed-source enforcement yet. A community node does not approve the declaration. The record resolver now accepts the declaration's root key for that member's signed records; a future feed-aware resolver must also prove that each admitted record arrived from the declared feed.
 
 ### Current authorizations
 

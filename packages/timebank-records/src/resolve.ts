@@ -17,6 +17,10 @@ import {
   type MemberSignedRecord,
 } from "./member-signed-record.js";
 import {
+  MEMBER_FEED_DECLARATION_RECORD_KIND,
+  memberFeedDeclarationsToAuthorizations,
+} from "./self-owned-identity-records.js";
+import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
@@ -58,9 +62,13 @@ export function resolveTimebankRecords(
   try {
     const normalizedRecords = reduceRecordEnvelopes(records);
     const communityRecords = normalizedRecords.filter((record) => record.communityId === communityId);
-    const authorizations = reduceMemberSigningKeyAuthorizationRecords(
+    const legacyAuthorizations = reduceMemberSigningKeyAuthorizationRecords(
       communityRecords.filter(isIdentityRecord),
     );
+    const selfOwnedAuthorizations = memberFeedDeclarationsToAuthorizations(
+      communityRecords.filter((record) => record.kind === MEMBER_FEED_DECLARATION_RECORD_KIND),
+    );
+    const authorizations = Object.freeze([...legacyAuthorizations, ...selfOwnedAuthorizations]);
     assertMemberSignedDomainRecords(records, communityId, authorizations);
     const acceptedProposals = reduceAcceptedExchangeProposalRecords(
       communityRecords.filter((record) => record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND),

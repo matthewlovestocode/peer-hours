@@ -22,6 +22,8 @@ The package is deliberately separate from the timebank-domain and ledger package
 
 ## Current responsibilities
 
+- Opens an independent, locally writable member-record Hypercore alongside the community record core.
+
 - Creates an app-owned local data directory and Corestore.
 - Opens the `peer-hours-network` Hypercore and joins its discovery key.
 - Starts a Hyperswarm instance, listens for connections, and replicates the local Corestore over them.
@@ -37,6 +39,7 @@ The package is deliberately separate from the timebank-domain and ledger package
 - It does not define, persist, or validate timebank members, listings, exchange proposals, transfers, balances, or signatures.
 - It does not interpret or validate timebank-domain, identity, or ledger records. It can replicate their immutable JSON envelopes through a shared record core, while `@peer-hours/timebank-records` owns their meaning and resolution.
 - It does not authenticate a bootstrap endpoint, establish that a fetched community manifest is trustworthy, or authorize community membership. The current loader checks a successful HTTP response and validates a complete manifest: a JSON object with nonblank community ID/display name, a positive integer protocol version, 64-character hexadecimal core keys, and HTTP(S) bootstrap URLs. It normalizes accepted keys and URLs. It does not yet pin a key, verify a signature, or establish that the endpoint is an authorized community operator.
+- It does not yet advertise, discover, or resolve member-feed declarations. `memberRecordFeedKey`, `appendMemberRecord()`, and `readMemberRecordsFromFeed()` establish the storage and replication boundary only.
 - It does not guarantee that a peer shown from a community node's status endpoint is a direct local connection.
 - It is not an HTTP server; applications such as `apps/node` decide which endpoints to expose.
 - Simulated-peer registration is a status fixture only; it is not a real Hyperswarm connection or replication participant. A simulator process may run its own runtime, but registering its ID with a node does not prove that runtime is connected or synchronized.

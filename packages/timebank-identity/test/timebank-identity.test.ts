@@ -4,9 +4,12 @@ import test from "node:test";
 import { applyTransfers, createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   canonicalTransferPayload,
+  canonicalMemberFeedDeclarationPayload,
+  createMemberFeedDeclaration,
   createMemberSigningKeyAuthorizationEvent,
   createEd25519SignatureVerifier,
   createMemberSigningKeyAuthorization,
+  createSelfOwnedMemberIdentity,
   reduceMemberSigningKeyAuthorizationEvents,
   transferPayloadDigest,
   type MemberSigningKeyAuthorizationEvent,
@@ -22,6 +25,31 @@ const recipientMemberId = "member-recipient";
 function memberKeyPair(): ReturnType<typeof generateKeyPairSync> {
   return generateKeyPairSync("ed25519");
 }
+
+/** Builds a signed declaration linking one self-owned identity to a member-owned Hypercore feed. */
+function memberFeedDeclaration(privateKey: ReturnType<typeof memberKeyPair>["privateKey"], publicKey: ReturnType<typeof memberKeyPair>["publicKey"]) {
+  const rootPublicKeyPem = publicKey.export({ format: "pem", type: "spki" }).toString();
+  const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem }).memberId;
+  const unsigned = {
+    schema: "peer-hours/member-feed-declaration/v1" as const,
+    memberId,
+    communityId,
+    feedPublicKey: "a".repeat(64),
+    occurredAt: "2026-07-18T12:00:00.000Z",
+    rootPublicKeyPem,
+  };
+  return { ...unsigned, signature: sign(null, canonicalMemberFeedDeclarationPayload(unsigned), privateKey).toString("base64url") };
+}
+
+test("derives a stable self-owned member identity and accepts only its signed member-feed declaration", () => {
+  const keys = memberKeyPair();
+  const declaration = memberFeedDeclaration(keys.privateKey, keys.publicKey);
+
+  assert.equal(createSelfOwnedMemberIdentity({ rootPublicKeyPem: declaration.rootPublicKeyPem }).memberId, declaration.memberId);
+  assert.deepEqual(createMemberFeedDeclaration(declaration), declaration);
+  assert.throws(() => createMemberFeedDeclaration({ ...declaration, feedPublicKey: "b".repeat(64) }));
+  assert.throws(() => createMemberFeedDeclaration({ ...declaration, memberId: "phm_other" }));
+});
 
 /** Signs an exact canonical transfer payload using an ephemeral Ed25519 private key. */
 function signTransfer(transfer: Transfer, privateKey: ReturnType<typeof memberKeyPair>["privateKey"]): string {

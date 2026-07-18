@@ -57,6 +57,9 @@ export class HypercoreRecordStore<TRecord extends JsonValue = JsonValue> {
     publicKey?: string,
   ): Promise<HypercoreRecordStore<TRecord>> {
     if (name.trim() === "") throw new TypeError("A record store name is required");
+    if (publicKey !== undefined && !/^[a-f0-9]{64}$/i.test(publicKey)) {
+      throw new TypeError("A record store public key must be a 64-character hexadecimal Hypercore key");
+    }
     const core = publicKey
       ? store.get({ key: Buffer.from(publicKey, "hex"), valueEncoding: "json" })
       : store.get({ name, valueEncoding: "json" });

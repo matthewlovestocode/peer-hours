@@ -141,6 +141,7 @@ export class PeerRuntime {
   private store: any;
   private core: any;
   private recordStore: HypercoreRecordStore | null = null;
+  private memberRecordStore: HypercoreRecordStore | null = null;
   private bootstrapCore: any;
   private swarm: any;
   private listening = false;
@@ -192,6 +193,7 @@ export class PeerRuntime {
       this.store = new Corestore(this.dataDirectory);
       this.core = this.store.get({ name: "peer-hours-network", valueEncoding: "json" });
       await this.core.ready();
+      this.memberRecordStore = await HypercoreRecordStore.open(this.store, "peer-hours-member-records");
       const recordCoreKey = this.configuredRecordCoreKey ?? this.community?.recordCoreKey;
       this.recordStore = await HypercoreRecordStore.open(this.store, "peer-hours-timebank-records", recordCoreKey);
       if (this.networkingEnabled) {
@@ -255,6 +257,31 @@ export class PeerRuntime {
   /** Reports whether this runtime owns the active record core and can append to it. */
   get canAppendRecords(): boolean {
     return this.recordStore?.writable ?? false;
+  }
+
+  /** Returns this runtime's independently writable member-feed key for sharing through a future discovery protocol. */
+  get memberRecordFeedKey(): string {
+    return this.memberRecordStore?.publicKey ?? "";
+  }
+
+  /** Appends one immutable record to this runtime's member-owned feed, never to a community-owned core. */
+  async appendMemberRecord(record: JsonValue): Promise<number> {
+    if (this.memberRecordStore === null) throw new Error("The member record feed is not ready.");
+    const index = await this.memberRecordStore.append(record);
+    this.notifyStatusChange();
+    return index;
+  }
+
+  /** Reads the complete local history from this runtime's independently owned member feed. */
+  async readMemberRecords(): Promise<readonly JsonValue[]> {
+    return this.memberRecordStore?.readAll() ?? Object.freeze([]);
+  }
+
+  /** Opens a known remote member feed as read-only data available through Corestore replication. */
+  async readMemberRecordsFromFeed(feedPublicKey: string): Promise<readonly JsonValue[]> {
+    if (this.store === undefined) throw new Error("The local Corestore is not ready.");
+    const feed = await HypercoreRecordStore.open(this.store, "peer-hours-member-records", feedPublicKey);
+    return feed.readAll();
   }
 
   /** Appends one immutable JSON record when this runtime owns the active record core. */

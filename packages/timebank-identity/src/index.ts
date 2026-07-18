@@ -67,6 +67,73 @@ export interface VerifyMemberSignatureInput {
 /** Verifies a detached payload signature using a snapshot of active member authorizations. */
 export type MemberSignatureVerifier = (input: VerifyMemberSignatureInput) => boolean;
 
+/** A self-certifying public member identity derived from its root Ed25519 public key. */
+export interface SelfOwnedMemberIdentity {
+  readonly memberId: string;
+  readonly rootPublicKeyPem: string;
+}
+
+/** Input needed to validate a public, self-certifying member identity. */
+export interface CreateSelfOwnedMemberIdentityInput {
+  readonly rootPublicKeyPem: string;
+}
+
+/** A signed statement that one self-owned identity publishes records through one Hypercore feed. */
+export interface MemberFeedDeclaration {
+  readonly schema: "peer-hours/member-feed-declaration/v1";
+  readonly memberId: string;
+  readonly communityId: string;
+  readonly feedPublicKey: string;
+  readonly occurredAt: string;
+  readonly rootPublicKeyPem: string;
+  readonly signature: string;
+}
+
+/** Input used to validate a signed, community-scoped member-feed declaration. */
+export type CreateMemberFeedDeclarationInput = MemberFeedDeclaration;
+
+/** Derives a stable member identifier from the exact Ed25519 root public key that owns it. */
+export function createSelfOwnedMemberIdentity(input: CreateSelfOwnedMemberIdentityInput): SelfOwnedMemberIdentity {
+  assertPresent(input.rootPublicKeyPem, "Root public key");
+  const rootPublicKey = parseEd25519PublicKey(input.rootPublicKeyPem);
+  const memberId = `phm_${createHash("sha256").update(rootPublicKey.export({ format: "der", type: "spki" })).digest("base64url")}`;
+  return Object.freeze({ memberId, rootPublicKeyPem: input.rootPublicKeyPem });
+}
+
+/** Returns the exact domain-separated bytes a root identity signs to declare one member feed. */
+export function canonicalMemberFeedDeclarationPayload(declaration: Omit<MemberFeedDeclaration, "signature">): Buffer {
+  const identity = createSelfOwnedMemberIdentity({ rootPublicKeyPem: declaration.rootPublicKeyPem });
+  assertPresent(declaration.communityId, "Community id");
+  assertCanonicalHypercoreKey(declaration.feedPublicKey);
+  assertCanonicalTimestamp(declaration.occurredAt);
+  if (declaration.memberId !== identity.memberId) {
+    throw new IdentityRuleError("A member feed declaration member id must match its root public key.");
+  }
+
+  return Buffer.from(JSON.stringify({
+    schema: "peer-hours/member-feed-declaration/v1",
+    memberId: identity.memberId,
+    communityId: declaration.communityId,
+    feedPublicKey: declaration.feedPublicKey,
+    occurredAt: declaration.occurredAt,
+    rootPublicKeyPem: identity.rootPublicKeyPem,
+  }), "utf8");
+}
+
+/** Creates a declaration only when its self-owned root identity signed the exact feed terms. */
+export function createMemberFeedDeclaration(input: CreateMemberFeedDeclarationInput): MemberFeedDeclaration {
+  if (input.schema !== "peer-hours/member-feed-declaration/v1") {
+    throw new IdentityRuleError("A member feed declaration must use the current schema.");
+  }
+  const payload = canonicalMemberFeedDeclarationPayload(input);
+  const signature = decodeBase64UrlSignature(input.signature);
+  if (signature === undefined || !verify(null, payload, parseEd25519PublicKey(input.rootPublicKeyPem), signature)) {
+    throw new IdentityRuleError("A member feed declaration must have a valid root identity signature.");
+  }
+
+  return Object.freeze({ ...input });
+}
+
 /**
  * Creates an immutable authorization for one member's Ed25519 public key.
  *
@@ -384,5 +451,12 @@ function assertCanonicalTimestamp(value: string): void {
   const timestamp = new Date(value);
   if (Number.isNaN(timestamp.valueOf()) || timestamp.toISOString() !== value) {
     throw new IdentityRuleError("Authorization event timestamp must be a canonical UTC ISO-8601 timestamp.");
+  }
+}
+
+/** Validates a canonical hexadecimal Hypercore public key used to address a member feed. */
+function assertCanonicalHypercoreKey(value: string): void {
+  if (!/^[a-f0-9]{64}$/.test(value)) {
+    throw new IdentityRuleError("A member feed public key must be a lowercase 64-character hexadecimal Hypercore key.");
   }
 }

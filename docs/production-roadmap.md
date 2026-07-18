@@ -25,7 +25,7 @@ The shared packages test these pure rules in memory:
 - immutable time-credit transfers, reversals, idempotency, and derived balances; and
 - immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
 
-These are necessary building blocks, but none makes a record network-authoritative. The community core is still single-writer, member keys are not governed by a replicated self-owned identity protocol, and the desktop contains no real offer-to-settlement experience. Signed record admission currently protects in-memory resolution; it is not yet a replicated member-feed or submission protocol.
+These are necessary building blocks, but none makes a record network-authoritative. Each runtime now owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. The resolver accepts declared root keys for member-signed records without a community authorization event. It does not yet discover feeds, prove a record arrived from its declared feed, or connect this protocol to a desktop workflow. The community core remains single-writer for its own generic history.
 
 ## 1. Self-owned member writes
 

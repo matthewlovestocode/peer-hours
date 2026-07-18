@@ -3,16 +3,20 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import test from "node:test";
 import { type ExchangeProposal } from "@peer-hours/timebank-domain";
 import {
+  canonicalMemberFeedDeclarationPayload,
   canonicalTransferPayload,
+  createSelfOwnedMemberIdentity,
   createMemberSigningKeyAuthorizationEvent,
   transferPayloadDigest,
 } from "@peer-hours/timebank-identity";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import {
   memberSigningKeyAuthorizationEventToRecord,
+  memberFeedDeclarationToRecord,
   canonicalMemberSignedRecordPayload,
   createMemberSignedRecord,
   resolveTimebankRecords,
+  rootKeyIdForMember,
   toAcceptedExchangeProposalRecord,
   toLedgerTransferRecord,
   type RecordEnvelope,
@@ -105,6 +109,35 @@ test("resolves unordered replicated key, proposal, and transfer records into det
   assert.deepEqual(state.ledger.balances, { [providerMemberId]: 90, [recipientMemberId]: -90 });
   assert.equal(state.acceptedProposals.length, 1);
   assert.equal(state.authorizations.filter(({ active }) => active).length, 2);
+});
+
+test("admits an accepted proposal from a self-owned root identity without a community authorization event", () => {
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const rootPublicKeyPem = publicKeyPem(recipientKeys.publicKey);
+  const recipientId = createSelfOwnedMemberIdentity({ rootPublicKeyPem }).memberId;
+  const unsignedDeclaration = {
+    schema: "peer-hours/member-feed-declaration/v1" as const,
+    memberId: recipientId,
+    communityId,
+    feedPublicKey: "a".repeat(64),
+    occurredAt: "2026-07-18T13:00:00.000Z",
+    rootPublicKeyPem,
+  };
+  const declaration = {
+    ...unsignedDeclaration,
+    signature: sign(null, canonicalMemberFeedDeclarationPayload(unsignedDeclaration), recipientKeys.privateKey).toString("base64url"),
+  };
+  const acceptedProposal: ExchangeProposal = {
+    ...proposal(),
+    receiverMemberId: recipientId,
+    acceptedByMemberId: recipientId,
+  };
+  const proposalRecord = toAcceptedExchangeProposalRecord(acceptedProposal, { ...metadata, authorId: recipientId, occurredAt: "2026-07-18T13:01:00.000Z" });
+  const signedProposal = signedRecord(proposalRecord, recipientKeys.privateKey, rootKeyIdForMember(recipientId));
+
+  const state = resolveTimebankRecords(communityId, [signedProposal, memberFeedDeclarationToRecord(declaration)]);
+  assert.equal(state.acceptedProposals.length, 1);
+  assert.equal(state.authorizations[0]?.memberId, recipientId);
 });
 
 test("rejects a member-originated domain record without a valid authorized signature", () => {

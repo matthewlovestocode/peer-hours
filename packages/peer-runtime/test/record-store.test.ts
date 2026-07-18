@@ -62,6 +62,18 @@ test("appends and reads frozen JSON records", async () => {
   }
 });
 
+test("rejects malformed public keys before attempting to open an untrusted remote record feed", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-record-store-invalid-key-"));
+  const corestore = new Corestore(directory);
+
+  try {
+    await assert.rejects(() => HypercoreRecordStore.open(corestore, "generic-records", "not-a-hypercore-key"), /64-character hexadecimal/);
+  } finally {
+    await corestore.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("replicates deterministic immutable records between independent Corestores", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-record-replication-"));
   const firstCorestore = new Corestore(join(directory, "first"));

@@ -30,7 +30,7 @@ block 2: signed-transfer envelope
 
 `@peer-hours/peer-runtime` opens the named `peer-hours-timebank-records` core using `HypercoreRecordStore`. A community node currently creates and owns the writable version, advertises its public key in bootstrap metadata, and offers a read-only `/records` diagnostic endpoint. Desktop runtimes use that advertised key to open and replicate the community record core as readers.
 
-This is verified current behavior. It has important limits: desktop members cannot yet append their own timebank records, authorization events are not yet governed by a fully signed community-authority model, and multiwriter feeds are not yet designed. The record core is real shared infrastructure, not the completed timebank protocol.
+This is verified current behavior. It has important limits: desktop members cannot yet append their own timebank records, identity events do not yet establish a fully signed self-owned identity model, and multiwriter feeds are not yet designed. The record core is real shared infrastructure, not the completed timebank protocol.
 
 ## Takeaway
 

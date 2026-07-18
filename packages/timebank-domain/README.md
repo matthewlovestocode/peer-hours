@@ -21,11 +21,11 @@ An accepted proposal is an agreement to exchange time, not a completed or settle
 
 ## Current responsibilities
 
-- Creates a `MemberProfile` with a required ID, community ID, display name, and active/inactive status.
+- Creates a `MemberProfile` with a required ID, community ID, and display name.
 - Creates member-owned offer and request listings as drafts.
-- Requires a listing's active owner in the same community to publish that draft.
+- Requires a listing's owner in the same community to publish that draft.
 - Validates that an exchange matches one published offer and one published request in the same community.
-- Requires active profiles matching the offer and request owners.
+- Requires profiles matching the offer and request owners.
 - Rejects self-exchanges and proposals whose minutes are not positive whole numbers or do not fit within both listings.
 - Requires the proposal creator to be one of the two participants.
 - Allows only the other participant to accept a still-proposed, still-valid exchange.
@@ -39,22 +39,23 @@ An accepted proposal is an agreement to exchange time, not a completed or settle
 - It does not implement listing search, availability scheduling, partial completion, cancellation, closing, editing, or deletion workflows beyond the current draft/published/closed types.
 - It does not enforce globally unique identifiers; callers supply record IDs.
 - It does not determine whether a member profile is authoritative or currently replicated from the community.
+- It does not gate participation, deactivate members, or grant an administrator authority over a person.
 
 ## Public API and concepts
 
 ### Members
 
-`MemberProfile` is a member identity scoped to one `communityId`. Use `createMemberProfile()` to validate and create it. The default status is `active`; inactive profiles cannot publish a listing, create a valid proposal participant set, or accept a proposal.
+`MemberProfile` is a member profile scoped to one `communityId`. Use `createMemberProfile()` to validate and create it. The source implementation still exposes `active`/`inactive` status and checks it before publishing or exchanging; that is a known deviation from the product decision that participation is open. Profiles match people to the listings and exchanges they own; they must not become a central admission model. See [open participation and agreement privacy](../../docs/open-participation-and-agreement-privacy.md).
 
 ### Listings
 
-`createOffer()` and `createRequest()` create `Listing` records in `draft` status. A listing has an owner, title, and positive whole-minute capacity. `publishListing()` returns a copy in `published` status after checking the supplied owner is active and matches the listing's member and community.
+`createOffer()` and `createRequest()` create `Listing` records in `draft` status. A listing has an owner, title, and positive whole-minute capacity. `publishListing()` returns a copy in `published` status after checking the supplied owner matches the listing's member and community.
 
 `ListingStatus` also includes `closed` for representing lifecycle state, but this package does not currently export an operation that closes a listing.
 
 ### Exchange proposals
 
-`proposeExchange()` creates an `ExchangeProposal` in `proposed` status from a published offer, published request, matching active participant profiles, a participant creator ID, and a valid minute amount.
+`proposeExchange()` creates an `ExchangeProposal` in `proposed` status from a published offer, published request, matching participant profiles, a participant creator ID, and a valid minute amount.
 
 `acceptExchangeProposal()` returns a new proposal in `accepted` status with `acceptedByMemberId`. It revalidates the supplied proposal, listings, and profiles, and permits acceptance only by the participant who did not create the proposal.
 

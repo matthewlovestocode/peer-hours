@@ -125,12 +125,43 @@ test("derives identical balances when valid transfers arrive in a different orde
   assert.deepEqual(reverseOrder.postings, firstOrder.postings);
 });
 
+test("accepts an ordinary settlement that reaches the default negative-fifty-hour boundary", () => {
+  const boundaryTransfer = transfer({ id: "transfer-credit-boundary", sourceProposalId: "proposal-credit-boundary", minutes: 50 * 60 });
+
+  const ledger = applyTransfers({ communityId, transfers: [boundaryTransfer], verifyAttestation: verifyFixtureAttestation });
+
+  assert.deepEqual(ledger.balances, { [providerMemberId]: 50 * 60, [recipientMemberId]: -50 * 60 });
+  assert.deepEqual(ledger.rejectedTransfers, []);
+});
+
+test("rejects an ordinary settlement that would cross the minimum balance in deterministic transfer order", () => {
+  const boundaryTransfer = transfer({ id: "transfer-a-credit-boundary", sourceProposalId: "proposal-a-credit-boundary", minutes: 50 * 60 });
+  const overLimitTransfer = transfer({ id: "transfer-z-over-limit", sourceProposalId: "proposal-z-over-limit", minutes: 1 });
+
+  const firstOrder = applyTransfers({
+    communityId,
+    transfers: [overLimitTransfer, boundaryTransfer],
+    verifyAttestation: verifyFixtureAttestation,
+  });
+  const reverseOrder = applyTransfers({
+    communityId,
+    transfers: [boundaryTransfer, overLimitTransfer],
+    verifyAttestation: verifyFixtureAttestation,
+  });
+
+  assert.deepEqual(firstOrder, reverseOrder);
+  assert.deepEqual(firstOrder.transfers.map(({ id }) => id), [boundaryTransfer.id]);
+  assert.deepEqual(firstOrder.rejectedTransfers, [{ transfer: overLimitTransfer, reason: "minimum-balance" }]);
+  assert.deepEqual(firstOrder.balances, { [providerMemberId]: 50 * 60, [recipientMemberId]: -50 * 60 });
+});
+
 test("restores balances through a separately attested compensating reversal", () => {
-  const original = transfer();
+  const original = transfer({ minutes: 50 * 60 });
   const reversal = transfer({
     id: "transfer-garden-help-reversal",
     providerMemberId: recipientMemberId,
     recipientMemberId: providerMemberId,
+    minutes: original.minutes,
     reversesTransferId: original.id,
     sourceProposalId: undefined,
     attestations: [attestation(recipientMemberId), attestation(providerMemberId)],
@@ -139,4 +170,27 @@ test("restores balances through a separately attested compensating reversal", ()
   const ledger = applyTransfers({ communityId, transfers: [reversal, original], verifyAttestation: verifyFixtureAttestation });
   assert.deepEqual(ledger.balances, { [providerMemberId]: 0, [recipientMemberId]: 0 });
   assert.deepEqual(ledger.transfers.map(({ id }) => id), [original.id, reversal.id]);
+  assert.deepEqual(ledger.rejectedTransfers, []);
+});
+
+test("does not apply a reversal when its original settlement was rejected by the credit boundary", () => {
+  const overLimitOriginal = transfer({ id: "transfer-over-limit-original", sourceProposalId: "proposal-over-limit-original", minutes: 50 * 60 + 1 });
+  const reversal = transfer({
+    id: "transfer-over-limit-reversal",
+    providerMemberId: recipientMemberId,
+    recipientMemberId: providerMemberId,
+    minutes: overLimitOriginal.minutes,
+    reversesTransferId: overLimitOriginal.id,
+    sourceProposalId: undefined,
+    attestations: [attestation(recipientMemberId), attestation(providerMemberId)],
+  });
+
+  const ledger = applyTransfers({ communityId, transfers: [reversal, overLimitOriginal], verifyAttestation: verifyFixtureAttestation });
+
+  assert.deepEqual(ledger.transfers, []);
+  assert.deepEqual(ledger.balances, {});
+  assert.deepEqual(ledger.rejectedTransfers.map(({ transfer: rejected, reason }) => ({ id: rejected.id, reason })), [
+    { id: overLimitOriginal.id, reason: "minimum-balance" },
+    { id: reversal.id, reason: "unaccepted-reversal" },
+  ]);
 });

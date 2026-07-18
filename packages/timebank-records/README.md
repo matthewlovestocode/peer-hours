@@ -39,7 +39,7 @@ The resolver also applies the implemented record-authorship rules:
 - An accepted-proposal envelope must be authored and signed by the member recorded as accepting that proposal. A proposal creator cannot publish an acceptance on the other member's behalf.
 - A settlement-transfer envelope may be authored and signed by either its provider or its recipient. Separately, the ledger requires valid attestations from **both** participants over the exact transfer terms before it derives balances. The envelope author is the submitter of the replicated record, not a substitute for the second attestation.
 
-This is not the complete trust protocol. Community authority, signatures on authorization events, access policy, member-feed replication, and multiwriter ordering remain protocol work. Desktop members cannot yet write timebank records to the shared core, so these verified resolver rules are not yet an exposed member-submission protocol.
+This is not the complete trust protocol. Self-owned identity/feed binding, identity-record signatures, user-controlled filtering, member-feed replication, and multiwriter ordering remain protocol work. Peer Hours has decided against membership approval as the participation gate; the current supplied authorization-list verifier is a temporary implementation boundary, not the future authority model. Desktop members cannot yet write timebank records to the shared core, so these verified resolver rules are not yet an exposed member-submission protocol.
 
 ## Development
 

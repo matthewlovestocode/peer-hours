@@ -32,7 +32,7 @@ The identity package sits between signed member activity and the accounting rule
 ## Explicit non-responsibilities
 
 - It does not create private keys, store private keys, or expose private keys to the desktop renderer or a community node API.
-- It does not decide who is allowed to activate or revoke a member key. The community authority model and validation of authorization-event issuers are unresolved.
+- It does not yet model the decided open-participation identity policy: self-owned signing identities without community membership approval. The current authorization-event issuer model is unresolved and must not become a central admission mechanism.
 - It does not persist, replicate, discover, synchronize, or fetch authorization events.
 - It does not turn the current event shape into a network protocol. A formally versioned canonical JSON profile and replicated record storage are still needed.
 - It does not create, validate, or settle ledger transfers; `@peer-hours/timebank-ledger` owns settlement invariants and balance derivation.

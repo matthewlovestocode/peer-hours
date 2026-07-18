@@ -31,10 +31,30 @@ export interface LedgerPosting {
   readonly minutes: number;
 }
 
+/** A replicated transfer excluded from the resolved ledger by an explicit settlement rule. */
+export interface RejectedTransfer {
+  readonly transfer: Transfer;
+  readonly reason: "minimum-balance" | "unaccepted-reversal";
+}
+
+/** Defines a deterministic credit limit for ordinary settlement transfers. */
+interface LedgerPolicy {
+  /** The lowest balance an ordinary settlement may produce, measured in minutes. */
+  readonly minimumBalanceMinutes: number;
+}
+
+/** Peer Hours' initial open-credit boundary: members may receive down to negative fifty hours. */
+export const DEFAULT_PEER_HOURS_LEDGER_POLICY: Readonly<LedgerPolicy> = Object.freeze({
+  minimumBalanceMinutes: -50 * 60,
+});
+
 /** The deterministic, local view derived from a set of verified transfers. */
 export interface Ledger {
   readonly communityId: string;
+  /** Verified transfers accepted in deterministic transfer-ID order. */
   readonly transfers: readonly Transfer[];
+  /** Verified transfers excluded because they cannot be applied under the settlement rules. */
+  readonly rejectedTransfers: readonly RejectedTransfer[];
   readonly postings: readonly LedgerPosting[];
   readonly balances: Readonly<Record<MemberId, number>>;
 }
@@ -105,6 +125,7 @@ export function createTransfer(input: Transfer): Transfer {
 /** Derives verified transfers, balanced postings, and member balances independent of input order. */
 export function applyTransfers(input: ApplyTransfersInput): Ledger {
   assertPresent(input.communityId, "Community id");
+  const policy = normalizeLedgerPolicy(DEFAULT_PEER_HOURS_LEDGER_POLICY);
   const transfersById = new Map<TransferId, Transfer>();
 
   for (const sourceTransfer of input.transfers) {
@@ -124,15 +145,69 @@ export function applyTransfers(input: ApplyTransfersInput): Ledger {
   const transfers = [...transfersById.values()].sort((left, right) => left.id.localeCompare(right.id));
   assertUniqueSettlements(transfers);
   assertValidReversals(transfersById, transfers);
-  const postings = transfers.flatMap(derivePostings);
-  const balances = deriveBalances(postings);
+  const acceptedTransfers: Transfer[] = [];
+  const rejectedTransfers: RejectedTransfer[] = [];
+  const postings: LedgerPosting[] = [];
+  const balances: Record<MemberId, number> = {};
+
+  const reversalTransfers: Transfer[] = [];
+  for (const transfer of transfers) {
+    if (transfer.reversesTransferId !== undefined) {
+      reversalTransfers.push(transfer);
+      continue;
+    }
+    if (wouldCrossMinimumBalance(transfer, balances, policy)) {
+      rejectedTransfers.push(Object.freeze({ transfer, reason: "minimum-balance" }));
+      continue;
+    }
+
+    acceptTransfer(transfer, acceptedTransfers, postings, balances);
+  }
+
+  const pendingReversals = [...reversalTransfers];
+  while (pendingReversals.length > 0) {
+    const acceptedTransferIds = new Set(acceptedTransfers.map(({ id }) => id));
+    const nextPendingReversals: Transfer[] = [];
+    let acceptedReversal = false;
+
+    for (const reversal of pendingReversals) {
+      if (reversal.reversesTransferId !== undefined && acceptedTransferIds.has(reversal.reversesTransferId)) {
+        acceptTransfer(reversal, acceptedTransfers, postings, balances);
+        acceptedReversal = true;
+      } else {
+        nextPendingReversals.push(reversal);
+      }
+    }
+
+    if (!acceptedReversal) {
+      for (const reversal of nextPendingReversals) {
+        rejectedTransfers.push(Object.freeze({ transfer: reversal, reason: "unaccepted-reversal" }));
+      }
+      break;
+    }
+    pendingReversals.splice(0, pendingReversals.length, ...nextPendingReversals);
+  }
 
   return Object.freeze({
     communityId: input.communityId,
-    transfers: Object.freeze(transfers),
+    transfers: Object.freeze(acceptedTransfers.sort((left, right) => left.id.localeCompare(right.id))),
+    rejectedTransfers: Object.freeze(rejectedTransfers),
     postings: Object.freeze(postings),
     balances: Object.freeze(balances),
   });
+}
+
+/** Applies one accepted transfer's immutable postings to the ledger under construction. */
+function acceptTransfer(
+  transfer: Transfer,
+  acceptedTransfers: Transfer[],
+  postings: LedgerPosting[],
+  balances: Record<MemberId, number>,
+): void {
+  const transferPostings = derivePostings(transfer);
+  acceptedTransfers.push(transfer);
+  postings.push(...transferPostings);
+  applyPostings(balances, transferPostings);
 }
 
 /** Derives the two equal-and-opposite postings for one structurally valid transfer. */
@@ -227,13 +302,25 @@ function assertUniqueSettlements(transfers: readonly Transfer[]): void {
   }
 }
 
-/** Adds all postings into a stable, member-keyed balance record. */
-function deriveBalances(postings: readonly LedgerPosting[]): Record<MemberId, number> {
-  const balances: Record<MemberId, number> = {};
+/** Applies postings to the mutable accumulator used only while deriving one immutable ledger view. */
+function applyPostings(balances: Record<MemberId, number>, postings: readonly LedgerPosting[]): void {
   for (const posting of postings) {
     balances[posting.memberId] = (balances[posting.memberId] ?? 0) + posting.minutes;
   }
-  return balances;
+}
+
+/** Returns whether an ordinary settlement would take its recipient below the shared credit boundary. */
+function wouldCrossMinimumBalance(transfer: Transfer, balances: Readonly<Record<MemberId, number>>, policy: LedgerPolicy): boolean {
+  const recipientBalance = balances[transfer.recipientMemberId] ?? 0;
+  return recipientBalance - transfer.minutes < policy.minimumBalanceMinutes;
+}
+
+/** Validates the public policy input before it becomes a deterministic protocol rule. */
+function normalizeLedgerPolicy(policy: LedgerPolicy): LedgerPolicy {
+  if (!Number.isFinite(policy.minimumBalanceMinutes) || !Number.isInteger(policy.minimumBalanceMinutes) || policy.minimumBalanceMinutes > 0) {
+    throw new LedgerRuleError("Minimum balance minutes must be a whole number at or below zero.");
+  }
+  return Object.freeze({ minimumBalanceMinutes: policy.minimumBalanceMinutes });
 }
 
 /** Checks whether two same-id transfers have identical canonical content. */

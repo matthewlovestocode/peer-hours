@@ -30,7 +30,7 @@ sequenceDiagram
 The community node's record core is the only writable core in this first slice. Desktop runtimes open the community core for reading; they do not yet append a member's offer, proposal, key event, or transfer. This is intentional:
 
 - a shared writable Hypercore needs an explicit multiwriter or per-member-feed protocol;
-- receiving a well-formed record is not yet proof that its author had community authority; and
+- receiving a well-formed record is not yet proof of the future self-owned identity/feed relationship that will establish authorship without membership approval; and
 - timebank member workflows must not claim settlement is final until that protocol verifies and replicates it.
 
 The resolver verifies member signatures over complete proposal and transfer envelopes, and it currently applies two distinct authorship checks: an accepted proposal must be authored by the member who accepted it; a transfer may be authored by either transfer participant. A transfer still needs the ledger's two participant attestations—its envelope author is only the record submitter, not a proxy for the other participant's consent.

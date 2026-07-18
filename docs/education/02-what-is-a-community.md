@@ -38,7 +38,7 @@ Two records can look similar but belong to different communities:
 
 ## Peer Hours connection
 
-Peer Hours includes `communityId` on important records. That lets the software reject an otherwise valid record if it belongs to the wrong community. It also gives communities room to choose their own membership, moderation, and exchange policies later.
+Peer Hours includes `communityId` on important records. That lets the software reject an otherwise valid record if it belongs to the wrong community. It also gives communities room to choose discovery scope, local safety defaults, and exchange policies later—but not whether a person may participate at all.
 
 A community is not necessarily a company running a central app. It is the shared social and data boundary that participating computers recognize.
 

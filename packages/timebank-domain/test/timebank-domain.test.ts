@@ -17,8 +17,8 @@ const providerId = "member-provider";
 const receiverId = "member-receiver";
 const communityId = "peer-hours/earth/US/CA/east-bay";
 
-/** Creates an active member fixture for a community participant. */
-function activeMember(id: string, overrides: Partial<MemberProfile> = {}): MemberProfile {
+/** Creates a member fixture for a community participant. */
+function member(id: string, overrides: Partial<MemberProfile> = {}): MemberProfile {
   return createMemberProfile({ id, communityId, displayName: id, ...overrides });
 }
 
@@ -46,19 +46,19 @@ function draftRequest(overrides: Partial<Listing> = {}): Listing {
   });
 }
 
-/** Publishes a listing using its corresponding active owner fixture. */
+/** Publishes a listing using its corresponding owner fixture. */
 function publishedListing(listing: Listing, owner: MemberProfile): Listing {
   return publishListing({ listing, owner });
 }
 
-/** Creates a published offer fixture with its active provider. */
+/** Creates a published offer fixture with its provider. */
 function publishedOffer(overrides: Partial<Listing> = {}): Listing {
-  return publishedListing(draftOffer(overrides), activeMember(providerId));
+  return publishedListing(draftOffer(overrides), member(providerId));
 }
 
-/** Creates a published request fixture with its active recipient. */
+/** Creates a published request fixture with its recipient. */
 function publishedRequest(overrides: Partial<Listing> = {}): Listing {
-  return publishedListing(draftRequest(overrides), activeMember(receiverId));
+  return publishedListing(draftRequest(overrides), member(receiverId));
 }
 
 test("rejects non-positive, fractional, and non-finite listing minute amounts", () => {
@@ -77,20 +77,22 @@ test("rejects non-positive, fractional, and non-finite listing minute amounts", 
   }
 });
 
-test("member profiles retain their explicit active or inactive status", () => {
-  assert.equal(activeMember(providerId).status, "active");
-  assert.equal(activeMember(providerId, { status: "inactive" }).status, "inactive");
+test("member profiles retain their validated identity and community fields without participation gating", () => {
+  assert.deepEqual(member(providerId), {
+    id: providerId,
+    communityId,
+    displayName: providerId,
+  });
 });
 
-test("listings begin as drafts and only their active owner can publish them", () => {
+test("listings begin as drafts and only their owner can publish them", () => {
   const draft = draftOffer();
   assert.equal(draft.status, "draft");
 
-  assert.deepEqual(publishedListing(draft, activeMember(providerId)), { ...draft, status: "published" });
-  assert.throws(() => publishedListing(draft, activeMember(providerId, { status: "inactive" })), DomainRuleError);
-  assert.throws(() => publishedListing(draft, activeMember(receiverId)), DomainRuleError);
+  assert.deepEqual(publishedListing(draft, member(providerId)), { ...draft, status: "published" });
+  assert.throws(() => publishedListing(draft, member(receiverId)), DomainRuleError);
   assert.throws(
-    () => publishedListing(draft, activeMember(providerId, { communityId: "peer-hours/earth/online/software" })),
+    () => publishedListing(draft, member(providerId, { communityId: "peer-hours/earth/online/software" })),
     DomainRuleError,
   );
 });
@@ -102,8 +104,8 @@ test("only published listings are eligible for a proposed exchange", () => {
         id: "proposal-draft-offer",
         offer: draftOffer(),
         request: publishedRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId),
+        provider: member(providerId),
+        recipient: member(receiverId),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -116,8 +118,8 @@ test("only published listings are eligible for a proposed exchange", () => {
         id: "proposal-draft-request",
         offer: publishedOffer(),
         request: draftRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId),
+        provider: member(providerId),
+        recipient: member(receiverId),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -125,13 +127,13 @@ test("only published listings are eligible for a proposed exchange", () => {
   );
 });
 
-test("matches published listings owned by active same-community members within both minute amounts", () => {
+test("matches published listings owned by same-community members within both minute amounts", () => {
   const proposal = proposeExchange({
     id: "proposal-garden-help",
     offer: publishedOffer(),
     request: publishedRequest(),
-    provider: activeMember(providerId),
-    recipient: activeMember(receiverId),
+    provider: member(providerId),
+    recipient: member(receiverId),
     creatorMemberId: providerId,
     minutes: 90,
   });
@@ -149,43 +151,15 @@ test("matches published listings owned by active same-community members within b
   } satisfies ExchangeProposal);
 });
 
-test("rejects inactive, mismatched, cross-community, and self-matched proposal participants", () => {
-  assert.throws(
-    () =>
-      proposeExchange({
-        id: "proposal-inactive-provider",
-        offer: publishedOffer(),
-        request: publishedRequest(),
-        provider: activeMember(providerId, { status: "inactive" }),
-        recipient: activeMember(receiverId),
-        creatorMemberId: providerId,
-        minutes: 30,
-      }),
-    DomainRuleError,
-  );
-
-  assert.throws(
-    () =>
-      proposeExchange({
-        id: "proposal-inactive-recipient",
-        offer: publishedOffer(),
-        request: publishedRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId, { status: "inactive" }),
-        creatorMemberId: providerId,
-        minutes: 30,
-      }),
-    DomainRuleError,
-  );
-
+test("rejects mismatched, cross-community, and self-matched proposal participants", () => {
   assert.throws(
     () =>
       proposeExchange({
         id: "proposal-mismatched-provider",
         offer: publishedOffer(),
         request: publishedRequest(),
-        provider: activeMember("other-provider"),
-        recipient: activeMember(receiverId),
+        provider: member("other-provider"),
+        recipient: member(receiverId),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -198,8 +172,8 @@ test("rejects inactive, mismatched, cross-community, and self-matched proposal p
         id: "proposal-cross-community-member",
         offer: publishedOffer(),
         request: publishedRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId, { communityId: "peer-hours/earth/online/software" }),
+        provider: member(providerId),
+        recipient: member(receiverId, { communityId: "peer-hours/earth/online/software" }),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -212,8 +186,8 @@ test("rejects inactive, mismatched, cross-community, and self-matched proposal p
         id: "proposal-self-match",
         offer: publishedOffer(),
         request: publishedRequest({ memberId: providerId }),
-        provider: activeMember(providerId),
-        recipient: activeMember(providerId),
+        provider: member(providerId),
+        recipient: member(providerId),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -228,8 +202,8 @@ test("requires an exchange proposal creator to be a participating member", () =>
         id: "proposal-third-party-creator",
         offer: publishedOffer(),
         request: publishedRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId),
+        provider: member(providerId),
+        recipient: member(receiverId),
         creatorMemberId: "other-member",
         minutes: 30,
       }),
@@ -244,8 +218,8 @@ test("rejects an exchange that exceeds a listing or crosses listing communities"
         id: "proposal-too-large",
         offer: publishedOffer(),
         request: publishedRequest(),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId),
+        provider: member(providerId),
+        recipient: member(receiverId),
         creatorMemberId: providerId,
         minutes: 121,
       }),
@@ -258,8 +232,8 @@ test("rejects an exchange that exceeds a listing or crosses listing communities"
         id: "proposal-cross-community",
         offer: publishedOffer(),
         request: publishedRequest({ communityId: "peer-hours/earth/online/software" }),
-        provider: activeMember(providerId),
-        recipient: activeMember(receiverId, { communityId: "peer-hours/earth/online/software" }),
+        provider: member(providerId),
+        recipient: member(receiverId, { communityId: "peer-hours/earth/online/software" }),
         creatorMemberId: providerId,
         minutes: 30,
       }),
@@ -267,11 +241,11 @@ test("rejects an exchange that exceeds a listing or crosses listing communities"
   );
 });
 
-test("allows only the other active proposal participant to accept a still-valid proposal", () => {
+test("allows only the other proposal participant to accept a still-valid proposal", () => {
   const offer = publishedOffer();
   const request = publishedRequest();
-  const provider = activeMember(providerId);
-  const recipient = activeMember(receiverId);
+  const provider = member(providerId);
+  const recipient = member(receiverId);
   const proposal = proposeExchange({
     id: "proposal-garden-help",
     offer,
@@ -292,18 +266,6 @@ test("allows only the other active proposal participant to accept a still-valid 
   );
   assert.throws(
     () => acceptExchangeProposal({ proposal, offer, request, provider, recipient, acceptedByMemberId: "other-member" }),
-    DomainRuleError,
-  );
-  assert.throws(
-    () =>
-      acceptExchangeProposal({
-        proposal,
-        offer,
-        request,
-        provider,
-        recipient: activeMember(receiverId, { status: "inactive" }),
-        acceptedByMemberId: receiverId,
-      }),
     DomainRuleError,
   );
   assert.throws(

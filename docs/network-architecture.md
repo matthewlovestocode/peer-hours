@@ -44,9 +44,9 @@ Peer Hours has a working **replicated-read foundation**, not a production timeba
 - the Electron desktop owns persistent local peer storage and an embedded runtime;
 - a community node owns a persistent Hypercore record core, publishes its public key through bootstrap metadata, and exposes read-only diagnostics;
 - connected runtimes replicate Corestores directly and desktop runtimes can open the advertised community record core as readers;
-- pure packages model membership eligibility, listings, accepted proposals, Ed25519 transfer attestations, proposal-to-transfer matching, immutable record envelopes, deterministic record resolution, and derived ledger balances.
+- pure packages model listing ownership, accepted proposals, Ed25519 transfer attestations, proposal-to-transfer matching, immutable record envelopes, deterministic record resolution, and derived ledger balances.
 
-The record core is currently writable only by its owning community runtime. A desktop can read replicated records but cannot safely publish a member profile, listing, proposal, authorization event, or transfer. The pure timebank packages operate on supplied in-memory records; they are not yet connected to an authorized member-write protocol or a member-facing workflow.
+The record core is currently writable only by its owning community runtime. A desktop can read replicated records but cannot safely publish a member profile, listing, proposal, identity record, or transfer. The pure timebank packages operate on supplied in-memory records; they are not yet connected to a self-owned member-write protocol or a member-facing workflow. See [open participation and agreement privacy](open-participation-and-agreement-privacy.md) for the decision that this protocol must not become membership approval.
 
 At the current resolver boundary, an accepted proposal is admitted only when the accepting member authored its signed envelope. A settlement transfer is admitted only when either participant authored its signed envelope **and** the ledger validates the transfer's separate attestations from both participants. These are verified in-memory record rules, not proof that a desktop has a production network path to submit a record. The current node roster endpoint is also a diagnostic/development visibility aid, not evidence of a complete discovery, routing, or availability protocol.
 
@@ -78,7 +78,7 @@ A node may be hosted on a small VPS, a home server, a Raspberry Pi, or another s
 - A private node operated by a cooperative or organization
 - A lightweight node replicating only selected communities
 
-The initial model should favor federated communities. Each community can control its own membership, moderation, policies, and credit rules while using shared software and protocols. Inter-community exchange can be added later rather than assumed from the beginning.
+The initial model should favor federated communities. Each community can choose its own discovery scope, community-node operators, local safety defaults, and credit policy through transparent protocol rules, while using shared software and protocols. It must not control whether a person may participate, silently impose a global ban list, or own a member's identity. Inter-community exchange can be added later rather than assumed from the beginning.
 
 ## Meshes, distance, and off-world communities
 
@@ -126,7 +126,7 @@ Cryptography can establish who agreed to an event. It cannot establish that a se
 apps/
 ├── desktop/       # Primary member-facing Electron + React application
 ├── node/          # Headless deployable replication node
-└── admin/         # Possible community administration interface
+└── admin/         # Possible community-operations interface (not member admission)
 ```
 
 `desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, peer status, and a community-owned record core; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain`, `timebank-settlement`, `timebank-ledger`, `timebank-identity`, and `timebank-records` packages now define agreement, proposal-to-transfer validation, settlement, key lifecycle, and immutable-record resolution rules. The desktop opens the community record core from bootstrap metadata and shows its health, but member-owned application records and their multiwriter write path are not yet wired. The admin application should be added when its first concrete workflows are understood.
@@ -168,7 +168,7 @@ packages/
 
 Packages should be created when there is a real reuse case or a stable domain boundary. We should avoid creating a generic `core` package simply because the repository has a `packages/` directory.
 
-The current member-key events are deterministic, replicated-ready records; they do not yet establish who is allowed to authorize a key. A future community authorization protocol must make that authority explicit and replicate its signed decisions before these records can be trusted from the network.
+The current member-key events are deterministic, replicated-ready records; they do not yet establish self-owned key and identity continuity. A future self-owned identity protocol must establish that relationship without introducing a community admission authority before these records can be trusted from the network.
 
 ## First useful prototype
 
@@ -199,7 +199,7 @@ This should reveal the real boundaries between the desktop app, node, protocol, 
 - What happens when two devices make conflicting offline edits?
 - How are lost devices, key rotation, and account recovery handled?
 - Can trusted relays act on behalf of members who are rarely online?
-- Are negative balances allowed, and are debt limits community-configurable?
+- How will the implemented -50-hour limit behave across concurrent offline histories and replication acknowledgement?
 - Can hours be donated to individuals, groups, or a community pool?
 - Which information is private, member-visible, community-visible, or public?
 - How are disputes, fraud, harmful behavior, and invalid transactions handled?
@@ -264,7 +264,7 @@ Geographic segments should use stable uppercase codes where applicable, such as 
 }
 ```
 
-The hierarchy organizes discovery and federation but does not imply a shared ledger. Each community may have its own discovery topic, community nodes, membership rules, listings, ledger, and moderation policies. Parent communities may later provide directories or federation between child communities without controlling their local accounting.
+The hierarchy organizes discovery and federation but does not imply a shared ledger. Each community may have its own discovery topic, community nodes, listings, ledger, and locally chosen safety defaults. Participation is not controlled through membership approval or a global ban list. Parent communities may later provide directories or federation between child communities without controlling their local accounting.
 
 ### Peer connection lifecycle
 

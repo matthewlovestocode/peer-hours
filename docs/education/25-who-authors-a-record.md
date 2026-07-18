@@ -23,7 +23,7 @@ After the work is complete, Alex and Bri both attest to a 60-minute transfer. Ei
 
 These authorship and attestation checks are verified in the in-memory record resolver. They distinguish “who submitted this immutable record?” from “who consented to the settlement?”
 
-Desktop members do not yet have a real member-feed or network submission path to publish records. Community authority for member-key lifecycle events is also still proposed protocol work.
+Desktop members do not yet have a real member-feed or network submission path to publish records. The future self-owned identity/feed relationship that connects a member to their keys is also still proposed protocol work; it must not turn into membership approval.
 
 ## Takeaway
 

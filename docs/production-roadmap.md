@@ -6,7 +6,7 @@ It deliberately separates verified capability from proposed work. A phase is com
 
 ```mermaid
 flowchart LR
-    A["Today: replicated reads\n+pure timebank rules"] --> B["1. Authorized member writes"]
+    A["Today: replicated reads\n+pure timebank rules"] --> B["1. Self-owned member writes"]
     B --> C["2. One complete exchange"]
     C --> D["3. Resilient community replication"]
     D --> E["4. Policy and security"]
@@ -19,21 +19,21 @@ The desktop application has an embedded, persistent peer runtime. A community no
 
 The shared packages test these pure rules in memory:
 
-- active/inactive member eligibility, offers, requests, and accepted exchange proposals;
+- member-owned listings and accepted exchange proposals without a profile-status participation gate;
 - Ed25519 attestation verification against an in-memory member-key registry;
 - exact matching between one accepted proposal and one normal settlement transfer;
 - immutable time-credit transfers, reversals, idempotency, and derived balances; and
 - immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
 
-These are necessary building blocks, but none makes a record network-authoritative. The community core is still single-writer, member keys are not governed by a replicated authority protocol, and the desktop contains no real offer-to-settlement experience. Signed record admission currently protects in-memory resolution; it is not yet a replicated member-feed or submission protocol.
+These are necessary building blocks, but none makes a record network-authoritative. The community core is still single-writer, member keys are not governed by a replicated self-owned identity protocol, and the desktop contains no real offer-to-settlement experience. Signed record admission currently protects in-memory resolution; it is not yet a replicated member-feed or submission protocol.
 
-## 1. Authorized member writes
+## 1. Self-owned member writes
 
-**Goal:** a member can create a signed record that other runtimes accept only when the community's authority rules permit it.
+**Goal:** a member can create a signed record that other runtimes accept through transparent protocol rules, without membership approval or a central authority deciding who may participate.
 
 ### Proposed design direction
 
-Use a separate append-only feed per member device, or an equivalently explicit multiwriter protocol. Each feed must have a stable public identity. Every record should carry a versioned envelope, author identity, signature, community scope, and causal/reference information needed by the resolver. Community-owned records must establish who can enroll members, authorize keys, suspend a member, and rotate authority keys.
+Use a separate append-only feed per member device, or an equivalently explicit multiwriter protocol. Each feed must have a stable public identity. Every record should carry a versioned envelope, author identity, signature, community scope, and causal/reference information needed by the resolver. The protocol must authenticate authorship without turning a community node or administrator into a membership gate. Identity, contact metadata, and user-selected trust signals need distinct records and visibility boundaries.
 
 The shared community record core must not become an unauthenticated write bucket. A community node may relay and retain records, but it must not silently become the sole actor that decides member truth.
 
@@ -42,13 +42,13 @@ sequenceDiagram
     participant M as Member device/feed
     participant N as Community node
     participant R as Receiving runtime
-    participant A as Community authority view
+    participant V as Local validity view
 
     M->>M: Sign versioned record envelope
     M->>N: Replicate member feed
     N->>R: Relay immutable record
-    R->>A: Resolve authority and active key
-    A-->>R: Author permitted or rejected
+    R->>V: Resolve signature and record rules
+    V-->>R: Valid or rejected
     R->>R: Include only valid record in local view
 ```
 
@@ -57,7 +57,7 @@ sequenceDiagram
 - A member record survives independent process restart and replication through at least two runtimes.
 - An unknown, revoked, cross-community, malformed, or tampered writer cannot affect the resolved view.
 - Replaying the same record is harmless; conflicting records fail visibly and deterministically.
-- A community authority change is itself signed, replicated, versioned, and test-covered.
+- No record path requires community membership approval or a central admission decision.
 - Private keys stay in the desktop main process or an operating-system-backed keystore; they never enter the renderer, bootstrap response, node status API, or record payload.
 
 ## 2. One complete member exchange
@@ -66,8 +66,8 @@ sequenceDiagram
 
 Build only this vertical slice first:
 
-1. An authorized member creates and publishes an offer or request.
-2. Another authorized member proposes a fixed number of minutes.
+1. A member creates and publishes a general offer or request without membership approval.
+2. Another member proposes a fixed number of minutes and a mutually agreed privacy mode.
 3. The non-creator accepts the proposal.
 4. After the work occurs, both members sign the same settlement terms.
 5. The application shows the transfer as pending until a defined replication acknowledgement is met, then as settled.
@@ -107,9 +107,9 @@ Cryptographic signatures tell a runtime which key signed a record; they do not d
 
 Before a pilot, define and implement the minimum policy surface:
 
-- membership enrollment, suspension, and key recovery;
-- administrator/authority roles, rotation, and emergency revocation;
-- credit limits, negative-balance policy, and any community-pool rules;
+- self-owned identity lifecycle and private contact metadata;
+- locally controlled filtering, optional advisory signals, and transparent safety configuration;
+- the -50-hour credit boundary, deterministic concurrent-settlement behavior, and any community-pool rules;
 - dispute intake, evidence visibility, compensating reversals, and moderator actions;
 - listing/profile/transaction privacy, retention, export, and deletion expectations; and
 - protocol and policy versioning, so a client can explain why it accepts or rejects a record.
@@ -145,10 +145,10 @@ These are not settled by the current code and should be chosen with tests, proto
 | Decision | Why it gates production work |
 | --- | --- |
 | Member-feed versus multiwriter-log protocol | Determines authorship, replication mechanics, conflict handling, and recovery. |
-| Community authority model | Determines who can approve keys, change roles, and revoke access without recreating a central-server trust assumption. |
+| Self-owned identity/feed model | Determines how members publish and rotate keys without recreating a central admission authority. |
 | Settlement acknowledgement threshold | Determines when an application may honestly call a transfer settled. |
 | Concurrent-spend and credit-limit behavior | Determines how negative balances and conflicting offline activity are handled. |
 | Privacy and retention model | Determines which records may replicate to which nodes and what recovery/export means. |
 | Community-node operating model | Determines redundancy, cost, administration, backup ownership, and incident response. |
 
-The next engineering milestone is Phase 1: a signed, authorized member record that replicates across independent runtimes and is deterministically accepted or rejected. Settlement UI and pilot operations should wait until that boundary is real.
+The next engineering milestone is Phase 1: a self-owned signed member record that replicates across independent runtimes and is deterministically accepted or rejected. Settlement UI and pilot operations should wait until that boundary is real.

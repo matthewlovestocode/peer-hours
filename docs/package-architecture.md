@@ -32,9 +32,9 @@ flowchart TB
 | --- | --- | --- |
 | `@peer-hours/peer-runtime` | Local peer lifecycle, Hypercore storage, Hyperswarm discovery, bootstrap metadata, and status snapshots | Timebank policy, balances, member authorization, or UI state |
 | `@peer-hours/timebank-domain` | Members, listings, proposals, and acceptance rules | Cryptography, persistence, transport, or balances |
-| `@peer-hours/timebank-identity` | Member-key lifecycle records, canonical transfer terms, Ed25519 verification | Community authority policy, private-key storage, or network persistence |
+| `@peer-hours/timebank-identity` | Member-key lifecycle records, canonical transfer terms, Ed25519 verification | Self-owned identity/feed policy, private-key storage, or network persistence |
 | `@peer-hours/timebank-ledger` | Transfer invariants, verified settlement application, postings, balances, and reversals | Cryptographic algorithms, proposal lookup, or mutable account balances |
-| `@peer-hours/timebank-records` | Immutable record envelope, record mappings, replay/conflict detection, and deterministic resolved views | Community authority, private keys, or transport ownership |
+| `@peer-hours/timebank-records` | Immutable record envelope, record mappings, replay/conflict detection, and deterministic resolved views | Self-owned identity/feed policy, private keys, or transport ownership |
 | `@peer-hours/timebank-settlement` | Exact linkage from one accepted proposal to one normal ledger transfer | Signature verification, balance derivation, or replicated record lookup |
 
 ## Composition boundary

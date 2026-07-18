@@ -25,6 +25,8 @@ The ledger is the accounting boundary. The domain package describes member agree
 - Delegate attestation verification to a caller-supplied `SignatureVerifier`.
 - Apply transfers deterministically for one community, deduplicating identical transfer replay and rejecting same-ID conflicts.
 - Prevent more than one ordinary settlement transfer for a source proposal.
+- Apply ordinary settlements in stable transfer-ID order and enforce a configurable minimum balance.
+- Use Peer Hours' default minimum of negative 3,000 minutes (negative 50 hours), while allowing compensating reversals to restore a balance.
 - Derive equal-and-opposite postings and balances from verified transfers.
 - Validate compensating reversals without editing or deleting the original transfer.
 
@@ -34,7 +36,7 @@ The ledger is the accounting boundary. The domain package describes member agree
 - It does not perform cryptography, manage keys, or decide which member keys are authorized. Use `@peer-hours/timebank-identity` to supply an Ed25519 verifier.
 - It does not persist, replicate, discover, or synchronize transfers.
 - It does not decide who has authority to operate a community or authorize/revoke a member key.
-- It does not enforce credit limits, resolve disputes, or prevent concurrent spending across disconnected replicas.
+- It does not resolve disputes or prevent concurrent spending across disconnected replicas. The deterministic minimum-balance policy resolves competing replicated transfers after the fact; it cannot promise that an offline proposal will settle.
 - It does not make `sourceProposalId` a network-level proof that an accepted proposal exists. That linkage is currently checked in memory by `@peer-hours/timebank-settlement`; replicated record resolution remains future work.
 
 ## Public API and concepts
@@ -53,9 +55,14 @@ Use `createTransfer(input)` to validate and normalize a transfer. It does not ve
 
 ### Derived ledger view
 
-Use `applyTransfers({ communityId, transfers, verifyAttestation })` to create a `Ledger`. The result includes:
+Use `applyTransfers({ communityId, transfers, verifyAttestation })` to create a `Ledger`. The current protocol policy is `DEFAULT_PEER_HOURS_LEDGER_POLICY`, whose `minimumBalanceMinutes` is fixed at `-3000` (negative 50 hours). A future change to this shared boundary needs an explicit, replicated policy protocol; individual callers cannot override it.
 
-- `transfers`: verified, deduplicated transfers in stable ID order.
+Ordinary settlements are applied by stable transfer ID. If an otherwise valid settlement would take its recipient below the configured minimum, it is retained as a `rejectedTransfer` with the `minimum-balance` reason and produces no postings. A compensating reversal is not subject to this boundary because it exactly undoes an earlier accepted transfer; a reversal of a rejected settlement is itself rejected with `unaccepted-reversal`.
+
+The result includes:
+
+- `transfers`: verified, accepted transfers in stable ID order.
+- `rejectedTransfers`: verified ordinary settlements excluded by the minimum-balance rule.
 - `postings`: the equal-and-opposite per-member movements.
 - `balances`: the balance record derived from those postings.
 

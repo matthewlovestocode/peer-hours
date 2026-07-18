@@ -1,6 +1,6 @@
 # Lesson 24: Raw Records Versus a Useful Screen
 
-A replicated record is not yet a screen a member can understand. A Peer Hours app needs a repeatable way to turn raw, append-only records into a useful local view: active members, current offers, accepted proposals, valid transfers, and derived balances.
+A replicated record is not yet a screen a member can understand. A Peer Hours app needs a repeatable way to turn raw, append-only records into a useful local view: known signing keys, current offers, accepted proposals, valid transfers, and derived balances.
 
 ## What you already know
 

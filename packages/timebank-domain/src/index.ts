@@ -1,15 +1,11 @@
 /** A stable identifier for a Peer Hours member. */
 export type MemberId = string;
 
-/** The participation state of a member within one community. */
-export type MemberStatus = "active" | "inactive";
-
-/** A community-scoped member profile used to authorize domain actions. */
+/** A community-scoped member profile used to match domain-action ownership. */
 export interface MemberProfile {
   readonly id: MemberId;
   readonly communityId: string;
   readonly displayName: string;
-  readonly status: MemberStatus;
 }
 
 /** The lifecycle state of a member-owned offer or request. */
@@ -51,7 +47,6 @@ export interface CreateMemberProfileInput {
   readonly id: MemberId;
   readonly communityId: string;
   readonly displayName: string;
-  readonly status?: MemberStatus;
 }
 
 /** Input required to create a member-owned offer or request draft. */
@@ -63,7 +58,7 @@ export interface CreateListingInput {
   readonly minutes: number;
 }
 
-/** Input required to publish a listing draft for its active owner. */
+/** Input required to publish a listing draft for its owner. */
 export interface PublishListingInput {
   readonly listing: Listing;
   readonly owner: MemberProfile;
@@ -99,18 +94,13 @@ export class DomainRuleError extends Error {
   }
 }
 
-/** Creates a member profile with an explicit active or inactive community status. */
+/** Creates a member profile for matching a member-owned action to one community. */
 export function createMemberProfile(input: CreateMemberProfileInput): MemberProfile {
   assertPresent(input.id, "Member id");
   assertPresent(input.communityId, "Community id");
   assertPresent(input.displayName, "Member display name");
 
-  const status = input.status ?? "active";
-  if (status !== "active" && status !== "inactive") {
-    throw new DomainRuleError("Member status must be active or inactive.");
-  }
-
-  return { ...input, status };
+  return { ...input };
 }
 
 /** Creates a draft, member-owned offer for a positive whole number of minutes. */
@@ -123,7 +113,7 @@ export function createRequest(input: CreateListingInput): Listing {
   return createListing("request", input);
 }
 
-/** Publishes a draft only when the supplied active profile owns it in the same community. */
+/** Publishes a draft only when the supplied profile owns it in the same community. */
 export function publishListing(input: PublishListingInput): Listing {
   const { listing, owner } = input;
 
@@ -131,7 +121,7 @@ export function publishListing(input: PublishListingInput): Listing {
     throw new DomainRuleError("Only draft listings can be published.");
   }
 
-  assertActiveListingOwner(listing, owner);
+  assertListingOwner(listing, owner);
   return { ...listing, status: "published" };
 }
 
@@ -155,7 +145,7 @@ export function proposeExchange(input: ProposeExchangeInput): ExchangeProposal {
   };
 }
 
-/** Accepts a valid proposal only when the other active participant accepts it. */
+/** Accepts a valid proposal only when the other participant accepts it. */
 export function acceptExchangeProposal(input: AcceptExchangeProposalInput): ExchangeProposal {
   const { proposal, offer, request, provider, recipient, acceptedByMemberId } = input;
 
@@ -196,13 +186,11 @@ function createListing(kind: ListingKind, input: CreateListingInput): Listing {
   return { ...input, kind, status: "draft" };
 }
 
-/** Ensures a member profile is active and exactly matches the listing owner and community. */
-function assertActiveListingOwner(listing: Listing, owner: MemberProfile): void {
+/** Ensures a profile exactly matches the listing owner and community. */
+function assertListingOwner(listing: Listing, owner: MemberProfile): void {
   if (owner.id !== listing.memberId || owner.communityId !== listing.communityId) {
     throw new DomainRuleError("A listing can only be published by its owner in the same community.");
   }
-
-  assertActiveMember(owner);
 }
 
 /** Ensures listings are published and eligible to form an exchange for the requested minutes. */
@@ -230,28 +218,21 @@ function assertMatchableListings(offer: Listing, request: Listing, minutes: numb
   }
 }
 
-/** Ensures active provider and recipient profiles match their listing owners and community. */
+/** Ensures provider and recipient profiles match their listing owners and community. */
 function assertProposalParticipants(
   offer: Listing,
   request: Listing,
   provider: MemberProfile,
   recipient: MemberProfile,
 ): void {
-  assertActiveListingOwner(offer, provider);
-  assertActiveListingOwner(request, recipient);
+  assertListingOwner(offer, provider);
+  assertListingOwner(request, recipient);
 }
 
-/** Ensures an exchange creator is one of the active exchange participants. */
+/** Ensures an exchange creator is one of the exchange participants. */
 function assertProposalCreator(creatorMemberId: MemberId, providerMemberId: MemberId, recipientMemberId: MemberId): void {
   if (creatorMemberId !== providerMemberId && creatorMemberId !== recipientMemberId) {
     throw new DomainRuleError("An exchange proposal must be created by one of its participants.");
-  }
-}
-
-/** Ensures a member profile can currently participate in community actions. */
-function assertActiveMember(member: MemberProfile): void {
-  if (member.status !== "active") {
-    throw new DomainRuleError("Only active members can perform this action.");
   }
 }
 

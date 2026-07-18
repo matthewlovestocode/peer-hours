@@ -27,7 +27,8 @@ Imagine a runtime has these three records:
 ```text
 1. Member A's key is authorized for East Bay
 2. A proposal between Member A and Member B is accepted for 60 minutes
-3. A dual-signed transfer refers to that accepted proposal
+3. The accepting member authors the signed accepted-proposal record
+4. Either transfer participant submits a signed transfer record, carrying a dual-attested transfer that refers to that accepted proposal
 ```
 
 The resolver checks that the key was valid, that the proposal was accepted, and that the transfer exactly matches the proposal. If it does, it derives `+60` minutes for A and `-60` minutes for B. If record 3 arrives before records 1 and 2, the runtime can keep it as unresolved and try again when the rest of the history arrives. It must not invent a settled balance just because it saw a transfer-shaped object.
@@ -46,4 +47,4 @@ Replication gives a runtime a history. Resolution turns that history into a view
 
 ## Next lesson
 
-The next lesson will explain why order-independent results matter when different peers receive the same records at different times.
+Continue with [Lesson 25: Who is allowed to author a record?](25-who-authors-a-record.md).

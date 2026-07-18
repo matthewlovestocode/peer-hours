@@ -34,7 +34,12 @@ The record protocol must never place business rules solely in serialization or t
 
 Accepted-proposal and transfer records now require an active, community-scoped member key to sign every immutable envelope term before the resolver admits them. That protects the current deterministic read model from unsigned, tampered, inactive-key, cross-community, and unrelated-member submissions.
 
-This is not the complete trust protocol. Community authority, signatures on authorization events, access policy, member-feed replication, and multiwriter ordering remain protocol work. Desktop members cannot yet write timebank records to the shared core.
+The resolver also applies the implemented record-authorship rules:
+
+- An accepted-proposal envelope must be authored and signed by the member recorded as accepting that proposal. A proposal creator cannot publish an acceptance on the other member's behalf.
+- A settlement-transfer envelope may be authored and signed by either its provider or its recipient. Separately, the ledger requires valid attestations from **both** participants over the exact transfer terms before it derives balances. The envelope author is the submitter of the replicated record, not a substitute for the second attestation.
+
+This is not the complete trust protocol. Community authority, signatures on authorization events, access policy, member-feed replication, and multiwriter ordering remain protocol work. Desktop members cannot yet write timebank records to the shared core, so these verified resolver rules are not yet an exposed member-submission protocol.
 
 ## Development
 

@@ -33,7 +33,9 @@ The community node's record core is the only writable core in this first slice. 
 - receiving a well-formed record is not yet proof that its author had community authority; and
 - timebank member workflows must not claim settlement is final until that protocol verifies and replicates it.
 
-The next write-path design should use independently owned member feeds or a properly defined multiwriter log and an authority policy for membership/key lifecycle events. The resolver already verifies member signatures over complete proposal and transfer envelopes; the next step is to carry those signed envelopes through a real member-feed replication protocol. It should preserve the existing pure resolver rather than placing validation rules in the desktop UI or node HTTP API.
+The resolver verifies member signatures over complete proposal and transfer envelopes, and it currently applies two distinct authorship checks: an accepted proposal must be authored by the member who accepted it; a transfer may be authored by either transfer participant. A transfer still needs the ledger's two participant attestations—its envelope author is only the record submitter, not a proxy for the other participant's consent.
+
+The next write-path design should use independently owned member feeds or a properly defined multiwriter log and an authority policy for membership/key lifecycle events. It must carry these signed envelopes through a real member-feed replication protocol. It should preserve the existing pure resolver rather than placing validation rules in the desktop UI or node HTTP API.
 
 ## Development inspection
 

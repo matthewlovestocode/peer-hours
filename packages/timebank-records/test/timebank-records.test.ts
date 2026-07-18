@@ -16,6 +16,7 @@ import {
 const communityId = "peer-hours/earth/US/CA/east-bay";
 const otherCommunityId = "peer-hours/earth/US/CA/san-francisco";
 const recordMetadata = { occurredAt: "2026-07-18T08:00:00.000Z", authorId: "member-provider" };
+const acceptedProposalMetadata = { ...recordMetadata, authorId: "member-recipient" };
 
 /** Creates one generic envelope using the fixed timebank mapping schema metadata. */
 function envelope(input: { readonly id: string; readonly communityId: string; readonly kind: string; readonly payload: object }) {
@@ -60,7 +61,7 @@ function transfer(id = "transfer-1") {
 }
 
 test("maps and decodes an immutable accepted exchange proposal", () => {
-  const record = toAcceptedExchangeProposalRecord(acceptedProposal(), recordMetadata);
+  const record = toAcceptedExchangeProposalRecord(acceptedProposal(), acceptedProposalMetadata);
 
   assert.equal(record.kind, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND);
   assert.equal(record.communityId, communityId);
@@ -93,6 +94,13 @@ test("rejects malformed proposal and transfer record payloads", () => {
   assert.throws(() => decodeLedgerTransferRecord(malformedTransfer), RecordMappingError);
 });
 
+test("requires the accepting member to author an accepted proposal record", () => {
+  assert.throws(
+    () => toAcceptedExchangeProposalRecord(acceptedProposal(), recordMetadata),
+    /authored by the member who accepted it/,
+  );
+});
+
 test("rejects records whose kind or community does not match their payload", () => {
   const wrongKind = envelope({
     id: "proposal-1",
@@ -113,11 +121,11 @@ test("rejects records whose kind or community does not match their payload", () 
 
 test("reduces duplicate proposal records and rejects conflicting or cross-community records", () => {
   const proposal = acceptedProposal();
-  const duplicate = toAcceptedExchangeProposalRecord(proposal, recordMetadata);
-  const conflict = toAcceptedExchangeProposalRecord({ ...proposal, minutes: 30 }, recordMetadata);
+  const duplicate = toAcceptedExchangeProposalRecord(proposal, acceptedProposalMetadata);
+  const conflict = toAcceptedExchangeProposalRecord({ ...proposal, minutes: 30 }, acceptedProposalMetadata);
   const crossCommunity = toAcceptedExchangeProposalRecord(
     { ...proposal, id: "proposal-2", communityId: otherCommunityId },
-    recordMetadata,
+    acceptedProposalMetadata,
   );
 
   assert.deepEqual(reduceAcceptedExchangeProposalRecords([duplicate, duplicate], communityId), [proposal]);

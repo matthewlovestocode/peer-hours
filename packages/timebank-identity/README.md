@@ -62,7 +62,7 @@ Use `createEd25519SignatureVerifier(authorizations)` to produce the `SignatureVe
 - carries the current digest for the canonical transfer terms; and
 - contains a valid Ed25519 signature for those terms.
 
-`createEd25519MemberSignatureVerifier(authorizations)` exposes the same active-key and community/member scoping for a caller-supplied canonical payload. It is used by `@peer-hours/timebank-records` to verify signatures over immutable record envelopes; it does not make the caller's payload format or community-authority policy part of this package.
+`createEd25519MemberSignatureVerifier(authorizations)` exposes the same active-key and community/member scoping for a caller-supplied canonical payload. It is used by `@peer-hours/timebank-records` to verify signatures over immutable record envelopes; that package currently requires an accepted proposal's envelope signature to belong to its accepting member, and allows either transfer participant to sign a transfer envelope. This generic verifier does not define those record-authorship rules, the payload format, or community-authority policy.
 
 ## Dependencies
 

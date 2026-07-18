@@ -41,6 +41,9 @@ export function toAcceptedExchangeProposalRecord(
   metadata: CreateTimebankRecordMetadata,
 ): AcceptedExchangeProposalRecord {
   const normalized = normalizeAcceptedProposal(proposal);
+  if (metadata.authorId !== normalized.acceptedByMemberId) {
+    throw new RecordMappingError("An accepted proposal record must be authored by the member who accepted it.");
+  }
   return createRecordEnvelope({
     id: normalized.id,
     schema: TIMEBANK_RECORD_SCHEMA,

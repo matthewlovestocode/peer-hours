@@ -43,6 +43,8 @@ The ledger is the accounting boundary. The domain package describes member agree
 
 A `Transfer` is an immutable community-scoped settlement record. Ordinary settlements include `sourceProposalId`; reversals include `reversesTransferId`. A `TransferAttestation` names the participant, their `keyId`, a `payloadDigest`, and a signature. This package validates that both participants attest, then gives each attestation and transfer to the injected verifier.
 
+The ledger has no concept of a replicated envelope author. In the current record resolver, either transfer participant may author the member-signed envelope that carries a settlement transfer, but that submitter signature never replaces the ledger's required provider and recipient attestations.
+
 Use `createTransfer(input)` to validate and normalize a transfer. It does not verify the signatures itself.
 
 ### Verification boundary

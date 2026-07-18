@@ -90,6 +90,7 @@ A proposed exchange is a specific agreement-in-progress between a provider and a
 - A proposal cannot be edited after either participant has accepted it; create a new proposal instead.
 - Only the non-creator can accept a proposal. Either participant can decline or cancel it before completion.
 - Acceptance records the accepting member and timestamp. It is a commitment to the proposed terms, not evidence that the service occurred.
+- **Implemented resolver rule:** the signed accepted-proposal envelope must be authored by the accepting member. This authenticates who performed the acceptance; it is separate from the two attestations required later for settlement.
 
 ### Settlement transfer
 
@@ -99,10 +100,11 @@ A settlement transfer is the final, signed account of an exchange that took plac
 - Both signatures must authenticate the exact same canonical transfer bytes.
 - The provider receives `minutes` of time credit; the recipient incurs the corresponding debit when the ledger derives balances.
 - A transfer with missing, invalid, mismatched-key, or mismatched-digest attestations is invalid.
+- **Implemented resolver rule:** the replicated transfer envelope may be authored by either the provider or recipient, but the ledger still requires attestations from both participants. Envelope authorship identifies who submitted that immutable record; it does not replace either participant's settlement consent.
 - **Proposed network rule:** a locally signed transfer should remain pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand. No acknowledgement or finalization protocol is implemented yet.
 - Corrections are compensating transfers, never edits to a settled transfer.
 
-The current `@peer-hours/timebank-ledger` and `@peer-hours/timebank-identity` packages implement the transfer and verification rules in memory. Replicated authorization records and the verified link from `sourceProposalId` to an accepted proposal remain future integration work.
+The current `@peer-hours/timebank-ledger` and `@peer-hours/timebank-identity` packages implement the transfer and verification rules in memory. The current record resolver also enforces that an accepted-proposal envelope is authored by its accepting member, and that a transfer envelope is authored by one of its two participants. Replicated authorization records and a real member-feed submission protocol remain future integration work.
 
 ## TDD acceptance scenarios
 

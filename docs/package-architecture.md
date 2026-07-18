@@ -44,10 +44,10 @@ Applications and future replicated-record adapters compose the packages:
 1. `timebank-domain` produces an accepted proposal.
 2. `timebank-records` validates the replicated envelope and resolves that proposal and the member-key lifecycle history.
 3. `timebank-settlement` verifies the proposed transfer retains the accepted terms.
-4. `timebank-identity` reduces key records and verifies both participant attestations.
+4. `timebank-identity` reduces key records and verifies envelope signatures and both participant attestations.
 5. `timebank-ledger` accepts verified transfers and derives balances.
 
-The current implementation resolves these boundaries in memory and has a live, generic record-core transport between the runtime, node, and desktop. The next integration layer must add signed member write feeds and authority policy without moving business rules into the desktop app, community node, or transport code.
+The current implementation resolves these boundaries in memory and has a live, generic record-core transport between the runtime, node, and desktop. `timebank-records` additionally assigns envelope authorship: the accepting member authors an accepted proposal; either transfer participant may author a settlement transfer, while `timebank-ledger` still requires attestations from both participants. The next integration layer must add signed member write feeds and authority policy without moving business rules into the desktop app, community node, or transport code.
 
 ## Dependency direction
 

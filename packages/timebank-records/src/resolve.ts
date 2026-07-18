@@ -119,12 +119,12 @@ function assertMemberSignedDomainRecords(
   }
 }
 
-/** Ensures a signed record author is a participant in the proposal or transfer it submits. */
+/** Ensures a signed record author performed the proposal acceptance or participates in the transfer. */
 function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
   if (record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND) {
     const proposal = decodeAcceptedExchangeProposalRecord(record);
-    if (record.authorId !== proposal.creatorMemberId && record.authorId !== proposal.acceptedByMemberId) {
-      throw new RecordResolutionError("An accepted proposal record must be submitted by one of its participants.");
+    if (record.authorId !== proposal.acceptedByMemberId) {
+      throw new RecordResolutionError("An accepted proposal record must be signed by the member who accepted it.");
     }
     return;
   }

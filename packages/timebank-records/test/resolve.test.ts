@@ -95,7 +95,7 @@ test("resolves unordered replicated key, proposal, and transfer records into det
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
       eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
     })),
-    signedRecord(toAcceptedExchangeProposalRecord(proposal(), { ...metadata, occurredAt: "2026-07-18T13:01:00.000Z" }), providerKeys.privateKey, "provider-key"),
+    signedRecord(toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:01:00.000Z" }), recipientKeys.privateKey, "recipient-key"),
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
       eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
     })),
@@ -109,7 +109,7 @@ test("resolves unordered replicated key, proposal, and transfer records into det
 
 test("rejects a member-originated domain record without a valid authorized signature", () => {
   const providerKeys = generateKeyPairSync("ed25519");
-  const unsignedProposal = toAcceptedExchangeProposalRecord(proposal(), metadata);
+  const unsignedProposal = toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId });
   const records: readonly RecordEnvelope[] = [
     unsignedProposal,
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
@@ -120,31 +120,91 @@ test("rejects a member-originated domain record without a valid authorized signa
   assert.throws(() => resolveTimebankRecords(communityId, records), /signed.*member|signature/i);
 });
 
-test("rejects a validly signed domain record submitted by a member outside the exchange", () => {
-  const outsiderMemberId = "member-outsider";
-  const outsiderKeys = generateKeyPairSync("ed25519");
-  const outsiderRecord = signedRecord(
-    toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: outsiderMemberId }),
-    outsiderKeys.privateKey,
-    "outsider-key",
+test("rejects an accepted proposal signed by its creator instead of its acceptor", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const creatorRecord = signedRecord(
+    { ...toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId }), authorId: providerMemberId },
+    providerKeys.privateKey,
+    "provider-key",
   );
   const records: readonly RecordEnvelope[] = [
-    outsiderRecord,
+    creatorRecord,
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
-      eventId: "outsider-key-activation", communityId, memberId: outsiderMemberId, keyId: "outsider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(outsiderKeys.publicKey),
+      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
     })),
   ];
 
-  assert.throws(() => resolveTimebankRecords(communityId, records), /proposal record must be submitted by one of its participants/);
+  assert.throws(() => resolveTimebankRecords(communityId, records), /proposal record must be signed by the member who accepted it/i);
+});
+
+test("accepts an accepted proposal signed by its acceptor", () => {
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const acceptorRecord = signedRecord(
+    toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId }),
+    recipientKeys.privateKey,
+    "recipient-key",
+  );
+  const records: readonly RecordEnvelope[] = [
+    acceptorRecord,
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
+    })),
+  ];
+
+  assert.equal(resolveTimebankRecords(communityId, records).acceptedProposals.length, 1);
+});
+
+test("accepts settlement records submitted by either transfer participant and rejects outsiders", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const outsiderMemberId = "member-outsider";
+  const outsiderKeys = generateKeyPairSync("ed25519");
+  const transfer = signedTransfer(providerKeys.privateKey, recipientKeys.privateKey);
+  const records: readonly RecordEnvelope[] = [
+    signedRecord(toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId }), recipientKeys.privateKey, "recipient-key"),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+    })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
+    })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "outsider-key-activation", communityId, memberId: outsiderMemberId, keyId: "outsider-key", action: "activate", occurredAt: "2026-07-18T13:00:02.000Z", publicKeyPem: publicKeyPem(outsiderKeys.publicKey),
+    })),
+  ];
+
+  for (const [authorId, privateKey, keyId] of [
+    [providerMemberId, providerKeys.privateKey, "provider-key"],
+    [recipientMemberId, recipientKeys.privateKey, "recipient-key"],
+  ] as const) {
+    const settlementRecord = signedRecord(
+      toLedgerTransferRecord(transfer, { ...metadata, authorId, occurredAt: "2026-07-18T13:02:00.000Z" }),
+      privateKey,
+      keyId,
+    );
+    assert.equal(resolveTimebankRecords(communityId, [...records, settlementRecord]).transfers.length, 1);
+  }
+
+  const outsiderRecord = signedRecord(
+    toLedgerTransferRecord(transfer, { ...metadata, authorId: outsiderMemberId, occurredAt: "2026-07-18T13:02:00.000Z" }),
+    outsiderKeys.privateKey,
+    "outsider-key",
+  );
+
+  assert.throws(() => resolveTimebankRecords(communityId, [...records, outsiderRecord]), /ledger transfer record must be submitted by one of its participants/i);
 });
 
 test("rejects a member record whose signed immutable envelope was changed before replication", () => {
-  const providerKeys = generateKeyPairSync("ed25519");
-  const signedProposal = signedRecord(toAcceptedExchangeProposalRecord(proposal(), metadata), providerKeys.privateKey, "provider-key");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const signedProposal = signedRecord(
+    toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId }),
+    recipientKeys.privateKey,
+    "recipient-key",
+  );
   const records: readonly RecordEnvelope[] = [
     { ...signedProposal, occurredAt: "2026-07-18T13:01:00.000Z" },
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
-      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
     })),
   ];
 

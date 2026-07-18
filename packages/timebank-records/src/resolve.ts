@@ -34,19 +34,26 @@ import {
   memberFeedDeclarationsToAuthorizations,
 } from "./self-owned-identity-records.js";
 import {
+  isRootSignedMemberSigningKeyLifecycleRecord,
+  reduceProvenRootSignedMemberSigningKeyLifecycleRecords,
+} from "./root-signed-key-lifecycle-records.js";
+import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  CLOSED_LISTING_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   PUBLISHED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
   SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
+  decodeClosedListingRecord,
   decodeProposedExchangeProposalRecord,
   decodeLedgerTransferRecord,
   decodePublishedListingRecord,
   decodeSettlementAcknowledgementRecord,
   decodeSettlementTransferAttestationRecord,
   reduceAcceptedExchangeProposalRecords,
+  reduceClosedListingRecords,
   reduceLedgerTransferRecords,
   reducePublishedListingRecords,
   reduceProposedExchangeProposalRecords,
@@ -95,18 +102,39 @@ export function resolveTimebankRecords(
   try {
     const normalizedRecords = reduceRecordEnvelopes(records);
     const communityRecords = normalizedRecords.filter((record) => record.communityId === communityId);
-    const legacyAuthorizations = reduceMemberSigningKeyAuthorizationRecords(
-      communityRecords.filter(isIdentityRecord),
-    );
+    const memberFeedDeclarationRecords = communityRecords.filter((record) => record.kind === MEMBER_FEED_DECLARATION_RECORD_KIND);
+    const selfOwnedMemberIds = new Set(memberFeedDeclarationRecords.map((record) => record.authorId));
+    const legacyIdentityRecords = communityRecords.filter(isIdentityRecord);
+    if (legacyIdentityRecords.some((record) => selfOwnedMemberIds.has(record.authorId))) {
+      throw new RecordResolutionError("Unsigned legacy key lifecycle records cannot alter a self-owned member identity.");
+    }
+    const legacyAuthorizations = reduceMemberSigningKeyAuthorizationRecords(legacyIdentityRecords);
     const selfOwnedAuthorizations = memberFeedDeclarationsToAuthorizations(
-      communityRecords.filter((record) => record.kind === MEMBER_FEED_DECLARATION_RECORD_KIND),
+      memberFeedDeclarationRecords,
     );
-    const authorizations = Object.freeze([...legacyAuthorizations, ...selfOwnedAuthorizations]);
+    const rootSignedLifecycleAuthorizations = reduceProvenRootSignedMemberSigningKeyLifecycleRecords({
+      lifecycleRecords: communityRecords.filter(isRootSignedMemberSigningKeyLifecycleRecord),
+      memberFeedDeclarationRecords,
+    });
+    const authorizations = Object.freeze([...legacyAuthorizations, ...selfOwnedAuthorizations, ...rootSignedLifecycleAuthorizations]);
     assertMemberSignedDomainRecords(records, communityId, authorizations);
-    const publishedListings = reducePublishedListingRecords(
+    const allPublishedListings = reducePublishedListingRecords(
       communityRecords.filter((record) => record.kind === PUBLISHED_LISTING_RECORD_KIND),
       communityId,
     );
+    const closedListings = reduceClosedListingRecords(
+      communityRecords.filter((record) => record.kind === CLOSED_LISTING_RECORD_KIND),
+      communityId,
+    );
+    const closedListingIds = new Set<string>();
+    for (const closure of closedListings) {
+      const listing = allPublishedListings.find((candidate) => candidate.id === closure.listingId);
+      if (listing === undefined || listing.memberId !== closure.memberId || listing.communityId !== closure.communityId) {
+        throw new RecordResolutionError("A listing closure must be signed by the owner of a published listing in the same community.");
+      }
+      closedListingIds.add(closure.listingId);
+    }
+    const publishedListings = Object.freeze(allPublishedListings.filter((listing) => !closedListingIds.has(listing.id)));
     const acceptedProposals = reduceAcceptedExchangeProposalRecords(
       communityRecords.filter((record) => record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND),
       communityId,
@@ -281,6 +309,14 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
     return;
   }
 
+  if (record.kind === CLOSED_LISTING_RECORD_KIND) {
+    const closure = decodeClosedListingRecord(record);
+    if (record.authorId !== closure.memberId) {
+      throw new RecordResolutionError("A closed listing record must be signed by its member owner.");
+    }
+    return;
+  }
+
   if (record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND) {
     const acknowledgement = decodeSettlementAcknowledgementRecord(record);
     if (record.authorId !== acknowledgement.acknowledgedByMemberId) {
@@ -305,7 +341,7 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
 
 /** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND || record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === CLOSED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND || record.kind === SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

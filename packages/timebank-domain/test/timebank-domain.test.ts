@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   DomainRuleError,
   acceptExchangeProposal,
+  closeListing,
   createOffer,
   createMemberProfile,
   createRequest,
@@ -95,6 +96,13 @@ test("listings begin as drafts and only their owner can publish them", () => {
     () => publishedListing(draft, member(providerId, { communityId: "peer-hours/earth/online/software" })),
     DomainRuleError,
   );
+});
+
+test("only the owner can close a published listing, preserving immutable listing terms", () => {
+  const listing = publishedOffer();
+  assert.deepEqual(closeListing({ listing, owner: member(providerId) }), { ...listing, status: "closed" });
+  assert.throws(() => closeListing({ listing, owner: member(receiverId) }), DomainRuleError);
+  assert.throws(() => closeListing({ listing: draftOffer(), owner: member(providerId) }), DomainRuleError);
 });
 
 test("only published listings are eligible for a proposed exchange", () => {

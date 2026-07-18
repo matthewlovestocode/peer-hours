@@ -53,6 +53,43 @@ For the first limited pilot, run two independently operated community nodes per 
 
 Treat the node's full durable `DATA_DIR` as recoverable state. The pilot baseline is encrypted, complete daily snapshots, at least 30 retained daily restore points, two named community custodians for recovery material, and a restore drill before enrollment and at least quarterly. Do not copy individual files into a live Corestore or delete the directory during a deployment. The detailed recovery and incident expectations live in the policy document; this README describes the current runtime, not a claim that the checks are automated.
 
+## Verified backup and restore tooling
+
+After building the node package, operators can create and verify a **complete, stopped-node** snapshot. The command recursively copies the entire `DATA_DIR`, including the Corestore state and the node's receipt identity, writes a SHA-256 manifest, then verifies every copied file before publishing the backup directory. It refuses a live-copy request unless the operator explicitly confirms the node is stopped, refuses existing or nested destinations, and never overwrites a data directory.
+
+```sh
+npm --workspace @peer-hours/node run build
+
+# Stop this community node cleanly first. The destination must not already exist.
+npm --workspace @peer-hours/node run backup:create -- \
+  --source /var/lib/peer-hours \
+  --destination /srv/peer-hours-backups/node-a/2026-07-18 \
+  --node-stopped
+
+# Verify the manifest before retaining, transferring, or restoring this snapshot.
+npm --workspace @peer-hours/node run backup:verify -- \
+  --backup /srv/peer-hours-backups/node-a/2026-07-18
+```
+
+The tool writes a plaintext filesystem snapshot; it does **not** provide encryption, remote copying, retention, or custody management. Put the destination on encrypted storage and make its access controls and off-host replication part of the community's backup process. Do not upload the receipt private key to an unencrypted or single-custodian location.
+
+To rehearse recovery, first verify that the target location is unused, then restore only into a fresh directory. This preserves the failed data directory for investigation and makes rollback possible without destructive copy operations.
+
+```sh
+# The fresh destination must not already exist. This does not modify either source path.
+npm --workspace @peer-hours/node run backup:restore-preflight -- \
+  --backup /srv/peer-hours-backups/node-a/2026-07-18 \
+  --destination /var/lib/peer-hours-restored
+
+# Stop the target node (if one exists elsewhere), restore, then configure DATA_DIR to this new path.
+npm --workspace @peer-hours/node run backup:restore -- \
+  --backup /srv/peer-hours-backups/node-a/2026-07-18 \
+  --destination /var/lib/peer-hours-restored \
+  --node-stopped
+```
+
+After startup, wait for `GET /health` to return `200`, inspect `GET /status`, and compare known history with an independent community node or desktop peer after catch-up. The manifest proves only that the selected stopped-node files copied without later alteration; it cannot prove that the node had received all community history, that the storage platform is durable, or that a restore has caught up.
+
 ## Current limitations
 
 - A healthy process does not prove public reachability, durable backup, or replication freshness.
@@ -66,6 +103,6 @@ Run at least two independently deployed community nodes for the same discovery s
 
 Bootstrap availability is separate from community-node availability. Configure more than one bootstrap endpoint in the manifest's `bootstrapNodes` list. A runtime can retry a supplied endpoint list, remembers validated manifest-advertised alternatives, and exposes the active endpoint, failure count, last error, and last successful refresh in its runtime status. This prevents one endpoint outage from being silently indistinguishable from a discovery failure. It does not authenticate an endpoint or prove that a fallback is operated by a trusted party; the pilot direction is to compare bootstrap information with member-installed discovery and node-identity pins.
 
-For a planned restore, stop the affected node cleanly, restore a previously tested *consistent* backup of its entire `DATA_DIR`, then start it and wait for `GET /health` to return `200`. Inspect `GET /status` for its local core key, discovery activity, known member feeds, and bootstrap diagnostics. Finally, compare a known member-feed record history from an independent desktop or community node after replication has had time to catch up. Do not copy individual files into a live Corestore, and do not treat a fresh empty directory as a restore: it is only a new cache that must rediscover and replicate data.
+For a planned restore, stop the affected node cleanly, verify a previously tested *consistent* backup, and restore it into a new `DATA_DIR`, then start it and wait for `GET /health` to return `200`. Inspect `GET /status` for its local core key, discovery activity, known member feeds, and bootstrap diagnostics. Finally, compare a known member-feed record history from an independent desktop or community node after replication has had time to catch up. Do not copy individual files into a live Corestore, overwrite a previous directory, or treat a fresh empty directory as a restore: it is only a new cache that must rediscover and replicate data.
 
 The current API cannot prove catch-up completeness or durable replication across a failure domain. Operators must define a freshness window, backup cadence/retention, restore objective, and an independent evidence source before representing the service as resilient to members.

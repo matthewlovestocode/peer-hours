@@ -80,6 +80,8 @@ The pilot treats a community node's full durable data directory as important rep
 
 Do not copy individual files into a live Corestore, delete a node data directory as routine maintenance, or call a new empty cache a recovery. A restored node must catch up through normal replication and operators must document the observed catch-up state. A node's HTTP health response only says its local runtime is available; it is not evidence that the restore is complete.
 
+**Verified today:** the community-node package has a stopped-node backup command that creates a complete directory snapshot, emits a SHA-256 manifest for every regular file, and verifies the copy before it is published. Restore preflight verifies every digest and refuses an existing destination; restore writes only to a new directory, preserving the prior data for investigation. The command intentionally does not copy live storage, encrypt data, upload it, select retention, or prove that the node had caught up before backup. Those remain operating controls rather than properties of one command.
+
 ## 4. Privacy, retention, and support records
 
 The pilot default is `private-details`: public replicated records contain only the protocol facts currently necessary to validate listings and settlements. Email addresses, exact addresses, phone numbers, free-form work notes, credentials, and dispute evidence must not be inserted into public listings, proposal descriptions, settlement metadata, diagnostic endpoints, logs, or unencrypted backups.

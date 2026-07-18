@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel } from "../components/Primitive.js";
 import { ListingComposer } from "../components/records/ListingComposer.js";
+import { MyListings } from "../components/records/MyListings.js";
 import { IdentityStatus } from "../components/records/IdentityStatus.js";
 import { PendingProposalList } from "../components/records/PendingProposalList.js";
 import { ProposalComposer } from "../components/records/ProposalComposer.js";
@@ -75,6 +76,7 @@ export function RecordsPage() {
         {identity?.state === "ready" && (
           <>
             <ListingComposer onComplete={refresh} />
+            {resolved?.state === "ready" && identity.memberId && <MyListings listings={resolved.publishedListings} memberId={identity.memberId} onComplete={refresh} />}
             {resolved?.state === "ready" && <ProposalComposer listings={resolved.publishedListings} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <PendingProposalList proposals={resolved.proposedProposals} memberId={identity.memberId} onComplete={refresh} />}
             {resolved?.state === "ready" && identity.memberId && <SettlementAcknowledgementList proposals={resolved.acceptedProposals} confirmations={resolved.settlementConfirmations} settlementAttestations={resolved.settlementAttestations} settledProposalIds={resolved.settledProposalIds} settlementDurability={resolved.settlementDurability} memberId={identity.memberId} onComplete={refresh} />}

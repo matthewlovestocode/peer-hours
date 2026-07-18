@@ -5,6 +5,7 @@ import type { JsonValue } from "@peer-hours/peer-runtime";
 import {
   decodeAcceptedExchangeProposalRecord,
   decodePublishedListingRecord,
+  decodeClosedListingRecord,
   decodeLedgerTransferRecord,
   decodeSettlementAcknowledgementRecord,
   decodeSettlementTransferAttestationRecord,
@@ -125,6 +126,35 @@ test("rejects an invalid renderer-supplied listing kind without appending a reco
   const fixture = service();
   await fixture.identity.createAndAnnounce();
   await assert.rejects(fixture.identity.publishListing({ kind: "other", title: "Garden help", minutes: 90 } as never), /offer or request/i);
+  assert.equal(fixture.feed.records.length, 1);
+});
+
+test("root-signs an immutable closure for an active listing owned by this member", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  assert.ok(status.memberId);
+  const listing = {
+    id: "listing-garden-help", communityId, memberId: status.memberId, kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+
+  await fixture.identity.closeListing({ listing });
+
+  assert.equal(fixture.feed.records.length, 2);
+  assert.deepEqual(decodeClosedListingRecord(fixture.feed.records[1]), {
+    id: "listing-garden-help/closed", communityId, listingId: listing.id, memberId: status.memberId,
+  });
+});
+
+test("does not close another member's listing or append a closure record", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+  const listing = {
+    id: "listing-garden-help", communityId, memberId: "another-member", kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+
+  await assert.rejects(fixture.identity.closeListing({ listing }), /owner/i);
   assert.equal(fixture.feed.records.length, 1);
 });
 

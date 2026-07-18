@@ -8,6 +8,7 @@ import {
 } from "@peer-hours/timebank-settlement";
 import { type RecordEnvelope } from "./envelope.js";
 import { MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord } from "./self-owned-identity-records.js";
+import { isRootSignedMemberSigningKeyLifecycleRecord } from "./root-signed-key-lifecycle-records.js";
 import { resolveTimebankRecords } from "./resolve.js";
 import { isMemberSignedRecord, type MemberSignedRecord } from "./member-signed-record.js";
 import {
@@ -64,7 +65,7 @@ export function resolveTimebankMemberFeeds(
     const sourceFeedPublicKey = history.feedPublicKey.toLowerCase();
     for (const record of history.records) {
       assertRecordLike(record);
-      if (record.communityId === communityId && isMemberAuthoredDomainRecord(record)) {
+      if (record.communityId === communityId && isMemberAuthoredRecord(record)) {
         const declaredKeys = memberFeedKeys.get(record.authorId);
         if (declaredKeys === undefined || !declaredKeys.has(sourceFeedPublicKey)) {
           throw new MemberFeedResolutionError("A member-authored record must arrive through a feed declared by its self-owned identity.");
@@ -113,8 +114,9 @@ function declaredFeedKeysByMember(communityId: string, histories: readonly Membe
   return keysByMember;
 }
 
-/** Limits feed provenance checks to record kinds whose authorship semantics are already explicit. */
-function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
+/** Limits feed provenance checks to records whose author is explicitly a self-owned member. */
+function isMemberAuthoredRecord(record: RecordEnvelope): boolean {
+  if (isRootSignedMemberSigningKeyLifecycleRecord(record)) return true;
   return record.kind === PUBLISHED_LISTING_RECORD_KIND ||
     record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND ||
     record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND ||

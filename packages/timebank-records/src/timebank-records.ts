@@ -24,6 +24,9 @@ export const PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND = "peer-hours/proposed-excha
 /** The immutable record kind used to distribute member-published offers and requests. */
 export const PUBLISHED_LISTING_RECORD_KIND = "peer-hours/published-listing/v1";
 
+/** The immutable record kind used when a listing owner withdraws a published listing. */
+export const CLOSED_LISTING_RECORD_KIND = "peer-hours/closed-listing/v1";
+
 /** The immutable record kind used to distribute attested ledger transfers. */
 export const LEDGER_TRANSFER_RECORD_KIND = "peer-hours/ledger-transfer/v1";
 
@@ -35,6 +38,17 @@ export const SETTLEMENT_TRANSFER_ATTESTATION_RECORD_KIND = "peer-hours/settlemen
 
 /** A normalized record envelope carrying one published member-owned listing. */
 export type PublishedListingRecord = RecordEnvelope<JsonObject>;
+
+/** The immutable public fact that an owner closed one of their published listings. */
+export interface ClosedListing {
+  readonly id: string;
+  readonly communityId: string;
+  readonly listingId: string;
+  readonly memberId: string;
+}
+
+/** A normalized record envelope carrying one owner-authored listing closure. */
+export type ClosedListingRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one immutable accepted exchange proposal. */
 export type AcceptedExchangeProposalRecord = RecordEnvelope<JsonObject>;
@@ -116,6 +130,47 @@ export function reducePublishedListingRecords(
 ): readonly Listing[] {
   assertText(communityId, "Community id");
   return reduceRecords(records, communityId, decodePublishedListingRecord, "published listing");
+}
+
+/** Encodes an owner-authored immutable closure for one already published listing. */
+export function toClosedListingRecord(listing: Listing, metadata: CreateTimebankRecordMetadata): ClosedListingRecord {
+  const normalized = normalizePublishedListing(listing);
+  if (metadata.authorId !== normalized.memberId) {
+    throw new RecordMappingError("A closed listing record must be authored by its member owner.");
+  }
+  const closure: ClosedListing = Object.freeze({
+    id: closedListingRecordId(normalized.id),
+    communityId: normalized.communityId,
+    listingId: normalized.id,
+    memberId: normalized.memberId,
+  });
+  return createRecordEnvelope({
+    id: closure.id,
+    schema: TIMEBANK_RECORD_SCHEMA,
+    version: TIMEBANK_RECORD_VERSION,
+    communityId: closure.communityId,
+    kind: CLOSED_LISTING_RECORD_KIND,
+    occurredAt: metadata.occurredAt,
+    authorId: metadata.authorId,
+    payload: closure as unknown as JsonObject,
+  });
+}
+
+/** Decodes one immutable listing closure without deciding whether its referenced listing exists. */
+export function decodeClosedListingRecord(record: unknown): ClosedListing {
+  const normalizedRecord = normalizeRecord(record);
+  assertTimebankEnvelope(normalizedRecord);
+  assertRecordKind(normalizedRecord, CLOSED_LISTING_RECORD_KIND, "closed listing");
+  const closure = normalizeClosedListing(normalizedRecord.payload);
+  assertEnvelopeMatchesPayload(normalizedRecord, closure.id, closure.communityId, "closed listing");
+  assertRecordAuthor(normalizedRecord, closure.memberId, "closed listing");
+  return closure;
+}
+
+/** Reduces immutable listing closures by their deterministic listing-specific record identity. */
+export function reduceClosedListingRecords(records: readonly unknown[], communityId: string): readonly ClosedListing[] {
+  assertText(communityId, "Community id");
+  return reduceRecords(records, communityId, decodeClosedListingRecord, "closed listing");
 }
 
 /** Encodes an accepted exchange proposal in its immutable community record envelope. */
@@ -418,6 +473,20 @@ function normalizePublishedListing(value: unknown): Listing {
   });
 }
 
+/** Normalizes the minimal immutable closure fact while deferring listing linkage to resolution. */
+function normalizeClosedListing(value: unknown): ClosedListing {
+  if (!isRecord(value)) throw new RecordMappingError("A closed listing payload must be an object.");
+  const closure = value as Partial<ClosedListing>;
+  assertText(closure.id, "Closed listing id");
+  assertText(closure.communityId, "Closed listing community id");
+  assertText(closure.listingId, "Closed listing target id");
+  assertText(closure.memberId, "Closed listing member id");
+  if (closure.id !== closedListingRecordId(closure.listingId)) {
+    throw new RecordMappingError("A closed listing record id must name its target listing.");
+  }
+  return Object.freeze({ id: closure.id, communityId: closure.communityId, listingId: closure.listingId, memberId: closure.memberId });
+}
+
 /** Normalizes a transfer through the ledger contract while converting malformed input to a record error. */
 function normalizeTransfer(value: unknown): Transfer {
   if (!isRecord(value)) throw new RecordMappingError("A ledger transfer payload must be an object.");
@@ -546,6 +615,11 @@ function assertRecordAuthor(record: RecordEnvelope, expectedAuthorId: string, la
  */
 function proposalRecordId(proposalId: string, lifecycle: "proposed" | "accepted"): string {
   return `${proposalId}/${lifecycle}`;
+}
+
+/** Derives the one deterministic immutable closure-record identity for a listing. */
+function closedListingRecordId(listingId: string): string {
+  return `${listingId}/closed`;
 }
 
 /** Ensures a lifecycle-specific proposal envelope still names the exact domain proposal and community. */

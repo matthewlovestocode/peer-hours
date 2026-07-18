@@ -4,6 +4,7 @@ import test from "node:test";
 import { type ExchangeProposal } from "@peer-hours/timebank-domain";
 import {
   canonicalMemberFeedDeclarationPayload,
+  canonicalRootSignedMemberSigningKeyLifecyclePayload,
   canonicalTransferPayload,
   createMemberFeedDeclaration,
   createSelfOwnedMemberIdentity,
@@ -20,13 +21,16 @@ import {
 import {
   memberSigningKeyAuthorizationEventToRecord,
   memberFeedDeclarationToRecord,
+  rootSignedMemberSigningKeyLifecycleToRecord,
   canonicalMemberSignedRecordPayload,
   createMemberSignedRecord,
   resolveTimebankRecords,
   resolveTimebankMemberFeeds,
   rootKeyIdForMember,
   toAcceptedExchangeProposalRecord,
+  toClosedListingRecord,
   toLedgerTransferRecord,
+  toPublishedListingRecord,
   toProposedExchangeProposalRecord,
   toSettlementAcknowledgementRecord,
   toSettlementTransferAttestationRecord,
@@ -138,6 +142,84 @@ test("resolves unordered replicated key, proposal, and transfer records into det
   assert.deepEqual(state.ledger.balances, { [providerMemberId]: 90, [recipientMemberId]: -90 });
   assert.equal(state.acceptedProposals.length, 1);
   assert.equal(state.authorizations.filter(({ active }) => active).length, 2);
+});
+
+test("removes only an owner-signed closure's published listing from new-proposal availability", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const authorization = memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+    eventId: "provider-listing-key", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+  }));
+  const listing = {
+    id: "listing-garden-help", communityId, memberId: providerMemberId, kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const published = signedRecord(toPublishedListingRecord(listing, metadata), providerKeys.privateKey, "provider-key");
+  const closure = signedRecord(toClosedListingRecord(listing, { ...metadata, occurredAt: "2026-07-18T13:01:00.000Z" }), providerKeys.privateKey, "provider-key");
+
+  assert.equal(resolveTimebankRecords(communityId, [authorization, published]).publishedListings.length, 1);
+  assert.equal(resolveTimebankRecords(communityId, [authorization, published, closure]).publishedListings.length, 0);
+});
+
+test("rejects an owner-signed listing closure that references no published listing", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const authorization = memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+    eventId: "provider-listing-key", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+  }));
+  const missingListing = {
+    id: "listing-missing", communityId, memberId: providerMemberId, kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const closure = signedRecord(toClosedListingRecord(missingListing, metadata), providerKeys.privateKey, "provider-key");
+
+  assert.throws(() => resolveTimebankRecords(communityId, [authorization, closure]), /published listing/i);
+});
+
+test("resolves a root-authorized recovery key only when the matching self-owned feed is declared", () => {
+  const root = generateKeyPairSync("ed25519");
+  const replacement = generateKeyPairSync("ed25519");
+  const rootPublicKeyPem = publicKeyPem(root.publicKey);
+  const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem }).memberId;
+  const declarationUnsigned = {
+    schema: "peer-hours/member-feed-declaration/v1" as const,
+    memberId,
+    communityId,
+    feedPublicKey: "b".repeat(64),
+    occurredAt: "2026-07-18T12:00:00.000Z",
+    rootPublicKeyPem,
+  };
+  const declaration = memberFeedDeclarationToRecord({
+    ...declarationUnsigned,
+    signature: sign(null, canonicalMemberFeedDeclarationPayload(declarationUnsigned), root.privateKey).toString("base64url"),
+  });
+  const lifecycleUnsigned = {
+    schema: "peer-hours/root-signed-member-key-lifecycle/v1" as const,
+    eventId: "member-recovery-device",
+    communityId,
+    memberId,
+    keyId: "recovered-desktop",
+    action: "activate" as const,
+    occurredAt: "2026-07-18T12:01:00.000Z",
+    publicKeyPem: publicKeyPem(replacement.publicKey),
+    rootPublicKeyPem,
+  };
+  const lifecycle = rootSignedMemberSigningKeyLifecycleToRecord({
+    ...lifecycleUnsigned,
+    signature: sign(null, canonicalRootSignedMemberSigningKeyLifecyclePayload(lifecycleUnsigned), root.privateKey).toString("base64url"),
+  });
+
+  const state = resolveTimebankRecords(communityId, [lifecycle, declaration]);
+  assert.equal(state.authorizations.find(({ keyId }) => keyId === "recovered-desktop")?.active, true);
+  assert.throws(() => resolveTimebankRecords(communityId, [lifecycle]), /requires matching member feed provenance/i);
+  assert.throws(
+    () => resolveTimebankRecords(communityId, [
+      declaration,
+      memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+        eventId: "unsigned-takeover", communityId, memberId, keyId: "attacker-device", action: "activate",
+        occurredAt: "2026-07-18T12:02:00.000Z", publicKeyPem: publicKeyPem(replacement.publicKey),
+      })),
+    ]),
+    /unsigned legacy key lifecycle records/i,
+  );
 });
 
 test("admits an accepted proposal from a self-owned root identity without a community authorization event", () => {

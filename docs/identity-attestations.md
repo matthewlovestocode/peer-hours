@@ -56,10 +56,20 @@ sequenceDiagram
     V->>V: Resolve authorized keyId and verify signature
 ```
 
-## Remaining protocol hardening
+## Root-signed device-key recovery
 
-The verifier is intentionally local and in-memory. The identity package now defines the
-replicated-ready event shape and deterministic key lifecycle reduction, including independent
-key rotation and revocation. Persisting and replicating those events still needs a formally
-versioned canonical JSON profile and network storage. Private keys must remain local to a
-member’s device and never enter the renderer or a community node’s public API.
+Self-owned member identities now have a concrete non-authoritative device-key lifecycle. The
+member's root key signs a versioned canonical statement that activates a new device key or
+permanently revokes an existing `keyId`. A new key can overlap the old key while a member moves
+to another device. Once a revocation is in the replicated history, later activation of that same
+key ID is rejected, including delayed replay.
+
+The record resolver accepts a root-signed lifecycle statement only beside a matching root-signed
+member-feed declaration for the same member and community. That proves provenance without giving
+a community node, bootstrap endpoint, or another member an approval role. A root-key compromise
+cannot be repaired under the same self-certifying member ID: the honest response is a new identity
+plus the community's separately defined correction/dispute process.
+
+Private keys remain local to protected device custody and never enter the renderer or a community
+node's public API. Desktop wiring for creating, storing, and publishing lifecycle statements is a
+separate follow-up; the shared protocol does not manufacture or export private keys.

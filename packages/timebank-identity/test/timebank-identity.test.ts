@@ -6,6 +6,7 @@ import {
   canonicalTransferPayload,
   canonicalMemberFeedDeclarationPayload,
   canonicalMemberFeedAnnouncementPayload,
+  canonicalRootSignedMemberSigningKeyLifecyclePayload,
   createMemberFeedAnnouncement,
   createMemberFeedDeclaration,
   createMemberSigningKeyAuthorizationEvent,
@@ -14,6 +15,8 @@ import {
   createMemberSigningKeyAuthorization,
   createParticipantTransferAttestation,
   createSelfOwnedMemberIdentity,
+  createRootSignedMemberSigningKeyLifecycle,
+  reduceRootSignedMemberSigningKeyLifecycles,
   reduceMemberSigningKeyAuthorizationEvents,
   transferPayloadDigest,
   type MemberSigningKeyAuthorizationEvent,
@@ -436,4 +439,28 @@ test("rejects malformed authorization lifecycle events before reduction", () => 
       }),
     /canonical UTC ISO-8601/i,
   );
+});
+
+test("accepts a root-signed overlapping rotation, permanently retires the revoked key, and rejects replayed reactivation", () => {
+  const root = memberKeyPair();
+  const original = memberKeyPair();
+  const rotated = memberKeyPair();
+  const rootPublicKeyPem = root.publicKey.export({ format: "pem", type: "spki" }).toString();
+  const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem }).memberId;
+  const lifecycle = (input: { readonly eventId: string; readonly action: "activate" | "revoke"; readonly occurredAt: string; readonly keyId: string; readonly publicKey?: ReturnType<typeof memberKeyPair>["publicKey"] }) => {
+    const unsigned = input.action === "activate"
+      ? { schema: "peer-hours/root-signed-member-key-lifecycle/v1" as const, eventId: input.eventId, communityId, memberId, keyId: input.keyId, action: "activate" as const, occurredAt: input.occurredAt, publicKeyPem: input.publicKey!.export({ format: "pem", type: "spki" }).toString(), rootPublicKeyPem }
+      : { schema: "peer-hours/root-signed-member-key-lifecycle/v1" as const, eventId: input.eventId, communityId, memberId, keyId: input.keyId, action: "revoke" as const, occurredAt: input.occurredAt, rootPublicKeyPem };
+    return createRootSignedMemberSigningKeyLifecycle({ ...unsigned, signature: sign(null, canonicalRootSignedMemberSigningKeyLifecyclePayload(unsigned), root.privateKey).toString("base64url") });
+  };
+  const activateOriginal = lifecycle({ eventId: "root-activate-original", action: "activate", occurredAt: "2026-07-18T12:00:00.000Z", keyId: "device-one", publicKey: original.publicKey });
+  const activateRotated = lifecycle({ eventId: "root-activate-rotated", action: "activate", occurredAt: "2026-07-18T12:01:00.000Z", keyId: "device-two", publicKey: rotated.publicKey });
+  const revokeOriginal = lifecycle({ eventId: "root-revoke-original", action: "revoke", occurredAt: "2026-07-18T12:02:00.000Z", keyId: "device-one" });
+
+  const reduced = reduceRootSignedMemberSigningKeyLifecycles([revokeOriginal, activateRotated, activateOriginal]);
+  assert.deepEqual(reduced.map(({ keyId, active }) => ({ keyId, active })), [{ keyId: "device-two", active: true }, { keyId: "device-one", active: false }]);
+
+  const replayedActivation = lifecycle({ eventId: "root-replay-original", action: "activate", occurredAt: "2026-07-18T12:03:00.000Z", keyId: "device-one", publicKey: original.publicKey });
+  assert.throws(() => reduceRootSignedMemberSigningKeyLifecycles([activateOriginal, revokeOriginal, replayedActivation]), /cannot be activated again/i);
+  assert.throws(() => createRootSignedMemberSigningKeyLifecycle({ ...activateRotated, signature: activateOriginal.signature }), /valid self-owned root signature/i);
 });

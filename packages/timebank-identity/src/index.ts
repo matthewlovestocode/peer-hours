@@ -54,6 +54,35 @@ export type MemberSigningKeyAuthorizationEvent = MemberSigningKeyActivationEvent
 /** Input used to create one immutable member signing-key authorization lifecycle event. */
 export type CreateMemberSigningKeyAuthorizationEventInput = MemberSigningKeyAuthorizationEvent;
 
+/** The domain-separation marker for root-signed member signing-key lifecycle statements. */
+export const ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA = "peer-hours/root-signed-member-key-lifecycle/v1";
+
+/**
+ * A self-certifying, root-signed lifecycle statement for one member signing key.
+ *
+ * The member's long-lived root key is a recovery authority for its own keys only. It cannot
+ * admit another member, alter a balance, or make an infrastructure service authoritative.
+ */
+export type RootSignedMemberSigningKeyLifecycle = (MemberSigningKeyActivationEvent | MemberSigningKeyRevocationEvent) & {
+  readonly schema: typeof ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA;
+  readonly rootPublicKeyPem: string;
+  readonly signature: string;
+};
+
+/** Unsigned lifecycle terms supplied to the canonical root-signing payload builder. */
+export type UnsignedRootSignedMemberSigningKeyLifecycle =
+  | (MemberSigningKeyActivationEvent & {
+    readonly schema: typeof ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA;
+    readonly rootPublicKeyPem: string;
+  })
+  | (MemberSigningKeyRevocationEvent & {
+    readonly schema: typeof ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA;
+    readonly rootPublicKeyPem: string;
+  });
+
+/** Input used to validate a root-signed member signing-key lifecycle statement. */
+export type CreateRootSignedMemberSigningKeyLifecycleInput = RootSignedMemberSigningKeyLifecycle;
+
 /** Error raised when a member signing-key authorization is structurally invalid. */
 export class IdentityRuleError extends Error {
   /** Creates an identity-rule error with a readable explanation. */
@@ -272,6 +301,108 @@ export function createMemberSigningKeyAuthorizationEvent(
     action: input.action,
     occurredAt: input.occurredAt,
   });
+}
+
+/**
+ * Returns the exact domain-separated bytes a self-owned root key signs for a key lifecycle action.
+ *
+ * A caller normally obtains these bytes, signs them in protected key custody, then passes the
+ * resulting statement to `createRootSignedMemberSigningKeyLifecycle` for verification.
+ */
+export function canonicalRootSignedMemberSigningKeyLifecyclePayload(
+  statement: UnsignedRootSignedMemberSigningKeyLifecycle,
+): Buffer {
+  if (statement.schema !== ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA) {
+    throw new IdentityRuleError("A root-signed member key lifecycle statement must use the current schema.");
+  }
+  const event = statement.action === "activate"
+    ? createMemberSigningKeyAuthorizationEvent({
+      eventId: statement.eventId,
+      communityId: statement.communityId,
+      memberId: statement.memberId,
+      keyId: statement.keyId,
+      action: "activate",
+      occurredAt: statement.occurredAt,
+      publicKeyPem: statement.publicKeyPem,
+    })
+    : createMemberSigningKeyAuthorizationEvent({
+      eventId: statement.eventId,
+      communityId: statement.communityId,
+      memberId: statement.memberId,
+      keyId: statement.keyId,
+      action: "revoke",
+      occurredAt: statement.occurredAt,
+    });
+  const identity = createSelfOwnedMemberIdentity({ rootPublicKeyPem: statement.rootPublicKeyPem });
+  if (event.memberId !== identity.memberId) {
+    throw new IdentityRuleError("A root-signed member key lifecycle statement member id must match its root public key.");
+  }
+  return Buffer.from(JSON.stringify({
+    schema: ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA,
+    eventId: event.eventId,
+    communityId: event.communityId,
+    memberId: event.memberId,
+    keyId: event.keyId,
+    action: event.action,
+    occurredAt: event.occurredAt,
+    publicKeyPem: event.action === "activate" ? event.publicKeyPem : null,
+    rootPublicKeyPem: statement.rootPublicKeyPem,
+  }), "utf8");
+}
+
+/**
+ * Validates an immutable root-signed key activation or permanent revocation statement.
+ *
+ * The root key is deliberately not accepted as proof that a member belongs to a particular
+ * community; feed provenance and any community participation policy remain separate checks.
+ */
+export function createRootSignedMemberSigningKeyLifecycle(
+  input: CreateRootSignedMemberSigningKeyLifecycleInput,
+): RootSignedMemberSigningKeyLifecycle {
+  const payload = canonicalRootSignedMemberSigningKeyLifecyclePayload(input);
+  const signature = decodeBase64UrlSignature(input.signature);
+  if (signature === undefined || !verify(null, payload, parseEd25519PublicKey(input.rootPublicKeyPem), signature)) {
+    throw new IdentityRuleError("A member key lifecycle statement must have a valid self-owned root signature.");
+  }
+  const event = createMemberSigningKeyAuthorizationEvent(input as MemberSigningKeyAuthorizationEvent);
+  return Object.freeze({
+    schema: ROOT_SIGNED_MEMBER_KEY_LIFECYCLE_SCHEMA,
+    ...event,
+    rootPublicKeyPem: input.rootPublicKeyPem,
+    signature: input.signature,
+  });
+}
+
+/**
+ * Reduces root-signed lifecycle statements after proving their self-certifying owner relation.
+ *
+ * A key may overlap another active key during rotation. Once revoked, that key id is permanently
+ * retired: a later activation is rejected rather than allowing a replayed or compromised key to
+ * become active again under an unordered replicated history.
+ */
+export function reduceRootSignedMemberSigningKeyLifecycles(
+  statements: readonly RootSignedMemberSigningKeyLifecycle[],
+): readonly MemberSigningKeyAuthorization[] {
+  const statementsById = new Map<string, RootSignedMemberSigningKeyLifecycle>();
+  for (const statement of statements) {
+    const normalized = createRootSignedMemberSigningKeyLifecycle(statement);
+    const existing = statementsById.get(normalized.eventId);
+    if (existing !== undefined && rootSignedLifecycleFingerprint(existing) !== rootSignedLifecycleFingerprint(normalized)) {
+      throw new IdentityRuleError("Conflicting root-signed member key lifecycle statements share the same event id.");
+    }
+    statementsById.set(normalized.eventId, normalized);
+  }
+
+  const retiredKeys = new Set<string>();
+  for (const statement of [...statementsById.values()].sort(compareAuthorizationEvents)) {
+    const key = keyFor(statement.communityId, statement.memberId, statement.keyId);
+    if (statement.action === "revoke") {
+      retiredKeys.add(key);
+    } else if (retiredKeys.has(key)) {
+      throw new IdentityRuleError("A revoked member signing key id cannot be activated again.");
+    }
+  }
+  return reduceMemberSigningKeyAuthorizationEvents([...statementsById.values()]);
 }
 
 /**
@@ -557,6 +688,16 @@ function authorizationEventFingerprint(event: MemberSigningKeyAuthorizationEvent
     action: event.action,
     occurredAt: event.occurredAt,
     publicKeyPem: event.action === "activate" ? event.publicKeyPem : null,
+  });
+}
+
+/** Produces stable terms for duplicate detection before root-signed lifecycle reduction. */
+function rootSignedLifecycleFingerprint(statement: RootSignedMemberSigningKeyLifecycle): string {
+  return JSON.stringify({
+    schema: statement.schema,
+    event: authorizationEventFingerprint(statement),
+    rootPublicKeyPem: statement.rootPublicKeyPem,
+    signature: statement.signature,
   });
 }
 

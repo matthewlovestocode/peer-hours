@@ -64,6 +64,12 @@ export interface PublishListingInput {
   readonly owner: MemberProfile;
 }
 
+/** Input required for a listing owner to permanently close one published listing. */
+export interface CloseListingInput {
+  readonly listing: Listing;
+  readonly owner: MemberProfile;
+}
+
 /** Input required to propose an exchange between one offer and one request. */
 export interface ProposeExchangeInput {
   readonly id: string;
@@ -123,6 +129,16 @@ export function publishListing(input: PublishListingInput): Listing {
 
   assertListingOwner(listing, owner);
   return { ...listing, status: "published" };
+}
+
+/** Closes a published listing only when its owner acts within the listing's community. */
+export function closeListing(input: CloseListingInput): Listing {
+  const { listing, owner } = input;
+  if (listing.status !== "published") {
+    throw new DomainRuleError("Only published listings can be closed.");
+  }
+  assertListingOwner(listing, owner);
+  return { ...listing, status: "closed" };
 }
 
 /** Proposes a valid exchange from one published offer to one published request. */

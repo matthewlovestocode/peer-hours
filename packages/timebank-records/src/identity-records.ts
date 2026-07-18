@@ -105,6 +105,9 @@ export function memberSigningKeyAuthorizationEventFromRecord(
   if (normalizedRecord.id !== event.eventId) {
     throw new IdentityRecordError("Identity record id must match its lifecycle event id.");
   }
+  if (normalizedRecord.authorId !== event.memberId) {
+    throw new IdentityRecordError("Identity record author must match its lifecycle event member.");
+  }
   if (normalizedRecord.communityId !== event.communityId) {
     throw new IdentityRecordError("Identity record community must match its lifecycle event community.");
   }

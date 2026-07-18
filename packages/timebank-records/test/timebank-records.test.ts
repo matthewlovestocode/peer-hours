@@ -9,6 +9,7 @@ import { transferPayloadDigest } from "@peer-hours/timebank-identity";
 import { createRecordEnvelope } from "../src/envelope.js";
 import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  CLOSED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   RecordMappingError,
@@ -23,8 +24,10 @@ import {
   toLedgerTransferRecord,
   toDualConfirmedSettlementTransferRecord,
   decodePublishedListingRecord,
+  decodeClosedListingRecord,
   decodeSettlementAcknowledgementRecord,
   toPublishedListingRecord,
+  toClosedListingRecord,
   toSettlementAcknowledgementRecord,
   decodeSettlementTransferAttestationRecord,
   toSettlementTransferAttestationRecord,
@@ -97,6 +100,18 @@ test("maps and decodes an immutable accepted exchange proposal", () => {
   assert.equal(record.kind, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND);
   assert.equal(record.communityId, communityId);
   assert.deepEqual(decodeAcceptedExchangeProposalRecord(record), acceptedProposal());
+});
+
+test("maps a deterministic owner-authored listing closure without changing the original listing", () => {
+  const record = toClosedListingRecord(publishedListing(), recordMetadata);
+
+  assert.equal(record.kind, CLOSED_LISTING_RECORD_KIND);
+  assert.equal(record.id, "listing-1/closed");
+  assert.deepEqual(decodeClosedListingRecord(record), {
+    id: "listing-1/closed", communityId, listingId: "listing-1", memberId: "member-provider",
+  });
+  assert.throws(() => toClosedListingRecord(publishedListing(), { ...recordMetadata, authorId: "member-recipient" }), /owner/i);
+  assert.throws(() => decodeClosedListingRecord({ ...record, payload: { ...record.payload, memberId: "member-recipient" } }), /payload owner/i);
 });
 
 test("maps a pending proposal only when its creator authors the record", () => {

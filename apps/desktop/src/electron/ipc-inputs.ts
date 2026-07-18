@@ -12,6 +12,11 @@ export function parseRecordId(value: unknown, label = "Record id"): string {
   return value;
 }
 
+/** Validates a renderer-selected listing identifier before local verified-state lookup. */
+export function parseListingId(value: unknown): string {
+  return parseRecordId(value, "Listing id");
+}
+
 /** Validates a listing request before it reaches the signing service or domain constructors. */
 export function parsePublishListingRequest(value: unknown): PublishListingRequest {
   if (!isRecord(value) || (value.kind !== "offer" && value.kind !== "request")) {

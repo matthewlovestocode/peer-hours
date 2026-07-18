@@ -21,6 +21,7 @@ The identity package sits between signed member activity and the accounting rule
 
 - Derives a self-certifying `memberId` from an Ed25519 root public key.
 - Validates a root-signed declaration that connects that identity to one community-scoped Hypercore member-feed key.
+- Validates root-signed activation and permanent revocation statements for device signing keys. The root key is a member-owned recovery authority for that member only.
 
 - Validate immutable, community-scoped authorizations for Ed25519 public keys.
 - Create activation and revocation events for a member signing key, with canonical UTC timestamps and stable event IDs.
@@ -35,7 +36,7 @@ The identity package sits between signed member activity and the accounting rule
 ## Explicit non-responsibilities
 
 - It does not create private keys, store private keys, or expose private keys to the desktop renderer or a community node API.
-- A valid self-owned root declaration is admitted by the feed-aware timebank record resolver for that member's signed records. Key rotation, recovery, privacy, and richer discovery policy remain protocol work. The current authorization-event issuer model remains a temporary compatibility boundary and must not become a central admission mechanism.
+- A valid self-owned root declaration is admitted by the feed-aware timebank record resolver for that member's signed records. It may also prove that root-signed device-key lifecycle statements belong to that member. The older unsigned authorization-event issuer model remains a compatibility boundary and must not become a central admission mechanism.
 - It does not persist, replicate, discover, synchronize, or fetch authorization events.
 - It does not turn the current event shape into a network protocol. A formally versioned canonical JSON profile and replicated record storage are still needed.
 - It does not create, validate, or settle ledger transfers; `@peer-hours/timebank-ledger` owns settlement invariants and balance derivation.
@@ -59,7 +60,15 @@ The identity package sits between signed member activity and the accounting rule
 
 Use `reduceMemberSigningKeyAuthorizationEvents(events)` to derive current authorizations from an unordered event history. Ordering is determined by canonical `occurredAt` timestamp and then `eventId`; a duplicated event ID with different immutable terms is rejected.
 
-These events are replicated-ready data shapes, not yet replicated facts. Receiving a well-formed event does not currently prove that its sender had community authority to issue it.
+These events are replicated-ready data shapes retained for compatibility. Receiving a well-formed event does not prove that its sender had authority to issue it; new self-owned member flows must use the root-signed lifecycle described below.
+
+### Root-signed device-key rotation and recovery
+
+`canonicalRootSignedMemberSigningKeyLifecyclePayload(statement)` returns the exact bytes a member's root private key signs. After protected key custody signs those bytes, `createRootSignedMemberSigningKeyLifecycle(statement)` verifies the signature and the self-certifying `memberId`/root-key relationship.
+
+Each statement activates one immutable device `keyId` and public key, or permanently revokes that key ID. Multiple device keys may overlap during rotation. A revoked ID cannot be activated again, preventing a delayed or replayed activation from reviving a compromised device. `reduceRootSignedMemberSigningKeyLifecycles()` is delivery-order independent and rejects conflicting event IDs and public-key reassignment.
+
+The records package accepts these statements only when a matching root-signed member-feed declaration is present for the same community and member. This is provenance, not admission: a community node neither approves a recovery nor controls the member's identity. Root-key compromise cannot be repaired under the same self-certifying member ID; members must create a new identity and use their community's separate correction/dispute process.
 
 ### Transfer signing and verification
 

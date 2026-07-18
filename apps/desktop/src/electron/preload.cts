@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("peerHours", {
   getMemberIdentityStatus: () => ipcRenderer.invoke("member:identity-status"),
   createAndAnnounceMemberIdentity: () => ipcRenderer.invoke("member:create-and-announce"),
   publishListing: (input: { kind: "offer" | "request"; title: string; minutes: number }) => ipcRenderer.invoke("member:publish-listing", input),
+  closeListing: (listingId: string) => ipcRenderer.invoke("member:close-listing", listingId),
   getResolvedMemberState: () => ipcRenderer.invoke("member:resolved"),
   createProposal: (input: { offerId: string; requestId: string; minutes: number }) => ipcRenderer.invoke("member:create-proposal", input),
   acceptProposal: (proposalId: string) => ipcRenderer.invoke("member:accept-proposal", proposalId),

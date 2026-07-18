@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
-import { acceptExchangeProposal, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
+import { acceptExchangeProposal, closeListing, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createParticipantTransferAttestation, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeLedgerTransferRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toDualConfirmedSettlementTransferRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord, toSettlementTransferAttestationRecord, type JsonObject, type RecordEnvelope } from "@peer-hours/timebank-records";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, decodeLedgerTransferRecord, decodeSettlementAcknowledgementRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toClosedListingRecord, toDualConfirmedSettlementTransferRecord, toProposedExchangeProposalRecord, toPublishedListingRecord, toSettlementAcknowledgementRecord, toSettlementTransferAttestationRecord, type JsonObject, type RecordEnvelope } from "@peer-hours/timebank-records";
 import { createDualConfirmedSettlementTransferTerms, createSettlementAcknowledgement, createSettlementTransferAttestation, type SettlementAcknowledgement, type SettlementTransferAttestation } from "@peer-hours/timebank-settlement";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
@@ -11,6 +11,8 @@ export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "rea
 export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
 export type CreateProposalInput = { offer: Listing; request: Listing; minutes: number };
 export type AcceptProposalInput = { proposal: ExchangeProposal; offer: Listing; request: Listing };
+/** A verified active listing supplied by the main process for owner-authorized withdrawal. */
+export type CloseListingInput = { listing: Listing };
 /** Verified replicated evidence needed to advance one settlement from attestation to publication. */
 export type AdvanceSettlementInput = { proposal: ExchangeProposal; acknowledgements: readonly SettlementAcknowledgement[]; attestations: readonly SettlementTransferAttestation[] };
 
@@ -42,6 +44,8 @@ export class MemberIdentityService {
   private readonly settlementAcknowledgementsInProgress = new Set<string>();
   /** Serializes a participant's attestation and deterministic transfer publication for one proposal. */
   private readonly settlementAdvancementsInProgress = new Set<string>();
+  /** Prevents concurrent renderer requests from appending duplicate listing closure records. */
+  private readonly listingClosuresInProgress = new Set<string>();
   /** Shares one identity setup operation so repeated renderer clicks cannot create competing root identities. */
   private identitySetupInProgress: Promise<MemberIdentityStatus> | null = null;
 
@@ -109,6 +113,28 @@ export class MemberIdentityService {
       signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)),
     });
     await this.memberFeed.appendRecord(signed as unknown as JsonValue);
+  }
+
+  /** Root-signs an immutable closure for this member's currently published listing. */
+  async closeListing(input: CloseListingInput): Promise<void> {
+    const communityId = this.memberFeed.communityId();
+    const stored = await this.identityStore.read();
+    if (!communityId || stored === null || !this.secureStorage.isEncryptionAvailable()) {
+      throw new Error("A protected identity and community scope are required to close a listing.");
+    }
+    this.assertStoredIdentity(stored);
+    const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    if (input.listing.communityId !== communityId) throw new Error("The listing is outside the current community scope.");
+    const owner = createMemberProfile({ id: memberId, communityId, displayName: memberId });
+    closeListing({ listing: input.listing, owner });
+    if (this.listingClosuresInProgress.has(input.listing.id)) throw new Error("This listing is already being closed.");
+    this.listingClosuresInProgress.add(input.listing.id);
+    try {
+      const record = toClosedListingRecord(input.listing, { occurredAt: new Date().toISOString(), authorId: memberId });
+      await this.memberFeed.appendRecord(this.signRecord(stored, memberId, record));
+    } finally {
+      this.listingClosuresInProgress.delete(input.listing.id);
+    }
   }
 
   /** Creates and root-signs a proposal after main-process resolution supplies verified published listings. */

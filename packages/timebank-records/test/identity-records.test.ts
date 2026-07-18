@@ -89,6 +89,10 @@ test("rejects records whose kind, envelope scope, or immutable identity payload 
     IdentityRecordError,
   );
   assert.throws(
+    () => memberSigningKeyAuthorizationEventFromRecord({ ...record, authorId: "member-someone-else" }),
+    IdentityRecordError,
+  );
+  assert.throws(
     () =>
       memberSigningKeyAuthorizationEventFromRecord({
         ...record,

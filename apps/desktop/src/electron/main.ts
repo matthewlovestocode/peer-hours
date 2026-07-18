@@ -6,7 +6,7 @@ import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
 import { presentResolvedMemberState } from "./resolved-member-state.js";
 import { collectVerifiedSettlementDurability } from "./settlement-durability.js";
-import { parseCreateProposalRequest, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
+import { parseCreateProposalRequest, parseListingId, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
 
 const dataDirectory = join(app.getPath("userData"), "peer-hours");
 const runtime = new PeerRuntime(
@@ -69,6 +69,19 @@ app.whenReady().then(() => {
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
   ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(parsePublishListingRequest(input)));
+  ipcMain.handle("member:close-listing", async (_event, listingId: unknown) => {
+    const closedListingId = parseListingId(listingId);
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before closing a listing.");
+    const identity = await memberIdentity.status();
+    if (identity.state !== "ready" || identity.memberId === null) throw new Error("Create your self-owned identity before closing a listing.");
+    const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
+    const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
+    const resolved = resolveTimebankMemberFeeds(communityId, histories);
+    const listing = resolved.publishedListings.find((item) => item.id === closedListingId);
+    if (!listing || listing.memberId !== identity.memberId) throw new Error("Choose one of your locally accepted active listings to close.");
+    await memberIdentity.closeListing({ listing });
+  });
   ipcMain.handle("member:create-proposal", async (_event, input: { offerId?: unknown; requestId?: unknown; minutes?: unknown }) => {
     const request = parseCreateProposalRequest(input);
     const communityId = runtime.status().community?.communityId;

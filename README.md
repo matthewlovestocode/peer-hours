@@ -1,13 +1,14 @@
 # Peer Hours
 
-Peer Hours is an npm workspaces monorepo for desktop applications and shared packages. The repository currently contains a minimal Electron + React desktop application and is ready to grow with additional applications and reusable packages.
+Peer Hours is an npm workspaces monorepo for desktop applications, network nodes, and shared packages. The repository currently contains a minimal Electron + React desktop application and a proof-of-concept replication node.
 
 ## Repository structure
 
 ```text
 peer-hours/
 ├── apps/
-│   └── desktop/             # Electron + React desktop application
+│   ├── desktop/             # Electron + React desktop application
+│   └── node/                # Headless replication node
 │       ├── src/electron/    # Main and preload processes
 │       ├── src/renderer/    # React renderer process
 │       ├── index.html       # Renderer entry document
@@ -27,6 +28,8 @@ peer-hours/
 Applications are deployable products. Each application has its own `package.json`, source tree, build configuration, and scripts. Applications should generally remain private and should not be published to npm.
 
 The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite.
+
+The `@peer-hours/node` application is a small headless proof of concept. It keeps a persistent Hypercore, discovers peers with Hyperswarm, replicates the core, and exposes a health endpoint. It does not yet implement the Peer Hours ledger or multi-writer transaction rules.
 
 ### `packages/`
 
@@ -80,6 +83,23 @@ npm --workspace @peer-hours/desktop run package:mac
 
 The packaged `.dmg` and `.zip` files are written to the desktop workspace’s `dist/` directory. These artifacts are ignored by Git.
 
+## Replication node
+
+Build and start the node locally:
+
+```sh
+npm --workspace @peer-hours/node run build
+npm --workspace @peer-hours/node run start
+```
+
+By default, node data is stored in `apps/node/data/`. Set `DATA_DIR` to use another location, such as a mounted Render disk:
+
+```sh
+DATA_DIR=/var/data npm --workspace @peer-hours/node run start
+```
+
+The health check is available at `http://localhost:10000/health`. For Render, use `npm --workspace @peer-hours/node run build` as the build command and `npm --workspace @peer-hours/node run start` as the start command. Render supplies the `PORT` environment variable.
+
 ## Root commands
 
 The root scripts run the corresponding script in every workspace that defines it:
@@ -88,6 +108,7 @@ The root scripts run the corresponding script in every workspace that defines it
 npm run typecheck
 npm run build
 npm run clean
+npm test
 ```
 
 Run a command for a specific workspace with either its package name or path:
@@ -96,6 +117,14 @@ Run a command for a specific workspace with either its package name or path:
 npm --workspace @peer-hours/desktop run build
 npm --workspace apps/desktop run dev
 ```
+
+The node workspace currently uses Node’s built-in test runner through `tsx`:
+
+```sh
+npm --workspace @peer-hours/node test
+```
+
+Tests live in the workspace’s `test/` directory. The first test covers the node health payload; replication and ledger integration tests should be added as those behaviors are implemented.
 
 ## Adding a new application
 

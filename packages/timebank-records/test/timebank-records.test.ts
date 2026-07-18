@@ -17,6 +17,10 @@ import {
   decodeProposedExchangeProposalRecord,
   toLedgerTransferRecord,
   toDualConfirmedSettlementTransferRecord,
+  decodePublishedListingRecord,
+  decodeSettlementAcknowledgementRecord,
+  toPublishedListingRecord,
+  toSettlementAcknowledgementRecord,
 } from "../src/timebank-records.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -63,6 +67,19 @@ function transfer(id = "transfer-1") {
       { memberId: "member-provider", keyId: "provider-key", payloadDigest: "digest", signature: "provider-signature" },
       { memberId: "member-recipient", keyId: "recipient-key", payloadDigest: "digest", signature: "recipient-signature" },
     ],
+  };
+}
+
+/** Creates a published listing fixture owned by the provider member. */
+function publishedListing() {
+  return {
+    id: "listing-1",
+    communityId,
+    memberId: "member-provider",
+    kind: "offer" as const,
+    title: "Garden help",
+    minutes: 60,
+    status: "published" as const,
   };
 }
 
@@ -189,6 +206,27 @@ test("requires the accepting member to author an accepted proposal record", () =
     () => toAcceptedExchangeProposalRecord(acceptedProposal(), recordMetadata),
     /authored by the member who accepted it/,
   );
+});
+
+test("rejects decoded member-owned records whose envelope author does not match their payload owner", () => {
+  const accepted = toAcceptedExchangeProposalRecord(acceptedProposal(), acceptedProposalMetadata);
+  const { acceptedByMemberId: _acceptedByMemberId, ...proposedProposal } = {
+    ...acceptedProposal(),
+    status: "proposed" as const,
+  };
+  const proposed = toProposedExchangeProposalRecord(proposedProposal, recordMetadata);
+  const published = toPublishedListingRecord(publishedListing(), recordMetadata);
+  const acknowledgement = toSettlementAcknowledgementRecord(
+    createSettlementAcknowledgement(acceptedProposal(), "member-provider"),
+    recordMetadata,
+  );
+  const settlement = toLedgerTransferRecord(transfer(), recordMetadata);
+
+  assert.throws(() => decodeAcceptedExchangeProposalRecord({ ...accepted, authorId: "member-provider" }), /accepted it/i);
+  assert.throws(() => decodeProposedExchangeProposalRecord({ ...proposed, authorId: "member-recipient" }), /payload owner/i);
+  assert.throws(() => decodePublishedListingRecord({ ...published, authorId: "member-recipient" }), /payload owner/i);
+  assert.throws(() => decodeSettlementAcknowledgementRecord({ ...acknowledgement, authorId: "member-recipient" }), /payload owner/i);
+  assert.throws(() => decodeLedgerTransferRecord({ ...settlement, authorId: "member-observer" }), /submitted by one of its participants/i);
 });
 
 test("rejects records whose kind or community does not match their payload", () => {

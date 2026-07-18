@@ -5,6 +5,7 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
 import { presentResolvedMemberState } from "./resolved-member-state.js";
+import { parseCreateProposalRequest, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
 
 const dataDirectory = join(app.getPath("userData"), "peer-hours");
 const runtime = new PeerRuntime(
@@ -66,42 +67,42 @@ app.whenReady().then(() => {
   ipcMain.handle("member:records", () => runtime.readMemberRecords());
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
-  ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(input));
+  ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(parsePublishListingRequest(input)));
   ipcMain.handle("member:create-proposal", async (_event, input: { offerId?: unknown; requestId?: unknown; minutes?: unknown }) => {
+    const request = parseCreateProposalRequest(input);
     const communityId = runtime.status().community?.communityId;
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before creating a proposal.");
-    if (typeof input.offerId !== "string" || typeof input.requestId !== "string" || typeof input.minutes !== "number") throw new Error("Proposal details are invalid.");
     const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
     const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
     const resolved = resolveTimebankMemberFeeds(communityId, histories);
-    const offer = resolved.publishedListings.find((listing) => listing.id === input.offerId && listing.kind === "offer");
-    const request = resolved.publishedListings.find((listing) => listing.id === input.requestId && listing.kind === "request");
-    if (!offer || !request) throw new Error("Choose locally accepted published offer and request listings.");
-    await memberIdentity.createProposal({ offer, request, minutes: input.minutes });
+    const offer = resolved.publishedListings.find((listing) => listing.id === request.offerId && listing.kind === "offer");
+    const requestListing = resolved.publishedListings.find((listing) => listing.id === request.requestId && listing.kind === "request");
+    if (!offer || !requestListing) throw new Error("Choose locally accepted published offer and request listings.");
+    await memberIdentity.createProposal({ offer, request: requestListing, minutes: request.minutes });
   });
   ipcMain.handle("member:accept-proposal", async (_event, proposalId: unknown) => {
-    if (typeof proposalId !== "string") throw new Error("Proposal id is invalid.");
+    const acceptedProposalId = parseRecordId(proposalId, "Proposal id");
     const communityId = runtime.status().community?.communityId;
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before accepting a proposal.");
     const keys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
     const histories = await Promise.all([...keys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
-    const resolved = resolveTimebankMemberFeeds(communityId, histories); const proposal = resolved.proposedProposals.find((item) => item.id === proposalId);
+    const resolved = resolveTimebankMemberFeeds(communityId, histories); const proposal = resolved.proposedProposals.find((item) => item.id === acceptedProposalId);
     const offer = proposal && resolved.publishedListings.find((item) => item.id === proposal.offerId); const request = proposal && resolved.publishedListings.find((item) => item.id === proposal.requestId);
     if (!proposal || !offer || !request) throw new Error("Choose a locally accepted pending proposal with accepted listings.");
     await memberIdentity.acceptProposal({ proposal, offer, request });
   });
   ipcMain.handle("member:acknowledge-settlement", async (_event, proposalId: unknown) => {
-    if (typeof proposalId !== "string") throw new Error("Proposal id is invalid.");
+    const acknowledgedProposalId = parseRecordId(proposalId, "Proposal id");
     const communityId = runtime.status().community?.communityId;
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before acknowledging a settlement.");
     const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
     const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
     const resolved = resolveTimebankMemberFeeds(communityId, histories);
-    const proposal = resolved.acceptedProposals.find((item) => item.id === proposalId);
+    const proposal = resolved.acceptedProposals.find((item) => item.id === acknowledgedProposalId);
     if (!proposal) throw new Error("Choose a locally accepted proposal before acknowledging its settlement.");
     const identity = await memberIdentity.status();
     if (identity.state !== "ready" || identity.memberId === null) throw new Error("Create your self-owned identity before acknowledging a settlement.");
-    const confirmation = resolved.settlementConfirmations.find((item) => item.proposalId === proposalId);
+    const confirmation = resolved.settlementConfirmations.find((item) => item.proposalId === acknowledgedProposalId);
     if (confirmation?.acknowledgements.some((item) => item.acknowledgedByMemberId === identity.memberId)) {
       throw new Error("You have already acknowledged completion of this exchange.");
     }

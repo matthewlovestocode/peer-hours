@@ -356,6 +356,27 @@ test("deduplicates identical replicated events but rejects conflicting events wi
   );
 });
 
+test("rejects activation histories that reassign a durable member signing key id", () => {
+  const originalKeys = memberKeyPair();
+  const replacementKeys = memberKeyPair();
+  const original = authorizationEvent({
+    eventId: "event-provider-activate-original",
+    action: "activate",
+    occurredAt: "2026-07-18T12:00:00.000Z",
+    publicKey: originalKeys.publicKey,
+  });
+  const replacement = authorizationEvent({
+    eventId: "event-provider-activate-replacement",
+    action: "activate",
+    occurredAt: "2026-07-18T12:01:00.000Z",
+    publicKey: replacementKeys.publicKey,
+  });
+  assert.throws(
+    () => reduceMemberSigningKeyAuthorizationEvents([original, replacement]),
+    /cannot be reassigned/i,
+  );
+});
+
 test("rejects malformed authorization lifecycle events before reduction", () => {
   const keys = memberKeyPair();
 

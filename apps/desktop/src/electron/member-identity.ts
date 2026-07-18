@@ -38,6 +38,8 @@ export type MemberFeedRuntime = {
 export class MemberIdentityService {
   /** Tracks local acknowledgement appends so concurrent IPC calls cannot create conflicting envelopes. */
   private readonly settlementAcknowledgementsInProgress = new Set<string>();
+  /** Shares one identity setup operation so repeated renderer clicks cannot create competing root identities. */
+  private identitySetupInProgress: Promise<MemberIdentityStatus> | null = null;
 
   /** Creates a service from narrow secure-storage, persistence, and member-feed adapters. */
   constructor(
@@ -58,6 +60,18 @@ export class MemberIdentityService {
 
   /** Creates a protected root identity, declares its local feed, and announces it to current peers. */
   async createAndAnnounce(): Promise<MemberIdentityStatus> {
+    if (this.identitySetupInProgress !== null) return this.identitySetupInProgress;
+    const operation = this.createAndAnnounceOnce();
+    this.identitySetupInProgress = operation;
+    try {
+      return await operation;
+    } finally {
+      if (this.identitySetupInProgress === operation) this.identitySetupInProgress = null;
+    }
+  }
+
+  /** Performs one serialized identity setup without allowing an overlapping call to replace its root key. */
+  private async createAndAnnounceOnce(): Promise<MemberIdentityStatus> {
     const communityId = this.memberFeed.communityId();
     if (!communityId) throw new Error("Connect to a bootstrap discovery scope before creating an identity.");
     if (!this.secureStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");

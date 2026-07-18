@@ -271,6 +271,21 @@ export function reduceMemberSigningKeyAuthorizationEvents(
     eventsById.set(normalized.eventId, normalized);
   }
 
+  // A member's key id is a durable public identifier. Permitting later activation events to
+  // silently replace its public material would let an unordered history reinterpret signatures
+  // that were already observed under that member and key id.
+  const activationTermsByKeyId = new Map<string, string>();
+  for (const event of eventsById.values()) {
+    if (event.action !== "activate") continue;
+    const keyId = keyFor(event.communityId, event.memberId, event.keyId);
+    const terms = signingKeyFingerprint(event.publicKeyPem);
+    const existing = activationTermsByKeyId.get(keyId);
+    if (existing !== undefined && existing !== terms) {
+      throw new IdentityRuleError("A member signing key id cannot be reassigned to different public key material.");
+    }
+    activationTermsByKeyId.set(keyId, terms);
+  }
+
   const currentByKey = new Map<string, ReducedAuthorization>();
   const orderedEvents = [...eventsById.values()].sort(compareAuthorizationEvents);
   for (const event of orderedEvents) {
@@ -427,7 +442,7 @@ function indexAuthorizedKeys(authorizations: readonly MemberSigningKeyAuthorizat
     authorizationIds.add(authorizationId);
 
     const publicKey = parseEd25519PublicKey(normalized.publicKeyPem);
-    const publicKeyFingerprint = publicKey.export({ format: "der", type: "spki" }).toString("base64url");
+    const publicKeyFingerprint = signingKeyFingerprint(normalized.publicKeyPem);
     const keyOwner = `${normalized.communityId}\u0000${normalized.memberId}`;
     const existingOwner = keyOwners.get(publicKeyFingerprint);
     if (existingOwner !== undefined && existingOwner !== keyOwner) {
@@ -443,6 +458,11 @@ function indexAuthorizedKeys(authorizations: readonly MemberSigningKeyAuthorizat
   }
 
   return keysByCommunityMemberAndId;
+}
+
+/** Returns the stable public-key fingerprint used to reject authorization-key reassignment. */
+function signingKeyFingerprint(publicKeyPem: string): string {
+  return parseEd25519PublicKey(publicKeyPem).export({ format: "der", type: "spki" }).toString("base64url");
 }
 
 /** One current authorization paired with the event that most recently determined its state. */

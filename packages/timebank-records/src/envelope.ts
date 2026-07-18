@@ -136,6 +136,11 @@ function normalizeJson(value: unknown): JsonValue {
 
     const normalized: Record<string, JsonValue> = {};
     for (const key of Object.keys(value).sort()) {
+      // Assignment to this legacy accessor would otherwise mutate the normalized object's
+      // prototype instead of preserving an untrusted JSON field.
+      if (key === "__proto__") {
+        throw new RecordEnvelopeError("Record payload objects cannot contain a __proto__ property.");
+      }
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (descriptor === undefined || !("value" in descriptor)) {
         throw new RecordEnvelopeError("Record payload objects cannot contain accessor properties.");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { createConnection } from "node:net";
 import test from "node:test";
 import { createBootstrapManifest } from "../src/manifest.js";
 import { createBootstrapServer } from "../src/server.js";
@@ -25,6 +26,20 @@ async function startBootstrap() {
     baseUrl: `http://127.0.0.1:${address.port}`,
     close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
   };
+}
+
+/** Sends deliberately malformed HTTP and returns the fixed parser-level response. */
+async function sendMalformedRequest(baseUrl: string): Promise<string> {
+  const url = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    const socket = createConnection({ host: url.hostname, port: Number(url.port) });
+    let response = "";
+    socket.setEncoding("utf8");
+    socket.once("connect", () => socket.write("NOT HTTP\r\n\r\n"));
+    socket.on("data", (chunk) => { response += chunk; });
+    socket.once("end", () => resolve(response));
+    socket.once("error", reject);
+  });
 }
 
 test("serves only minimal, configured discovery metadata", async () => {
@@ -54,5 +69,19 @@ test("rejects incomplete or unsafe manifest configuration", () => {
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey: "not-a-core-key" }));
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: ["ftp://example.test"] }));
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: ["https://operator:secret@bootstrap.example.test"] }));
+  assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: ["https://bootstrap.example.test", "https://bootstrap.example.test/"] }), /duplicate/);
   assert.throws(() => createBootstrapManifest({ communityId: "peer-hours/earth/test", displayName: "Test", coreKey, bootstrapNodes: Array.from({ length: 17 }, () => "https://bootstrap.example.test") }), /At most 16/);
+});
+
+test("closes malformed HTTP with a fixed parser-level response", async () => {
+  const bootstrap = await startBootstrap();
+  try {
+    const response = await sendMalformedRequest(bootstrap.baseUrl);
+    assert.match(response, /^HTTP\/1\.1 400 Bad Request\r\n/);
+    assert.match(response, /Connection: close\r\n/);
+    assert.match(response, /Content-Length: 0\r\n/);
+    assert.doesNotMatch(response, /Parse Error|NOT HTTP/);
+  } finally {
+    await bootstrap.close();
+  }
 });

@@ -22,6 +22,8 @@ test("resolves an explicit data directory and valid port", () => {
 
 test("rejects blank data directories and invalid TCP ports before startup", () => {
   assert.throws(() => resolveNodeConfiguration({ DATA_DIR: "   " }), /DATA_DIR/);
+  assert.throws(() => resolveNodeConfiguration({ DATA_DIR: " /var/lib/peer-hours" }), /DATA_DIR/);
+  assert.throws(() => resolveNodeConfiguration({ DATA_DIR: "/var/lib/peer-hours " }), /DATA_DIR/);
   for (const port of ["0", "65536", "10.5", "http", "-1"]) {
     assert.throws(() => resolveNodeConfiguration({ PORT: port }), /PORT/);
   }

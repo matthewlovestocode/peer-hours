@@ -90,6 +90,20 @@ test("retry reuses the declaration and sends a fresh announcement", async () => 
   assert.deepEqual(fixture.feed.announcements[1].declaration, firstAnnouncement.declaration);
 });
 
+test("concurrent identity setup shares one root identity and declaration", async () => {
+  const fixture = service();
+
+  const [first, second] = await Promise.all([
+    fixture.identity.createAndAnnounce(),
+    fixture.identity.createAndAnnounce(),
+  ]);
+
+  assert.equal(first.memberId, second.memberId);
+  assert.equal(fixture.storage.writes(), 1);
+  assert.equal(fixture.feed.records.length, 1);
+  assert.equal(fixture.feed.announcements.length, 1);
+});
+
 test("publishes a locally signed immutable offer without exposing root key material", async () => {
   const fixture = service();
   await fixture.identity.createAndAnnounce();

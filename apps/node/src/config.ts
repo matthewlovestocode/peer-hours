@@ -18,6 +18,9 @@ export function resolveNodeConfiguration(
   if (configuredDirectory !== undefined && configuredDirectory.trim().length === 0) {
     throw new Error("DATA_DIR must not be blank when configured.");
   }
+  if (configuredDirectory !== undefined && configuredDirectory !== configuredDirectory.trim()) {
+    throw new Error("DATA_DIR must not have leading or trailing whitespace when configured.");
+  }
 
   return {
     port,

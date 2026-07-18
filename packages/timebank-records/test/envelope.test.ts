@@ -90,3 +90,10 @@ test("rejects malformed envelope terms and non-JSON payload values", () => {
     assert.throws(() => envelope(invalid), RecordEnvelopeError);
   }
 });
+
+test("rejects a __proto__ payload field instead of allowing prototype mutation", () => {
+  const payload = JSON.parse('{"__proto__":{"polluted":true}}');
+
+  assert.throws(() => envelope({ payload }), /__proto__/i);
+  assert.equal(({} as { polluted?: boolean }).polluted, undefined);
+});

@@ -32,6 +32,9 @@ export function createBootstrapManifest(input: {
     throw new TypeError(`At most ${MAX_BOOTSTRAP_NODES} bootstrap nodes may be configured.`);
   }
   const bootstrapNodes = Object.freeze(configuredBootstrapNodes.map((url, index) => validBootstrapUrl(url, index)));
+  if (new Set(bootstrapNodes).size !== bootstrapNodes.length) {
+    throw new TypeError("Bootstrap nodes must not contain duplicate URLs.");
+  }
   const communityNodeUrl = input.communityNodeUrl === undefined ? null : validBootstrapUrl(input.communityNodeUrl, 0);
   return Object.freeze({
     communityId,

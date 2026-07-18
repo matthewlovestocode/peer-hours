@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import type { Duplex } from "node:stream";
 import type { BootstrapManifest } from "./manifest.js";
 
 const HTTP_REQUEST_TIMEOUT_MS = 15_000;
@@ -35,6 +36,7 @@ export function createBootstrapServer(manifest: BootstrapManifest): Server {
     sendJson(response, 404, { error: "not found" });
   });
   configureHttpTimeouts(server);
+  configureClientErrorResponse(server);
   return server;
 }
 
@@ -44,6 +46,18 @@ function configureHttpTimeouts(server: Server): void {
   server.headersTimeout = HTTP_HEADERS_TIMEOUT_MS;
   server.keepAliveTimeout = HTTP_KEEP_ALIVE_TIMEOUT_MS;
   server.maxHeadersCount = 100;
+  server.maxRequestsPerSocket = 1_000;
+}
+
+/** Returns a minimal fixed response when Node rejects malformed HTTP before a request handler exists. */
+function configureClientErrorResponse(server: Server): void {
+  server.on("clientError", (_error, socket) => sendBadRequest(socket));
+}
+
+/** Closes malformed client connections without reflecting parser errors or request bytes. */
+function sendBadRequest(socket: Duplex): void {
+  if (!socket.writable) return;
+  socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
 }
 
 /** Parses only the pathname so query parameters cannot change the read-only route surface. */

@@ -97,6 +97,7 @@ export function decodePublishedListingRecord(record: unknown): Listing {
   assertRecordKind(normalizedRecord, PUBLISHED_LISTING_RECORD_KIND, "published listing");
   const listing = normalizePublishedListing(normalizedRecord.payload);
   assertEnvelopeMatchesPayload(normalizedRecord, listing.id, listing.communityId, "published listing");
+  assertRecordAuthor(normalizedRecord, listing.memberId, "published listing");
   return listing;
 }
 
@@ -144,6 +145,7 @@ export function decodeProposedExchangeProposalRecord(record: unknown): ExchangeP
   assertRecordKind(normalizedRecord, PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND, "proposed exchange proposal");
   const proposal = normalizeProposedProposal(normalizedRecord.payload);
   assertProposalEnvelopeMatchesPayload(normalizedRecord, proposal, "proposed");
+  assertRecordAuthor(normalizedRecord, proposal.creatorMemberId, "proposed exchange proposal");
   return proposal;
 }
 
@@ -154,6 +156,9 @@ export function decodeAcceptedExchangeProposalRecord(record: unknown): ExchangeP
   assertRecordKind(normalizedRecord, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND, "accepted exchange proposal");
   const proposal = normalizeAcceptedProposal(normalizedRecord.payload);
   assertProposalEnvelopeMatchesPayload(normalizedRecord, proposal, "accepted");
+  if (normalizedRecord.authorId !== proposal.acceptedByMemberId) {
+    throw new RecordMappingError("A proposal record must be signed by the member who accepted it.");
+  }
   return proposal;
 }
 
@@ -203,6 +208,9 @@ export function decodeLedgerTransferRecord(record: unknown): Transfer {
   assertRecordKind(normalizedRecord, LEDGER_TRANSFER_RECORD_KIND, "ledger transfer");
   const transfer = normalizeTransfer(normalizedRecord.payload);
   assertEnvelopeMatchesPayload(normalizedRecord, transfer.id, transfer.communityId, "ledger transfer");
+  if (normalizedRecord.authorId !== transfer.providerMemberId && normalizedRecord.authorId !== transfer.recipientMemberId) {
+    throw new RecordMappingError("A ledger transfer record must be submitted by one of its participants.");
+  }
   return transfer;
 }
 
@@ -237,6 +245,11 @@ export function decodeSettlementAcknowledgementRecord(record: unknown): Settleme
     normalizedRecord,
     acknowledgement.id,
     acknowledgement.communityId,
+    "settlement acknowledgement",
+  );
+  assertRecordAuthor(
+    normalizedRecord,
+    acknowledgement.acknowledgedByMemberId,
     "settlement acknowledgement",
   );
   return acknowledgement;
@@ -439,6 +452,13 @@ function assertEnvelopeMatchesPayload(
   if (record.id !== payloadId) throw new RecordMappingError(`A ${label} record id must match its payload id.`);
   if (record.communityId !== payloadCommunityId) {
     throw new RecordMappingError(`A ${label} record community must match its payload community.`);
+  }
+}
+
+/** Ensures a member-owned record retains the author identity mandated by its domain payload. */
+function assertRecordAuthor(record: RecordEnvelope, expectedAuthorId: string, label: string): void {
+  if (record.authorId !== expectedAuthorId) {
+    throw new RecordMappingError(`A ${label} record must be authored by its payload owner.`);
   }
 }
 

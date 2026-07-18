@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,6 +16,20 @@ async function startTestNode(runtime: PeerRuntime, enableDevelopmentPeerRegistra
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Test node did not bind to a TCP port");
   return { baseUrl: `http://127.0.0.1:${address.port}`, close: () => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())) };
+}
+
+/** Sends deliberately malformed HTTP and returns the fixed parser-level response. */
+async function sendMalformedRequest(baseUrl: string): Promise<string> {
+  const url = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    const socket = createConnection({ host: url.hostname, port: Number(url.port) });
+    let response = "";
+    socket.setEncoding("utf8");
+    socket.once("connect", () => socket.write("NOT HTTP\r\n\r\n"));
+    socket.on("data", (chunk) => { response += chunk; });
+    socket.once("end", () => resolve(response));
+    socket.once("error", reject);
+  });
 }
 
 test("community node returns unavailable health until its runtime has opened storage", async () => {
@@ -52,6 +67,24 @@ test("community node treats a query string as metadata rather than a separate ro
     const response = await fetch(`${node.baseUrl}/health?probe=1`);
     assert.equal(response.status, 503);
     assert.match(response.headers.get("content-type") ?? "", /^application\/json; charset=utf-8/);
+  } finally {
+    await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("community node closes malformed HTTP with a fixed parser-level response", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-malformed-http-"));
+  const runtime = new PeerRuntime(directory, undefined, undefined, Date.now, false);
+  const node = await startTestNode(runtime);
+
+  try {
+    const response = await sendMalformedRequest(node.baseUrl);
+    assert.match(response, /^HTTP\/1\.1 400 Bad Request\r\n/);
+    assert.match(response, /Connection: close\r\n/);
+    assert.match(response, /Content-Length: 0\r\n/);
+    assert.doesNotMatch(response, /Parse Error|NOT HTTP/);
   } finally {
     await node.close();
     await runtime.stop();

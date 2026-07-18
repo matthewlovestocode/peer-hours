@@ -57,6 +57,10 @@ Peer Hours uses precise language because it prevents an important misunderstandi
 
 Later lessons will introduce how peers find each other and replicate records. First, it helps to understand why member desktops are peers without also being servers.
 
+## Takeaway
+
+A peer is any runtime participating in replication. A community peer is simply one durable peer with an operational role, not a different source of truth.
+
 ## Next lesson
 
 Continue to [Lesson 5: Why Members Do Not Host Servers](./05-why-members-do-not-host-servers.md)

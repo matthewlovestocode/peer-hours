@@ -42,6 +42,10 @@ Peer Hours includes `communityId` on important records. That lets the software r
 
 A community is not necessarily a company running a central app. It is the shared social and data boundary that participating computers recognize.
 
+## Takeaway
+
+A community ID scopes records and shared rules. It names a social/accounting boundary, not a route through the network or an organization that controls people.
+
 ## Next lesson
 
 Continue to [Lesson 3: Desktop App vs Community Node](./03-desktop-app-and-community-node.md)

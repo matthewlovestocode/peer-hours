@@ -45,6 +45,10 @@ Peer Hours’ tested record resolver turns immutable replicated records into use
 
 Local-first does not mean “ignore the network.” It means the network improves and synchronizes local knowledge rather than being the sole gatekeeper for every screen.
 
+## Takeaway
+
+Open the app, read what is already local, then replicate newer records when possible. Connection affects freshness; it should not erase known history.
+
 ## Next lesson
 
 Continue to [Lesson 7: Offline Work and Online Settlement](./07-offline-and-online-work.md)

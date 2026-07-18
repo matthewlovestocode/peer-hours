@@ -46,6 +46,10 @@ This is why the current packages are separated:
 
 The unresolved identity-lifecycle question is separate again: key rotation and recovery need a self-owned protocol. A reachable community peer is not, by itself, that policy.
 
+## Takeaway
+
+Bootstrap tells a runtime where to begin. Independent local validation tells it which replicated records are acceptable.
+
 ## Next lesson
 
 Continue with [Lesson 13: What happens when the desktop starts](13-desktop-startup.md).

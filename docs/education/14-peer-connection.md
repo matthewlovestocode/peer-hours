@@ -17,11 +17,11 @@ flowchart LR
   A -. "may connect when discoverable" .- B
 ```
 
-The arrows mean “these runtimes can exchange record-core data.” They do not mean the community node approves every exchange.
+The arrows mean “these runtimes can exchange known member-feed data.” They do not mean the community peer approves every exchange.
 
 ## Small example
 
-Suppose Alice's desktop has record blocks 0 through 8, while the community node has blocks 0 through 12. After they connect, Alice can request and verify the missing blocks 9 through 12.
+Suppose Alice's desktop has blocks 0 through 8 from Bob's announced member feed, while the community peer has blocks 0 through 12 from that same feed. After they connect, Alice can request and verify the missing blocks 9 through 12.
 
 ```text
 Alice local length:     9 blocks
@@ -36,6 +36,10 @@ This is replication: bringing an identified append-only history into sync. It is
 Peer Hours uses peer networking to make local record histories converge. The desktop Network workspace can distinguish the community node from remote peers and show live peer counts.
 
 A connection does not guarantee that every record is present, valid, or settled. It only says that a transport path currently exists between runtimes. The next lesson explains why that makes a single green “connected” label too vague.
+
+## Takeaway
+
+A peer connection makes exchange of known data possible. It says nothing by itself about completeness, trust, or settlement.
 
 ## Next lesson
 

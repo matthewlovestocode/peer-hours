@@ -15,12 +15,13 @@ sequenceDiagram
   participant E as Electron main process
   participant R as Embedded peer runtime
   participant U as React renderer
-  participant N as Community node
+  participant B as Bootstrap service
   E->>R: Start local runtime
   R->>R: Open local storage
   E->>U: Open app window
   U->>E: Request network status
-  R->>N: Fetch bootstrap metadata
+  R->>B: Fetch discovery metadata
+  R->>R: Open discovery core and join its topic
   R->>R: Open local member feed
   E-->>U: Updated runtime status
 ```
@@ -33,16 +34,17 @@ At first, a network panel might show:
 
 ```text
 Local runtime: starting
-Community node: checking bootstrap metadata
-Record core: unavailable until a key is known
+Bootstrap metadata: checking
+Member feed: opening local storage
 ```
 
 After bootstrap succeeds, it may update to:
 
 ```text
 Local runtime: online
-Community node: reachable
-Record core: community core open, 12 records local
+Bootstrap metadata: fetched
+Discovery scope: joined; waiting for peers
+Member feed: ready, 12 local records
 ```
 
 Those are meaningful stages, not just a spinner changing to “connected.”
@@ -52,6 +54,10 @@ Those are meaningful stages, not just a spinner changing to “connected.”
 The desktop has an Electron preload bridge so renderer code does not reach directly into Node networking APIs. It reads a status snapshot supplied by the main process and embedded runtime.
 
 The exact visual layout will evolve, but the separation should remain: React presents state, Electron coordinates privileged desktop access, and `PeerRuntime` owns peer/network lifecycle. This keeps timebank rules and transport logic out of UI components.
+
+## Takeaway
+
+Desktop startup opens local data first, then obtains optional bootstrap metadata and begins peer discovery. A screen can explain each stage without pretending bootstrap is a community database connection.
 
 ## Next lesson
 

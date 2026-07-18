@@ -40,6 +40,10 @@ This is different from putting an optimistic API response into a browser cache. 
 
 Local data can be incomplete. If a desktop has not replicated a newly created record yet, it cannot show it. A local-first design prefers an honest partial view over pretending the app has fresh information when it does not.
 
+## Takeaway
+
+The desktop owns a real local runtime and durable data. Its UI should show what is locally known and be honest about whether it is current.
+
 ## Next lesson
 
 Continue with [Lesson 10: What a community node does](10-community-node-responsibility.md).

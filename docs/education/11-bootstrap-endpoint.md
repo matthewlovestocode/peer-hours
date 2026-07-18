@@ -29,9 +29,14 @@ The current bootstrap response can include a value like this:
 
 ```json
 {
-  "community": {
-    "id": "peer-hours/earth/US/CA/east-bay/oakland"
-  },
+  "communityId": "peer-hours/earth/US/CA/east-bay/oakland",
+  "displayName": "Oakland Timebank",
+  "protocolVersion": 1,
+  "role": "bootstrap",
+  "capabilities": ["discovery-metadata"],
+  "coreKey": "64-character-public-discovery-core-key",
+  "bootstrapNodes": [],
+  "communityNodeUrl": "https://community-peer.example/status"
 }
 ```
 
@@ -46,6 +51,10 @@ Bootstrap metadata must be treated carefully. It tells the runtime *what to try 
 The current runtime does more than just parse JSON. It requires a successful HTTP response and checks that the manifest has nonblank community information, a positive protocol version, correctly shaped 64-character core keys, and HTTP(S) bootstrap URLs. That catches many broken responses before the runtime uses them. It does **not** yet prove who operated the endpoint, pin a known key, or verify a signature. Think of it as checking that a map is readable without yet having a way to prove who printed the map.
 
 This small HTTP bridge is useful because it lets a traditional desktop app discover a peer-to-peer community without hard-coding every network detail into the app.
+
+## Takeaway
+
+Bootstrap supplies a public starting map: one community scope and discovery key. It does not run the peer network, store member records, or decide record validity.
 
 ## Next lesson
 

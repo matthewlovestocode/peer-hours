@@ -40,9 +40,13 @@ After replication, Alice's desktop, Bob's desktop, and the community node may ea
 
 ## Peer Hours connection
 
-Today, every runtime owns a writable member feed. An always-on community peer can retain and replicate feeds it knows, but it does not own a shared record core or expose a record API. Feed announcements and the member-facing publish flow are later steps.
+Today, every member runtime owns a writable member feed. An always-on community peer can retain and replicate feeds it knows, but it does not own a shared record core or expose a record API. Signed, expiring feed announcements already let compatible runtimes discover a declared feed on a shared discovery core; the member-facing publish workflow is still later work.
 
 This does **not** mean every local copy is automatically trustworthy. Later lessons explain signatures and validation. For now, remember: Peer Hours moves records between local stores instead of asking one central database for every screen.
+
+## Takeaway
+
+There are multiple durable local copies, not one required database server. Compatibility comes from replicating known feeds and applying the same validation rules.
 
 ## Next lesson
 

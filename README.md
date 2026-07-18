@@ -86,6 +86,8 @@ npm --workspace @peer-hours/desktop run dev
 
 The desktop defaults to `http://127.0.0.1:10000/bootstrap`, fetches the community manifest and public core key, and joins its discovery topic. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status.
 
+Peer lifecycle status is reported as `discovered`, `connecting`, `connected`, `stale`, or `offline`. A peer becomes stale after 10 seconds without a fresh heartbeat and is retained for up to 30 seconds so the desktop can show the transition before removing it.
+
 To start real simulated peers for the network tree, use a third terminal:
 
 ```sh

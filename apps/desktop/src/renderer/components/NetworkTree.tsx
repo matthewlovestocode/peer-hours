@@ -3,7 +3,7 @@ import { StatusDot } from "./Primitive.js";
 
 /** Renders the local peer as a living tree with community and remote peer connections. */
 export function NetworkTree({ status }: { status: LocalPeerStatus | null }) {
-  const peers = status?.peers ?? [];
+  const peers = status?.peers.filter((peer) => peer.lifecycleState !== "offline") ?? [];
   const hasCommunityNode = status?.bootstrap.state === "fetched";
   const branchCount = Math.max(peers.length + (hasCommunityNode ? 1 : 0), 1);
 

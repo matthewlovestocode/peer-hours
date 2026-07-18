@@ -214,3 +214,21 @@ Geographic segments should use stable uppercase codes where applicable, such as 
 ```
 
 The hierarchy organizes discovery and federation but does not imply a shared ledger. Each community may have its own discovery topic, community nodes, membership rules, listings, ledger, and moderation policies. Parent communities may later provide directories or federation between child communities without controlling their local accounting.
+
+### Peer connection lifecycle
+
+Peer status is intentionally more detailed than a binary online/offline flag:
+
+```mermaid
+stateDiagram-v2
+    [*] --> discovered
+    discovered --> connecting
+    connecting --> connected
+    connected --> stale: heartbeat window expires
+    stale --> connected: heartbeat resumes
+    stale --> offline: retention window expires
+    connected --> offline: connection closes
+    offline --> [*]
+```
+
+The current runtime emits `connecting`, `connected`, `stale`, and `offline`. The `discovered` state is reserved for the future discovery layer, when a peer can be identified before a connection handshake begins.

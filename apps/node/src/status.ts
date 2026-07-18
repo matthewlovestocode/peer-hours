@@ -2,6 +2,7 @@ export type PeerStatus = {
   id: string;
   connectedAt: string;
   lastSeenAt: string;
+  lifecycleState: "discovered" | "connecting" | "connected" | "stale" | "offline";
 };
 
 export type NodeStatus = {

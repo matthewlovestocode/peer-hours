@@ -176,6 +176,8 @@ The first product milestone is network visibility and confidence. Before impleme
 
 This should include both a polished member-facing status experience and structured node-level observability. The status model should distinguish local connectivity, node reachability, peer sessions, replication state, and application-level synchronization rather than collapsing them into one boolean.
 
+Runtime uptime belongs beside those signals, not above them. The current runtime snapshot includes an instance start time and clock-derived uptime duration; a future restart count and independent probes can add operational context. None of those signals can prove external reachability, live peer sessions, current replicated data, or settlement readiness. See [runtime observability](runtime-observability.md) for the intended operational interpretation and current API boundary.
+
 The first vertical slice should remain narrow and complete:
 
 1. Start a local node and establish its identity.

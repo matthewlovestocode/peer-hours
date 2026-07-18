@@ -20,6 +20,8 @@ export type PeerStatus = {
 export type LocalPeerStatus = {
   state: "starting" | "online" | "error";
   peerId: string;
+  startedAt: string;
+  uptimeMs: number;
   listening: boolean;
   discovery: { connecting: number; connected: number };
   peers: PeerStatus[];
@@ -132,6 +134,8 @@ export class PeerRuntime {
   private readonly bootstrapKey: Buffer | null;
   private readonly bootstrapUrl: string | null;
   private readonly now: () => number;
+  private readonly startedAtMs: number;
+  private readonly startedAt: string;
   private readonly configuredRecordCoreKey: string | null;
   private readonly networkingEnabled: boolean;
   private store: any;
@@ -163,6 +167,8 @@ export class PeerRuntime {
     this.bootstrapKey = bootstrapKey ? Buffer.from(bootstrapKey, "hex") : null;
     this.bootstrapUrl = bootstrapUrl ?? null;
     this.now = now;
+    this.startedAtMs = this.now();
+    this.startedAt = new Date(this.startedAtMs).toISOString();
     this.configuredRecordCoreKey = recordCoreKey ?? null;
     this.networkingEnabled = networkingEnabled;
   }
@@ -357,6 +363,8 @@ export class PeerRuntime {
     return {
       state: this.error ? "error" : this.core ? "online" : "starting",
       peerId: this.core?.key?.toString("hex") ?? "",
+      startedAt: this.startedAt,
+      uptimeMs: Math.max(0, now - this.startedAtMs),
       listening: this.listening,
       discovery: { connecting: this.swarm?.connecting ?? 0, connected: this.swarm?.connections?.size ?? 0 },
       peers: [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))],

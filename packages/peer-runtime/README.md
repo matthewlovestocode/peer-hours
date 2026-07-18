@@ -66,6 +66,7 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 `status()` returns `LocalPeerStatus`, a serializable snapshot containing:
 
 - local runtime state (`starting`, `online`, or `error`);
+- immutable `startedAt` and clock-derived, non-negative `uptimeMs` for runtime diagnostics;
 - the local peer/core ID and replication core length;
 - listening and Hyperswarm discovery counts;
 - direct and community-reported `PeerStatus` entries;
@@ -73,6 +74,8 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 - active record-core key, local record count, and whether that core is locally owned or supplied by a community node.
 
 `onStatusChange(listener)` subscribes to meaningful status changes and returns an unsubscribe function.
+
+`startedAt` is captured when a `PeerRuntime` instance is constructed, and `uptimeMs` is calculated from the runtime's configured clock and never becomes negative. This is local diagnostic context: it does not prove a successful startup, endpoint reachability, peer connectivity, current records, or readiness for a timebank workflow. The snapshot does not include a restart count, endpoint-probe history, or replication-freshness guarantee. See [runtime observability](../../docs/runtime-observability.md) for the intended distinction.
 
 ### Generic record storage
 

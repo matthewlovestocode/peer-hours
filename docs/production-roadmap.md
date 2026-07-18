@@ -87,7 +87,7 @@ Offline composition may create local drafts. Publishing, acceptance, and settlem
 
 **Goal:** a community can remain available and recoverable when one member device or one community node is offline.
 
-The current one-node bootstrap experience is useful for development but is not sufficient operational resilience. Add multiple independently deployed community nodes per community, persistent node identities and storage, explicit replication health, and a documented bootstrap/failover configuration. The system should show the difference between “connected to a node,” “records have replicated,” and “the chosen durability acknowledgement has been met.”
+The current one-node bootstrap experience is useful for development but is not sufficient operational resilience. Add multiple independently deployed community nodes per community, persistent node identities and storage, explicit replication health, and a documented bootstrap/failover configuration. The system should show the difference between “connected to a node,” “records have replicated,” and “the chosen durability acknowledgement has been met.” The current runtime already reports an instance start time and uptime; production operations still need restart information and independent reachability evidence, without labeling a long-running runtime as healthy when replication is failing.
 
 The proposed multi-node model is replication, not a hidden central database: each node retains the same signed histories and can be replaced from a verified backup or a healthy peer. Federation across separate communities remains future work and must never merge their ledgers merely because their nodes can connect.
 
@@ -127,7 +127,7 @@ Security work should include a threat model, dependency/update process, secret h
 
 **Goal:** support one small, consenting timebank with a known operator and a recovery path—not a broad public launch.
 
-Select a single community, a modest member count, named community-node operators, and a clear support channel. Define what data is migrated or seeded, how members enroll, where node credentials and backups live, who can pause the service, and how a serious incident is communicated. Instrument node health, storage capacity, replication lag, bootstrap success, application errors, and release adoption without turning member activity into surveillance.
+Select a single community, a modest member count, named community-node operators, and a clear support channel. Define what data is migrated or seeded, how members enroll, where node credentials and backups live, who can pause the service, and how a serious incident is communicated. Instrument node health, process uptime and restart frequency, storage capacity, replication lag, bootstrap success, application errors, and release adoption without turning member activity into surveillance. Process uptime is context, not proof of endpoint reachability, replicated-data freshness, or safe settlement.
 
 Run failure drills before inviting members: lose one node, restore a backup, revoke a compromised device key, restart a member device with unsynced drafts, and correct a mistaken settlement through the approved policy. Start with a limited duration and feedback loop. Expand only after the pilot's reliability, usability, privacy, and governance findings are addressed.
 

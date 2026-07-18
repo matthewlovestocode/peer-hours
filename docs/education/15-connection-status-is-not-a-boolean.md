@@ -42,6 +42,26 @@ B: runtime online, bootstrap failed,
 
 Both can show yesterday's local data. State A is ready to synchronize when a peer appears. State B needs bootstrap configuration or a retry before it even knows which community core to open.
 
+## Uptime is not the same as health
+
+The current runtime reports when its `PeerRuntime` instance was created and its clock-derived uptime. That **uptime** number answers a useful but narrow question: “how long has this particular runtime instance existed?”
+
+```mermaid
+flowchart LR
+  U["Uptime: process stayed running"]
+  P["Peer session: another runtime is connected"]
+  R["Replication: required records are present"]
+  S["Settlement: a member action is safe to finalize"]
+
+  U -. "does not prove" .-> P
+  U -. "does not prove" .-> R
+  U -. "does not prove" .-> S
+```
+
+For example, a node may have been running for a week but have zero peers today. Or it may be freshly restarted and still have a complete local record history on disk. Uptime helps an operator spot restarts; it does not tell a member that their records are synchronized or their exchange is settled.
+
+**Verified today:** `/status` includes `startedAt` and non-negative `uptimeMs` for the embedded runtime instance. `/health` remains a lightweight point-in-time check. Runtime uptime, external reachability history, replication freshness, and settlement acknowledgement remain separate signals; only the first is currently reported.
+
 ## A simulated dot is not a connection
 
 During development, Peer Hours can register a simulated peer in the community node's status roster with an explicit `action: "register"` request. This lets a developer test a full peer list without waiting for many laptops to be online.

@@ -32,6 +32,30 @@ test("preserves connecting and discovered states while they are fresh", () => {
   assert.equal(derivePeerLifecycleState(peerAt(1_000, "discovered"), now), "discovered");
 });
 
+test("reports an immutable start time and clock-derived uptime across snapshots", () => {
+  let clock = Date.parse("2026-07-18T01:02:03.000Z");
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-test", undefined, undefined, () => clock, undefined, false);
+
+  const initial = runtime.status();
+  assert.equal(initial.startedAt, "2026-07-18T01:02:03.000Z");
+  assert.equal(initial.uptimeMs, 0);
+
+  clock += 12_345;
+  const later = runtime.status();
+  const repeated = runtime.status();
+  assert.equal(later.startedAt, initial.startedAt);
+  assert.equal(later.uptimeMs, 12_345);
+  assert.deepEqual(repeated, later);
+});
+
+test("never reports negative uptime when an injected clock moves backwards", () => {
+  let clock = Date.parse("2026-07-18T01:02:03.000Z");
+  const runtime = new PeerRuntime("/tmp/peer-hours-runtime-observability-backward-clock-test", undefined, undefined, () => clock, undefined, false);
+
+  clock -= 1;
+  assert.equal(runtime.status().uptimeMs, 0);
+});
+
 test("restores a stale simulated peer when its heartbeat resumes", () => {
   let clock = now;
   const runtime = new PeerRuntime("/tmp/peer-hours-lifecycle-test", undefined, undefined, () => clock);

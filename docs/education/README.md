@@ -88,32 +88,31 @@ records, credentials, or a substitute for a community's own agreements.
 36. [Why a transfer has two attestations](36-two-attestations.md)
 37. [What a payload digest is](37-payload-digest.md)
 38. [Why replicated does not automatically mean trusted](38-replicated-is-not-trusted.md)
-39. The unresolved community-authority problem *(planned)*
+## Part 6 — Follow one exchange end to end
 
-## Planned later lessons
+39. [One exchange, from offer to balance](39-exchange-lifecycle-overview.md)
+40. [Proposing an exchange](40-proposing-an-exchange.md)
+41. [Accepting an exchange](41-accepting-an-exchange.md)
+42. [Settlement acknowledgements](42-settlement-acknowledgements.md)
+43. [Deterministic settlement](43-deterministic-settlement.md)
 
-These lessons will be added as the corresponding desktop and protocol paths become stable.
+## Part 7 — Verify what a desktop counts
 
-### Part 6 — Future protocol and product lessons
+44. [Signatures and authorizations work together](44-signatures-and-authorizations.md)
+45. [Verifying a replicated record](45-verifying-a-replicated-record.md)
+46. [What local ledger admission means](46-local-ledger-admission.md)
 
-40. How desktop members publish protocol records safely
-41. Single-writer and multiwriter logs
-42. Why per-member feeds help
-43. What conflict resolution means here
-44. What “settled” should mean to a member
-45. What still needs community policy instead of code
-46. How the first member workflow will be built
+## Part 8 — Keep the system available and understandable
 
-### Part 7 — Learning from the running system
+47. [Operating a community node](47-operating-a-community-node.md)
+48. [Observability and health](48-observability-and-health.md)
+49. [Offline, delayed, and duplicate records](49-offline-delayed-and-duplicate-records.md)
+50. [Recovery boundaries](50-recovery-boundaries.md)
 
-47. Read the community bootstrap response
-48. Inspect a record core
-49. Run two local runtimes
-50. Follow one record through replication
-51. Read a resolved ledger view
-52. Diagnose an unavailable community node
-53. Explain a stale peer
-54. Choose the next safe experiment
+## Part 9 — Know the boundaries
+
+51. [Threat model and non-goals](51-threat-model-and-non-goals.md)
+52. [End-to-end walkthrough](52-end-to-end-walkthrough.md)
 
 ## Current implementation references
 

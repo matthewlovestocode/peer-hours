@@ -35,4 +35,4 @@ Community peers can retain and relay known member feeds, but they do not certify
 
 ## Next lesson
 
-The next lesson will examine the remaining community-authority questions without introducing gatekeeping.
+Continue with [Lesson 39: One exchange, from offer to balance](39-exchange-lifecycle-overview.md).

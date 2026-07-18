@@ -54,37 +54,37 @@ Each lesson aims for roughly 3–8 minutes. Look for these recurring sections:
 22. [What a record envelope is](22-record-envelope.md)
 23. [What a record core is](23-record-core.md)
 
-## Next course batches
-
-These lessons are deliberately planned but not yet written. They will be added as the corresponding code paths become stable.
-
-### Part 4 — From records to app state
+## Part 4 — From records to app state
 
 24. [Raw records versus a useful screen](24-raw-records-and-useful-screens.md)
 25. [Who is allowed to author a record?](25-who-authors-a-record.md)
-26. Why order-independent results matter
-27. What a member-key authorization is
-28. What an accepted proposal is
-29. What a transfer is
-30. Why balance is derived instead of stored
-31. How one transfer changes two balances
+26. [Why order-independent results matter](26-order-independent-results.md)
+27. [What a member-key authorization is](27-member-key-authorization.md)
+28. [What an accepted proposal is](28-accepted-proposal.md)
+29. [What a transfer is](29-transfer.md)
+30. [Why balance is derived instead of stored](30-derived-balance.md)
+31. [How one transfer changes two balances](31-two-balances.md)
 
-### Part 5 — Trust and signatures
+## Part 5 — Trust and signatures
 
-32. What a key pair is
-33. What a public key is safe to share
-34. What a private key must never leave
-35. What an Ed25519 signature proves
-36. Why a transfer has two attestations
-37. What a payload digest is
-38. Why replicated does not automatically mean trusted
+32. [What a key pair is](32-key-pairs.md)
+33. [What public keys are safe to share](33-public-keys.md)
+34. [What private keys must never leave](34-private-keys.md)
+35. [What an Ed25519 signature proves](35-ed25519-signatures.md)
+36. [Why a transfer has two attestations](36-two-attestations.md)
+37. [What a payload digest is](37-payload-digest.md)
+38. [Why replicated does not automatically mean trusted](38-replicated-is-not-trusted.md)
 39. The unresolved community-authority problem
 
-### Part 6 — The unfinished write path
+## Planned later lessons
 
-40. Why desktop members cannot write to the community core yet
+These lessons will be added as the corresponding desktop and protocol paths become stable.
+
+### Part 6 — The unfinished desktop workflow
+
+40. Why desktop members cannot submit protocol records from the UI yet
 41. Single-writer and multiwriter logs
-42. Why per-member feeds may help
+42. Why per-member feeds help
 43. What conflict resolution means here
 44. What “settled” should mean to a member
 45. What still needs community policy instead of code

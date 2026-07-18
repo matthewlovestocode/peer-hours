@@ -59,7 +59,7 @@ For the agreed product direction and an honest code-alignment audit, see [open p
 
 ## Learn the architecture
 
-New to peer-to-peer or local-first systems? [Learn Peer Hours](docs/education/README.md) is a junior-friendly, diagram-led course that explains the project in short lessons. It starts with timebank communities and member roles, then builds toward community nodes, local data, Hypercore, append-only records, and replication. The course deliberately separates what is implemented today from the future design work still ahead.
+New to peer-to-peer or local-first systems? [Learn Peer Hours](docs/education/README.md) is a junior-friendly, diagram-led course that explains the project in short lessons. It starts with timebank communities and member roles, then builds through local data, Hypercore, append-only replication, deterministic record resolution, derived balances, and signatures. The course deliberately separates what is implemented today from the future design work still ahead.
 
 Start with [Lesson 1: What Is a Timebank?](docs/education/01-what-is-a-timebank.md).
 

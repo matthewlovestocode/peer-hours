@@ -8,7 +8,7 @@ You may think of a database table such as `events` that holds many types of appl
 
 ```mermaid
 flowchart LR
-  R["Record envelopes"] --> C["peer-hours-timebank-records core"]
+  R["Record envelopes"] --> C["member-owned record feed"]
   C --> D["Desktop local Corestore"]
   C --> N["Community node Corestore"]
   D --> X["Resolve local timebank state"]
@@ -30,7 +30,7 @@ block 2: signed-transfer envelope
 
 `@peer-hours/peer-runtime` opens the named `peer-hours-member-records` feed using `HypercoreRecordStore`. Every runtime owns its own writable version. A community peer may retain and replicate a known feed, but does not advertise a canonical record key or expose a `/records` endpoint.
 
-This is verified current behavior. It has important limits: the desktop does not yet publish its signed application records or announce its feed to other peers, and key rotation is not yet designed. The member feed is real shared infrastructure, not the completed timebank protocol.
+This is verified current behavior. A runtime can publish and receive a root-signed, expiring announcement for a declared member feed over a shared discovery core, allowing another runtime to open that feed automatically. The desktop does not yet compose signed application records or expose that workflow in its UI, and multi-device key rotation remains incomplete. The member feed is real shared infrastructure, not the completed timebank protocol.
 
 ## Takeaway
 

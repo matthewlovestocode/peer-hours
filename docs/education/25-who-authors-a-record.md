@@ -23,7 +23,7 @@ After the work is complete, Alex and Bri both attest to a 60-minute transfer. Ei
 
 These authorship and attestation checks are verified in the in-memory record resolver. They distinguish “who submitted this immutable record?” from “who consented to the settlement?”
 
-Desktop members do not yet have a real member-feed or network submission path to publish records. The future self-owned identity/feed relationship that connects a member to their keys is also still proposed protocol work; it must not turn into membership approval.
+The runtime has a real local member feed and can announce its declared feed to connected peers, but the desktop does not yet provide composition screens or a safe user-facing submission workflow for these records. The self-owned identity/feed relationship is implemented as a root-signed declaration; its future UI must not turn into membership approval.
 
 ## Takeaway
 

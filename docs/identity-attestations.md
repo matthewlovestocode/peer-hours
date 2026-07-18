@@ -19,6 +19,16 @@ sequenceDiagram
 
 ## Current boundary
 
+Here is the smallest useful mental model for one attestation. The signature covers the canonical transfer terms; the surrounding object supplies the public key identifier and a digest that the receiving runtime recomputes:
+
+```json
+{
+  "keyId": "alex-laptop-2026",
+  "payloadDigest": "base64url-sha256-of-canonical-transfer-terms",
+  "signature": "base64url-ed25519-signature"
+}
+```
+
 - A member signing-key authorization belongs to one community and one member.
 - Immutable authorization lifecycle events carry a stable event id, community, member, key id,
   UTC timestamp, and either an `activate` action with an Ed25519 public key or a `revoke` action.

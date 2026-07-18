@@ -1,0 +1,19 @@
+{
+  "name": "peer-hours",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A multi-application npm workspaces monorepo.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "dev": "npm run dev --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

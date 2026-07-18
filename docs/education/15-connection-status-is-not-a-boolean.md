@@ -20,7 +20,7 @@ Peer Hours connection health is a group of facts. Treat it as a status object, n
 flowchart TB
   S["Connection status"] --> L["Local runtime running?"]
   S --> B["Bootstrap metadata available?"]
-  S --> C["Community record core open?"]
+  S --> C["Local member feed ready?"]
   S --> P["Live peers connected?"]
   S --> R["How many records are local?"]
   S --> E["Last error or retry state?"]
@@ -33,7 +33,7 @@ Each fact answers a different question. A desktop may have local records while o
 Compare these two states:
 
 ```text
-A: runtime online, bootstrap fetched, record core open,
+A: runtime online, bootstrap fetched, member feed ready,
    0 live peers, 42 records local
 
 B: runtime online, bootstrap failed,

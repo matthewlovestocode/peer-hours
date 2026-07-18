@@ -26,7 +26,7 @@ sequenceDiagram
 ## A tiny example
 
 ```text
-Community record core: blocks 0, 1, 2
+Alice's member feed: blocks 0, 1, 2
 Desktop before connection: blocks 0, 1
 Desktop after replication: blocks 0, 1, 2
 ```
@@ -37,7 +37,7 @@ Replication is not the same as business validation. A replicated transfer can be
 
 ## Peer Hours connection
 
-`HypercoreRecordStore` in `@peer-hours/peer-runtime` has a two-Corestore integration test: one runtime appends an immutable record, the other opens the same record-core key, replication runs, and the second reads the equivalent record sequence. The community node currently owns the writable shared core; desktop runtimes open it as readers.
+`HypercoreRecordStore` in `@peer-hours/peer-runtime` has a two-Corestore integration test: one runtime appends an immutable record to its member feed, another opens that feed key, replication runs, and the second reads the equivalent record sequence. The always-on community peer has no special writer role; it can retain the same known feed like any other peer.
 
 That is a real replication path, but it is not yet member-originated writing or a full distributed authority model.
 

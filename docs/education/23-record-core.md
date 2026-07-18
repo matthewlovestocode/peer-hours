@@ -1,10 +1,10 @@
 # Lesson 23: What Is a Record Core?
 
-A record core is the named Hypercore used to store Peer Hours record envelopes. It is the bridge between low-level replicated storage and the timebank records that the application can resolve into useful state.
+A member feed is the named Hypercore used to store one Peer Hours member's record envelopes. It is the bridge between low-level replicated storage and the timebank records that the application can resolve into useful state.
 
 ## What you already know
 
-You may think of a database table such as `events` that holds many types of application activity. A record core plays a related role, but it is an append-only, replicated sequence rather than a centrally updated table.
+You may think of a database table such as `events` that holds many types of application activity. A member feed plays a related role, but it is an append-only, replicated sequence owned by one peer rather than a centrally updated table.
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
 ## A tiny example
 
 ```text
-record core: peer-hours-timebank-records
+member feed: peer-hours-member-records
 
 block 0: member-signing-key activation envelope
 block 1: accepted-proposal envelope
@@ -28,13 +28,13 @@ block 2: signed-transfer envelope
 
 ## Peer Hours connection
 
-`@peer-hours/peer-runtime` opens the named `peer-hours-timebank-records` core using `HypercoreRecordStore`. A community node currently creates and owns the writable version, advertises its public key in bootstrap metadata, and offers a read-only `/records` diagnostic endpoint. Desktop runtimes use that advertised key to open and replicate the community record core as readers.
+`@peer-hours/peer-runtime` opens the named `peer-hours-member-records` feed using `HypercoreRecordStore`. Every runtime owns its own writable version. A community peer may retain and replicate a known feed, but does not advertise a canonical record key or expose a `/records` endpoint.
 
-This is verified current behavior. It has important limits: desktop members cannot yet append their own timebank records, identity events do not yet establish a fully signed self-owned identity model, and multiwriter feeds are not yet designed. The record core is real shared infrastructure, not the completed timebank protocol.
+This is verified current behavior. It has important limits: the desktop does not yet publish its signed application records or announce its feed to other peers, and key rotation is not yet designed. The member feed is real shared infrastructure, not the completed timebank protocol.
 
 ## Takeaway
 
-The record core stores the shared history. Resolver packages turn that history into proposals, verified transfers, and balances.
+Together, known member feeds form the shared history. Resolver packages turn those histories into proposals, verified transfers, and balances.
 
 ## Next lesson
 

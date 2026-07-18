@@ -22,7 +22,7 @@ The node makes the network more dependable. It does not make a participant signa
 
 ## Small example
 
-At midnight, no member desktop is open. The East Bay community node can still keep its record core on disk and remain discoverable. When Alice opens her app in the morning, her runtime can learn how to find the community's record core and synchronize records that are available.
+At midnight, no member desktop is open. The East Bay community peer can still remain discoverable and retain member feeds it already knows. When Alice opens her app in the morning, her runtime can find peers through the community discovery scope and replicate known member feeds.
 
 If the node is temporarily unavailable, Alice's existing local records still exist on her device. She simply cannot use that node as a currently reachable synchronization partner.
 
@@ -30,7 +30,7 @@ If the node is temporarily unavailable, Alice's existing local records still exi
 
 The `apps/node` application is the current community-node implementation. It publishes bootstrap information, maintains persistent Hypercore/Corestore data, and has read-only status and record endpoints for development and diagnostics.
 
-Today, it owns the writable shared record core. That is a temporary, deliberately limited model. It is not yet the finished design for member-originated writes or community governance.
+It does not own a writable shared record core. It is an always-on peer without a human attached: useful for availability and discovery, but not entitled to approve members, author their records, or decide validity.
 
 Use the precise term **community node**: it describes its role in supporting a timebank community. A **peer** is any connected runtime, including a member desktop and the community node itself.
 

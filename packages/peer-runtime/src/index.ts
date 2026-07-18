@@ -26,7 +26,7 @@ export type LocalPeerStatus = {
   discovery: { connecting: number; connected: number };
   peers: PeerStatus[];
   replication: { coreKey: string; length: number };
-  records: { coreKey: string; length: number; state: "local" | "community" | "unavailable" };
+  memberFeed: { coreKey: string; length: number; state: "ready" | "unavailable" };
   error: string | null;
   bootstrap: { url: string | null; state: "not-configured" | "fetching" | "fetched" | "error" };
   community: CommunityManifest | null;
@@ -36,10 +36,14 @@ export type CommunityManifest = {
   communityId: string;
   displayName: string;
   protocolVersion: number;
+  role: "community-peer";
+  capabilities: readonly CommunityPeerCapability[];
   coreKey: string;
-  recordCoreKey?: string;
   bootstrapNodes: string[];
 };
+
+/** Capabilities an always-on community peer may advertise without gaining member-control powers. */
+export type CommunityPeerCapability = "discovery" | "replication" | "diagnostics";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -50,13 +54,12 @@ export function parseCommunityManifest(payload: unknown): CommunityManifest {
   const communityId = requiredNonblankString(payload, "communityId");
   const displayName = requiredNonblankString(payload, "displayName");
   const protocolVersion = positiveProtocolVersion(payload.protocolVersion);
+  const role = communityPeerRole(payload.role);
+  const capabilities = communityPeerCapabilities(payload.capabilities);
   const coreKey = validCoreKey(requiredNonblankString(payload, "coreKey"), "coreKey");
-  const recordCoreKey = optionalCoreKey(payload.recordCoreKey, "recordCoreKey");
   const bootstrapNodes = validBootstrapNodes(payload.bootstrapNodes);
 
-  return recordCoreKey === undefined
-    ? { communityId, displayName, protocolVersion, coreKey, bootstrapNodes }
-    : { communityId, displayName, protocolVersion, coreKey, recordCoreKey, bootstrapNodes };
+  return { communityId, displayName, protocolVersion, role, capabilities, coreKey, bootstrapNodes };
 }
 
 /** Narrows an untrusted JSON value to a plain object-like record. */
@@ -89,13 +92,20 @@ function validCoreKey(value: string, field: string): string {
   return value.toLowerCase();
 }
 
-/** Validates an optional record-core key when the community publishes one. */
-function optionalCoreKey(value: unknown, field: string): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") {
-    throw new Error(`Bootstrap metadata field ${field} must be a 64-character hexadecimal Hypercore key when provided.`);
+/** Accepts only the non-authoritative role used by an always-on Peer Hours community participant. */
+function communityPeerRole(value: unknown): "community-peer" {
+  if (value === undefined) return "community-peer";
+  if (value !== "community-peer") throw new Error("Bootstrap metadata field role must be community-peer when provided.");
+  return value;
+}
+
+/** Validates optional, descriptive community-peer capabilities without treating them as permissions over members. */
+function communityPeerCapabilities(value: unknown): readonly CommunityPeerCapability[] {
+  if (value === undefined) return Object.freeze(["discovery", "replication", "diagnostics"]);
+  if (!Array.isArray(value) || value.some((capability) => capability !== "discovery" && capability !== "replication" && capability !== "diagnostics")) {
+    throw new Error("Bootstrap metadata field capabilities must contain only discovery, replication, or diagnostics.");
   }
-  return validCoreKey(value, field);
+  return Object.freeze([...new Set(value)] as CommunityPeerCapability[]);
 }
 
 /** Validates bootstrap node locations without accepting non-web URL schemes. */
@@ -136,11 +146,10 @@ export class PeerRuntime {
   private readonly now: () => number;
   private readonly startedAtMs: number;
   private readonly startedAt: string;
-  private readonly configuredRecordCoreKey: string | null;
   private readonly networkingEnabled: boolean;
+  private readonly memberFeedEnabled: boolean;
   private store: any;
   private core: any;
-  private recordStore: HypercoreRecordStore | null = null;
   private memberRecordStore: HypercoreRecordStore | null = null;
   private bootstrapCore: any;
   private swarm: any;
@@ -155,14 +164,14 @@ export class PeerRuntime {
   private readonly staleAfterMs = 10_000;
   private readonly offlineRetentionMs = 30_000;
 
-  /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and clock. */
+  /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and optional local member feed. */
   constructor(
     dataDirectory: string,
     bootstrapKey?: string,
     bootstrapUrl?: string,
     now: () => number = Date.now,
-    recordCoreKey?: string,
     networkingEnabled = true,
+    memberFeedEnabled = true,
   ) {
     this.dataDirectory = dataDirectory;
     this.bootstrapKey = bootstrapKey ? Buffer.from(bootstrapKey, "hex") : null;
@@ -170,8 +179,8 @@ export class PeerRuntime {
     this.now = now;
     this.startedAtMs = this.now();
     this.startedAt = new Date(this.startedAtMs).toISOString();
-    this.configuredRecordCoreKey = recordCoreKey ?? null;
     this.networkingEnabled = networkingEnabled;
+    this.memberFeedEnabled = memberFeedEnabled;
   }
 
   /** Subscribes to local and community status changes and returns an unsubscribe function. */
@@ -193,9 +202,9 @@ export class PeerRuntime {
       this.store = new Corestore(this.dataDirectory);
       this.core = this.store.get({ name: "peer-hours-network", valueEncoding: "json" });
       await this.core.ready();
-      this.memberRecordStore = await HypercoreRecordStore.open(this.store, "peer-hours-member-records");
-      const recordCoreKey = this.configuredRecordCoreKey ?? this.community?.recordCoreKey;
-      this.recordStore = await HypercoreRecordStore.open(this.store, "peer-hours-timebank-records", recordCoreKey);
+      if (this.memberFeedEnabled) {
+        this.memberRecordStore = await HypercoreRecordStore.open(this.store, "peer-hours-member-records");
+      }
       if (this.networkingEnabled) {
         this.startNetworking();
       }
@@ -206,7 +215,6 @@ export class PeerRuntime {
         await this.bootstrapCore.ready();
         if (this.networkingEnabled) this.join(this.bootstrapCore.discoveryKey);
       }
-      await this.openCommunityRecordStore();
       if (this.bootstrapUrl) {
         this.statusTimer = setInterval(() => void this.refreshCommunityPeers(), 2_000);
         void this.refreshCommunityPeers();
@@ -249,16 +257,6 @@ export class PeerRuntime {
     this.join(this.core.discoveryKey);
   }
 
-  /** Returns the public key for the active local or community-provided immutable record core. */
-  get recordCoreKey(): string {
-    return this.recordStore?.publicKey ?? "";
-  }
-
-  /** Reports whether this runtime owns the active record core and can append to it. */
-  get canAppendRecords(): boolean {
-    return this.recordStore?.writable ?? false;
-  }
-
   /** Returns this runtime's independently writable member-feed key for sharing through a future discovery protocol. */
   get memberRecordFeedKey(): string {
     return this.memberRecordStore?.publicKey ?? "";
@@ -282,20 +280,6 @@ export class PeerRuntime {
     if (this.store === undefined) throw new Error("The local Corestore is not ready.");
     const feed = await HypercoreRecordStore.open(this.store, "peer-hours-member-records", feedPublicKey);
     return feed.readAll();
-  }
-
-  /** Appends one immutable JSON record when this runtime owns the active record core. */
-  async appendRecord(record: JsonValue): Promise<number> {
-    if (this.recordStore === null) throw new Error("The record core is not ready.");
-    if (!this.recordStore.writable) throw new Error("The active community record core is read-only.");
-    const index = await this.recordStore.append(record);
-    this.notifyStatusChange();
-    return index;
-  }
-
-  /** Reads every immutable JSON record currently available from the active record core. */
-  async readRecords(): Promise<readonly JsonValue[]> {
-    return this.recordStore?.readAll() ?? Object.freeze([]);
   }
 
   /** Registers a development-only simulated peer for UI and topology testing. */
@@ -329,14 +313,6 @@ export class PeerRuntime {
       console.error("bootstrap failed:", cause);
       return null;
     }
-  }
-
-  /** Opens the configured community record core after bootstrap metadata becomes available. */
-  private async openCommunityRecordStore(): Promise<void> {
-    const recordCoreKey = this.configuredRecordCoreKey ?? this.community?.recordCoreKey;
-    if (recordCoreKey === undefined || recordCoreKey === this.recordStore?.publicKey) return;
-    this.recordStore = await HypercoreRecordStore.open(this.store, "peer-hours-timebank-records", recordCoreKey);
-    this.notifyStatusChange();
   }
 
   /** Reads the community node's peer roster for development visibility and diagnostics. */
@@ -396,10 +372,10 @@ export class PeerRuntime {
       discovery: { connecting: this.swarm?.connecting ?? 0, connected: this.swarm?.connections?.size ?? 0 },
       peers: [...this.peers.values(), ...this.communityPeers.filter((peer) => !this.peers.has(peer.id))],
       replication: { coreKey: this.core?.key?.toString("hex") ?? "", length: this.core?.length ?? 0 },
-      records: {
-        coreKey: this.recordStore?.publicKey ?? "",
-        length: this.recordStore?.length ?? 0,
-        state: this.recordStore === null ? "unavailable" : (this.configuredRecordCoreKey ?? this.community?.recordCoreKey) ? "community" : "local",
+      memberFeed: {
+        coreKey: this.memberRecordStore?.publicKey ?? "",
+        length: this.memberRecordStore?.length ?? 0,
+        state: this.memberRecordStore === null ? "unavailable" : "ready",
       },
       error: this.error,
       bootstrap: { url: this.bootstrapUrl, state: this.bootstrapState },

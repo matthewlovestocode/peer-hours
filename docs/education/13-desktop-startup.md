@@ -21,7 +21,7 @@ sequenceDiagram
   E->>U: Open app window
   U->>E: Request network status
   R->>N: Fetch bootstrap metadata
-  R->>R: Open community record core
+  R->>R: Open local member feed
   E-->>U: Updated runtime status
 ```
 

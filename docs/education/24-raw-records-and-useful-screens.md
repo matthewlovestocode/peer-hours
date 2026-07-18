@@ -39,7 +39,7 @@ The resolver checks that the key was valid, that the proposal was accepted, and 
 
 `@peer-hours/timebank-records` already tests deterministic in-memory resolution of compatible record envelopes into authorizations, accepted proposals, verified transfers, and derived balances. Proposal and transfer envelopes must now also carry a valid active member signature before the resolver admits them. That is a verified package-level capability.
 
-The running desktop does **not** yet resolve and display member offers, proposals, or balances from the community record core. The live record core is generic, community-owned, and read-only to desktop members. Connecting the resolver to an authorized member-write protocol and member-facing screens is proposed future work.
+The running desktop does **not** yet resolve and display member offers, proposals, or balances from known member feeds. Each runtime has its own feed, but feed announcements and the connection from resolver to member-facing screens are proposed future work.
 
 ## Takeaway
 

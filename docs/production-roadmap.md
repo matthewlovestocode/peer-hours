@@ -1,8 +1,10 @@
 # Production roadmap
 
-Peer Hours has working foundations for local peer storage, direct replication, a community-owned record core, and pure timebank rules. It is **not** ready to operate a real timebank yet. This roadmap describes the smallest safe route from the current foundation to a limited community pilot.
+Peer Hours has working foundations for local peer storage, direct member-feed replication, always-on community peers, and pure timebank rules. It is **not** ready to operate a real timebank yet. This roadmap describes the smallest safe route from the current foundation to a limited community pilot.
 
 It deliberately separates verified capability from proposed work. A phase is complete only when its acceptance criteria are demonstrated in automated tests and in the running applications; a diagram or package interface alone is not completion.
+
+The roadmap preserves Peer Hours' non-governing, not-for-profit direction: a real deployment must not require a central admission service, mandatory vendor host, transaction fee, or operator with special power over member identities, records, or balances. Community peers may make the network more available, but they remain supportive infrastructure rather than a governing layer. A healthy member-desktop mesh must be able to discover, connect, and replicate without a community peer; community peers improve durability and recovery when that mesh is sparse or offline.
 
 ```mermaid
 flowchart LR
@@ -15,7 +17,7 @@ flowchart LR
 
 ## What exists today
 
-The desktop application has an embedded, persistent peer runtime. A community node has a persistent Corestore, Hyperswarm connectivity, a bootstrap endpoint, and a named community record core. The desktop can fetch that core's public key, open it as a reader, replicate it while connected, and display record-core status.
+The desktop application has an embedded, persistent peer runtime. An always-on community peer has a persistent Corestore, Hyperswarm connectivity, a bootstrap endpoint, and diagnostic status. It joins the same discovery scope and can retain/replicate known member feeds, but it does not own a canonical community history or decide which member records are valid.
 
 The shared packages test these pure rules in memory:
 
@@ -25,7 +27,7 @@ The shared packages test these pure rules in memory:
 - immutable time-credit transfers, reversals, idempotency, and derived balances; and
 - immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
 
-These are necessary building blocks, but none makes a record network-authoritative. Each runtime now owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. The resolver accepts declared root keys for member-signed records without a community authorization event. It does not yet discover feeds, prove a record arrived from its declared feed, or connect this protocol to a desktop workflow. The community core remains single-writer for its own generic history.
+These are necessary building blocks, but none makes a record network-authoritative. Each member runtime now owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. A two-runtime integration test now proves a narrow complete protocol exchange with no community peer: a deliberately direct Corestore connection carries feed declarations, signed published listings, an accepted proposal, and a dual-attested settlement, then both sides independently resolve identical balances. The test proves that record replication and resolution do not require a community peer; it does not claim automatic member discovery. The resolver accepts declared root keys for member-signed records without a community authorization event, and its feed-aware API rejects a member-authored domain record supplied from a feed its author did not declare. It does not yet discover feeds or connect this protocol to a desktop workflow. The community peer is an availability participant without a human member identity, not a record writer or authority.
 
 ## 1. Self-owned member writes
 
@@ -35,7 +37,7 @@ These are necessary building blocks, but none makes a record network-authoritati
 
 Use a separate append-only feed per member device, or an equivalently explicit multiwriter protocol. Each feed must have a stable public identity. Every record should carry a versioned envelope, author identity, signature, community scope, and causal/reference information needed by the resolver. The protocol must authenticate authorship without turning a community node or administrator into a membership gate. Identity, contact metadata, and user-selected trust signals need distinct records and visibility boundaries.
 
-The shared community record core must not become an unauthenticated write bucket. A community node may relay and retain records, but it must not silently become the sole actor that decides member truth.
+An always-on community peer may relay and retain member feeds, but it must not silently become a directory authority, an admission gate, or the sole actor that decides member truth.
 
 ```mermaid
 sequenceDiagram
@@ -77,7 +79,7 @@ Offline composition may create local drafts. Publishing, acceptance, and settlem
 
 ### Acceptance criteria
 
-- End-to-end tests run two independent desktop-capable runtimes plus community-node storage.
+- End-to-end tests run two independent desktop-capable runtimes without community-node storage, first through an explicit direct connection and later through automatic peer discovery. Later tests add community peers as optional relay and durability infrastructure.
 - The UI distinguishes draft, queued, published, awaiting the other member, pending replication, settled, and rejected states.
 - A duplicated proposal or settlement cannot change the derived balance twice.
 - A restart during every stage produces a recoverable, explainable state.

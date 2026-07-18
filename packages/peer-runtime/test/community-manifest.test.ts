@@ -3,7 +3,6 @@ import test from "node:test";
 import { parseCommunityManifest } from "../src/index.js";
 
 const coreKey = "a".repeat(64);
-const recordCoreKey = "b".repeat(64);
 
 /** Creates a complete, structurally valid bootstrap response for parser tests. */
 function manifest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -11,8 +10,9 @@ function manifest(overrides: Record<string, unknown> = {}): Record<string, unkno
     communityId: "peer-hours/earth/US/CA/east-bay",
     displayName: "East Bay Timebank",
     protocolVersion: 1,
+    role: "community-peer",
+    capabilities: ["discovery", "replication", "diagnostics"],
     coreKey,
-    recordCoreKey,
     bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10000/bootstrap"],
     ...overrides,
   };
@@ -23,8 +23,9 @@ test("parses complete bootstrap metadata before the runtime uses it", () => {
     communityId: "peer-hours/earth/US/CA/east-bay",
     displayName: "East Bay Timebank",
     protocolVersion: 1,
+    role: "community-peer",
+    capabilities: ["discovery", "replication", "diagnostics"],
     coreKey,
-    recordCoreKey,
     bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10000/bootstrap"],
   });
 });
@@ -41,15 +42,14 @@ test("requires a positive integer protocol version", () => {
   }
 });
 
-test("rejects malformed public keys including an optional record core key", () => {
+test("rejects malformed public network core keys", () => {
   assert.throws(() => parseCommunityManifest(manifest({ coreKey: "not-a-key" })), /coreKey must be a 64-character hexadecimal Hypercore key/);
-  assert.throws(() => parseCommunityManifest(manifest({ recordCoreKey: "not-a-key" })), /recordCoreKey must be a 64-character hexadecimal Hypercore key/);
 });
 
-test("accepts omitted record core keys but rejects invalid provided values", () => {
-  const parsed = parseCommunityManifest(manifest({ recordCoreKey: undefined }));
-  assert.equal(parsed.recordCoreKey, undefined);
-  assert.throws(() => parseCommunityManifest(manifest({ recordCoreKey: null })), /recordCoreKey must be a 64-character hexadecimal Hypercore key when provided/);
+test("accepts only the non-authoritative community-peer role and known descriptive capabilities", () => {
+  assert.throws(() => parseCommunityManifest(manifest({ role: "community-authority" })), /role must be community-peer/);
+  assert.throws(() => parseCommunityManifest(manifest({ capabilities: ["admission"] })), /capabilities must contain only/);
+  assert.deepEqual(parseCommunityManifest(manifest({ role: undefined, capabilities: undefined })).capabilities, ["discovery", "replication", "diagnostics"]);
 });
 
 test("requires bootstrap nodes to be an array of HTTP(S) URLs", () => {

@@ -31,7 +31,7 @@ Consider two evenings:
 
 This is why Peer Hours plans for independently deployed community nodes. They support discovery, persistence, and replication for a particular timebank. They do not make ordinary members responsible for uptime.
 
-There is still a design question ahead: which records can members write, and how will their writes become available to the community? The current project deliberately has a community-owned writable record core while it designs safe member-originated writes.
+There is still a design question ahead: how will a member announce their feed so other peers can find it privately and safely? The current project already gives each runtime its own writable member feed; the missing piece is peer-to-peer feed discovery.
 
 ## Next lesson
 

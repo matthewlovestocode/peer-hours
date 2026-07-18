@@ -37,7 +37,7 @@ flowchart LR
 
 If one Earth-to-Mars path is unavailable, a second bridge may later carry the same replicated records. Members usually connect to a nearby or trusted community node; they do not need to know every path inside the web. A record being copied across multiple paths is still the same record, so its identity and signatures—not the route it took—tell us what it is.
 
-**Important boundary:** this diagram is a proposed federation topology, not a claim about the current runtime. Today Peer Hours establishes direct peer sessions after discovery and replicates the community record core between connected runtimes. It does not yet implement general multi-hop routing, automatic bridge selection, or an interplanetary transport layer. Those capabilities need explicit protocol and policy design.
+**Important boundary:** this diagram is a proposed federation topology, not a claim about the current runtime. Today Peer Hours establishes direct peer sessions after discovery and can replicate a known member feed between connected runtimes. It does not yet implement general multi-hop routing, feed discovery, automatic bridge selection, or an interplanetary transport layer. Those capabilities need explicit protocol and policy design.
 
 ## A small example
 

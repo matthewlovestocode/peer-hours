@@ -48,7 +48,7 @@ A high uptime value is encouraging, but it does **not** demonstrate any of the f
 
 - A hosting provider has been reachable from the public internet. That needs independent external probes and historical success/failure data.
 - The node is listening for peers or has an active Hyperswarm connection.
-- The community record core has replicated all required blocks, is fresh, or agrees with another node.
+- Every required member feed has replicated all required blocks, is fresh, or agrees with another peer.
 - Bootstrap metadata is trusted. The current bootstrap parser validates structure, not community authority.
 - A record is authorized, settled, private, backed up, or recoverable.
 - A member can complete an offer, proposal, or settlement workflow. That workflow is not yet wired to a production write path.

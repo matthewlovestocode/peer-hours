@@ -40,7 +40,7 @@ After replication, Alice's desktop, Bob's desktop, and the community node may ea
 
 ## Peer Hours connection
 
-Today, the community node owns the writable shared record core and exposes read-only record information. Desktop runtimes can open that community record core and read replicated records. Member-written shared records are a later design step.
+Today, every runtime owns a writable member feed. An always-on community peer can retain and replicate feeds it knows, but it does not own a shared record core or expose a record API. Feed announcements and the member-facing publish flow are later steps.
 
 This does **not** mean every local copy is automatically trustworthy. Later lessons explain signatures and validation. For now, remember: Peer Hours moves records between local stores instead of asking one central database for every screen.
 

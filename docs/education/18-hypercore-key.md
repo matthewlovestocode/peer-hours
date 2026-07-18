@@ -22,7 +22,7 @@ flowchart LR
 ## A tiny example
 
 ```text
-record core key:
+member feed key:
 ab12...ef90
 
 Peer A opens core ab12...ef90
@@ -35,9 +35,9 @@ A public key is safe to share. It is not a password and does not grant someone t
 
 ## Peer Hours connection
 
-`PeerRuntime` exposes a `recordCoreKey` in its status data. A community node includes that key in its `/bootstrap` response, allowing a desktop runtime to open the community-owned record core as a reader. The desktop’s Network view can show the full key so a developer can inspect which record history the runtime is following.
+`PeerRuntime` exposes its local `memberFeed.coreKey` in status data. This is the public key of the member feed owned by that runtime. A bootstrap response carries only discovery metadata; it does not select a community-owned record history.
 
-This key identifies a record core, not a timebank member. Member signing keys used to attest transfers are a separate identity concept managed by `@peer-hours/timebank-identity`.
+This key identifies one append-only member feed, not a community authority. Root signing keys used to attest declarations and transfers are a separate identity concept managed by `@peer-hours/timebank-identity`.
 
 ## Takeaway
 

@@ -8,7 +8,7 @@ You may have built an API endpoint such as `GET /api/projects`. A client calls i
 
 ## One new idea
 
-Peer Hours uses `GET /bootstrap` differently. The desktop asks for connection metadata, such as the community identity and record-core key. It then uses peer-to-peer tools to open and replicate the record core.
+Peer Hours uses `GET /bootstrap` differently. The desktop asks for connection metadata, such as the community identity and discovery-core key. It then uses peer-to-peer tools to find peers and replicate known member feeds.
 
 ```mermaid
 sequenceDiagram
@@ -16,8 +16,8 @@ sequenceDiagram
   participant H as Community HTTP endpoint
   participant P as Peer-to-peer network
   D->>H: GET /bootstrap
-  H-->>D: community + recordCoreKey metadata
-  D->>P: Find peers and open record core
+  H-->>D: community + discovery metadata
+  D->>P: Find peers and replicate known member feeds
   P-->>D: Replicated record blocks
 ```
 
@@ -32,11 +32,10 @@ The current bootstrap response can include a value like this:
   "community": {
     "id": "peer-hours/earth/US/CA/east-bay"
   },
-  "recordCoreKey": "a1b2c3..."
 }
 ```
 
-The long `recordCoreKey` identifies a particular append-only record core. The desktop uses it to open the same core locally and replicate its records. It does not receive every timebank record directly inside the bootstrap response.
+The long `coreKey` identifies the discovery core used to rendezvous with peers. It does not identify a community-owned history, and the bootstrap response does not contain timebank records or member-feed keys.
 
 ## Peer Hours connection
 

@@ -1,4 +1,5 @@
 export * from "./envelope.js";
+export * from "./feed-resolution.js";
 export * from "./identity-records.js";
 export * from "./member-signed-record.js";
 export * from "./self-owned-identity-records.js";

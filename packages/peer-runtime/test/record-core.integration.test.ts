@@ -38,17 +38,6 @@ function envelope(id: string, title: string): RecordEnvelope {
   };
 }
 
-/** Waits for the remote runtime to resolve a replicated immutable record sequence. */
-async function waitForRecords(runtime: PeerRuntime, expectedLength: number): Promise<readonly unknown[]> {
-  const deadline = Date.now() + 2_000;
-  while (true) {
-    const records = await runtime.readRecords();
-    if (records.length === expectedLength) return records;
-    if (Date.now() >= deadline) throw new Error(`Replication timed out waiting for ${expectedLength} records`);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
-
 /** Waits for a known remote member feed to expose a replicated immutable record sequence. */
 async function waitForMemberFeedRecords(runtime: PeerRuntime, feedPublicKey: string, expectedLength: number): Promise<readonly unknown[]> {
   const deadline = Date.now() + 2_000;
@@ -60,48 +49,10 @@ async function waitForMemberFeedRecords(runtime: PeerRuntime, feedPublicKey: str
   }
 }
 
-test("replicates immutable record envelopes between two Peer Hours runtimes", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "peer-hours-runtime-record-core-"));
-  const first = new PeerRuntime(join(directory, "first"), undefined, undefined, Date.now, undefined, false);
-  let second: PeerRuntime | null = null;
-  let firstReplication: NodeJS.ReadWriteStream | null = null;
-  let secondReplication: NodeJS.ReadWriteStream | null = null;
-
-  try {
-    await first.start();
-    assert.match(first.recordCoreKey, /^[a-f0-9]{64}$/);
-
-    second = new PeerRuntime(join(directory, "second"), undefined, undefined, Date.now, first.recordCoreKey, false);
-    await second.start();
-
-    firstReplication = (first as unknown as RuntimeInternals).store.replicate(true);
-    secondReplication = (second as unknown as RuntimeInternals).store.replicate(false);
-    firstReplication.pipe(secondReplication).pipe(firstReplication);
-
-    const source = envelope("record-a", "Shared immutable record");
-    assert.equal(await first.appendRecord(source), 0);
-
-    const records = await waitForRecords(second, 1);
-    assert.deepEqual(records, [envelope("record-a", "Shared immutable record")]);
-    assert.equal(Object.isFrozen(records), true);
-    assert.equal(Object.isFrozen(records[0]), true);
-    assert.equal(Object.isFrozen(records[0]?.payload), true);
-    assert.equal(second.canAppendRecords, false);
-    await assert.rejects(() => second.appendRecord(envelope("record-b", "An unauthorized append")), /read-only/);
-    assert.deepEqual(await second.readRecords(), [envelope("record-a", "Shared immutable record")]);
-  } finally {
-    await firstReplication?.destroy();
-    await secondReplication?.destroy();
-    await second?.stop();
-    await first.stop();
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
 test("keeps member-authored records in a separately writable feed that another runtime can replicate", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-runtime-member-feed-"));
-  const first = new PeerRuntime(join(directory, "first"), undefined, undefined, Date.now, undefined, false);
-  const second = new PeerRuntime(join(directory, "second"), undefined, undefined, Date.now, undefined, false);
+  const first = new PeerRuntime(join(directory, "first"), undefined, undefined, Date.now, false);
+  const second = new PeerRuntime(join(directory, "second"), undefined, undefined, Date.now, false);
   let firstReplication: NodeJS.ReadWriteStream | null = null;
   let secondReplication: NodeJS.ReadWriteStream | null = null;
 
@@ -109,7 +60,6 @@ test("keeps member-authored records in a separately writable feed that another r
     await first.start();
     await second.start();
     assert.match(first.memberRecordFeedKey, /^[a-f0-9]{64}$/);
-    assert.notEqual(first.memberRecordFeedKey, first.recordCoreKey);
     await second.readMemberRecordsFromFeed(first.memberRecordFeedKey);
 
     firstReplication = (first as unknown as RuntimeInternals).store.replicate(true);
@@ -133,7 +83,7 @@ test("keeps member-authored records in a separately writable feed that another r
 test("preserves a member-owned feed and its immutable records across a local runtime restart", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-runtime-member-feed-restart-"));
   const runtimeDirectory = join(directory, "member");
-  const first = new PeerRuntime(runtimeDirectory, undefined, undefined, Date.now, undefined, false);
+  const first = new PeerRuntime(runtimeDirectory, undefined, undefined, Date.now, false);
   let second: PeerRuntime | null = null;
 
   try {
@@ -142,7 +92,7 @@ test("preserves a member-owned feed and its immutable records across a local run
     await first.appendMemberRecord(envelope("member-record-restart", "Survives restart"));
     await first.stop();
 
-    second = new PeerRuntime(runtimeDirectory, undefined, undefined, Date.now, undefined, false);
+    second = new PeerRuntime(runtimeDirectory, undefined, undefined, Date.now, false);
     await second.start();
     assert.equal(second.memberRecordFeedKey, feedKey);
     assert.deepEqual(await second.readMemberRecords(), [envelope("member-record-restart", "Survives restart")]);

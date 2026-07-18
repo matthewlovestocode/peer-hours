@@ -1,4 +1,4 @@
-import { type ExchangeProposal } from "@peer-hours/timebank-domain";
+import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import { createRecordEnvelope, type JsonObject, type RecordEnvelope } from "./envelope.js";
 
@@ -11,8 +11,14 @@ export const TIMEBANK_RECORD_VERSION = 1;
 /** The immutable record kind used to distribute accepted exchange proposals. */
 export const ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND = "peer-hours/accepted-exchange-proposal/v1";
 
+/** The immutable record kind used to distribute member-published offers and requests. */
+export const PUBLISHED_LISTING_RECORD_KIND = "peer-hours/published-listing/v1";
+
 /** The immutable record kind used to distribute attested ledger transfers. */
 export const LEDGER_TRANSFER_RECORD_KIND = "peer-hours/ledger-transfer/v1";
+
+/** A normalized record envelope carrying one published member-owned listing. */
+export type PublishedListingRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one immutable accepted exchange proposal. */
 export type AcceptedExchangeProposalRecord = RecordEnvelope<JsonObject>;
@@ -33,6 +39,46 @@ export class RecordMappingError extends Error {
     super(message);
     this.name = "RecordMappingError";
   }
+}
+
+/** Encodes a published member offer or request in its immutable community record envelope. */
+export function toPublishedListingRecord(
+  listing: Listing,
+  metadata: CreateTimebankRecordMetadata,
+): PublishedListingRecord {
+  const normalized = normalizePublishedListing(listing);
+  if (metadata.authorId !== normalized.memberId) {
+    throw new RecordMappingError("A published listing record must be authored by its member owner.");
+  }
+  return createRecordEnvelope({
+    id: normalized.id,
+    schema: TIMEBANK_RECORD_SCHEMA,
+    version: TIMEBANK_RECORD_VERSION,
+    communityId: normalized.communityId,
+    kind: PUBLISHED_LISTING_RECORD_KIND,
+    occurredAt: metadata.occurredAt,
+    authorId: metadata.authorId,
+    payload: normalized as unknown as JsonObject,
+  });
+}
+
+/** Decodes one published-listing envelope after checking its kind and community ownership. */
+export function decodePublishedListingRecord(record: unknown): Listing {
+  const normalizedRecord = normalizeRecord(record);
+  assertTimebankEnvelope(normalizedRecord);
+  assertRecordKind(normalizedRecord, PUBLISHED_LISTING_RECORD_KIND, "published listing");
+  const listing = normalizePublishedListing(normalizedRecord.payload);
+  assertEnvelopeMatchesPayload(normalizedRecord, listing.id, listing.communityId, "published listing");
+  return listing;
+}
+
+/** Reduces one community's unordered listing records into unique published offers and requests. */
+export function reducePublishedListingRecords(
+  records: readonly unknown[],
+  communityId: string,
+): readonly Listing[] {
+  assertText(communityId, "Community id");
+  return reduceRecords(records, communityId, decodePublishedListingRecord, "published listing");
 }
 
 /** Encodes an accepted exchange proposal in its immutable community record envelope. */
@@ -148,6 +194,34 @@ function normalizeAcceptedProposal(value: unknown): ExchangeProposal {
     acceptedByMemberId: proposal.acceptedByMemberId,
     minutes: proposal.minutes,
     status: "accepted",
+  });
+}
+
+/** Normalizes only the immutable published listing shape that is safe to replicate publicly. */
+function normalizePublishedListing(value: unknown): Listing {
+  if (!isRecord(value)) throw new RecordMappingError("A published listing payload must be an object.");
+
+  const listing = value as Partial<Listing>;
+  assertText(listing.id, "Listing id");
+  assertText(listing.communityId, "Listing community id");
+  assertText(listing.memberId, "Listing member id");
+  assertText(listing.title, "Listing title");
+  assertMinutes(listing.minutes, "Listing minutes");
+  if (listing.kind !== "offer" && listing.kind !== "request") {
+    throw new RecordMappingError("A published listing must be an offer or request.");
+  }
+  if (listing.status !== "published") {
+    throw new RecordMappingError("A replicated listing record must contain a published listing.");
+  }
+
+  return Object.freeze({
+    id: listing.id,
+    communityId: listing.communityId,
+    memberId: listing.memberId,
+    kind: listing.kind,
+    title: listing.title,
+    minutes: listing.minutes,
+    status: "published",
   });
 }
 

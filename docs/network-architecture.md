@@ -10,6 +10,16 @@ The system is inspired by the Bay Area Community Exchange (BACE) timebank model:
 
 Peer Hours exists because this model can benefit from technology that is more resilient, portable, and adaptable to the needs of modern communities.
 
+## Non-governing, organic network
+
+Peer Hours is an open-source, not-for-profit project. The protocol is not meant to collect fees, sell access, or create a business that extracts money from timebank exchange. People and communities may voluntarily operate infrastructure, but participation must not depend on one required vendor, host, or organization.
+
+There is no global governing authority. A compatible peer can validate signed records under transparent protocol rules, and people retain control over their own identities, local safety settings, and exchange decisions. Communities can develop shared customs and publish helpful information, but a community peer must not become an admission office, balance controller, or authority that decides whose record is real.
+
+This is what lets the network spread organically. A person, cooperative, or new community should be able to operate compatible infrastructure, create or join an appropriately scoped community, and connect through available peers without waiting for a central organization to grant it access. Inter-community discovery and federation will need careful privacy and scope rules, but they must preserve this property.
+
+Community peers are optional resilience infrastructure, not a prerequisite for protocol operation. When enough member desktops are online on the same discovery scope, they should be able to discover one another, connect directly, and replicate member-owned feeds without a Peer Hours community peer. Community peers make that experience more durable by retaining data, offering additional connection paths, and helping a returning member catch up after other desktops have gone offline.
+
 ## Core direction
 
 Peer Hours should be a **federated, local-first timebank network**.
@@ -35,18 +45,18 @@ Community nodes
   └── Participate in transaction validation
 ```
 
-The system should not depend on one central application server, while still remaining practical for people who simply want to use a timebank.
+The system should not depend on one central application server, governing authority, or continuously available community peer, while still remaining practical for people who simply want to use a timebank.
 
 ## Current implementation boundary
 
 Peer Hours has a working **replicated-read foundation**, not a production timebank yet. The following pieces are implemented and tested today:
 
 - the Electron desktop owns persistent local peer storage and an embedded runtime;
-- a community node owns a persistent Hypercore record core, publishes its public key through bootstrap metadata, and exposes read-only diagnostics;
-- connected runtimes replicate Corestores directly and desktop runtimes can open the advertised community record core as readers;
+- an always-on community peer owns persistent local peer storage, publishes bootstrap/discovery metadata, and exposes read-only diagnostics;
+- connected runtimes replicate known member feeds directly through Corestore;
 - pure packages model listing ownership, accepted proposals, Ed25519 transfer attestations, proposal-to-transfer matching, immutable record envelopes, deterministic record resolution, and derived ledger balances.
 
-The record core is currently writable only by its owning community runtime. Each runtime also owns a separate writable member feed, and a receiving runtime can directly replicate a known member-feed key. A self-certifying identity can sign a declaration linking itself to that feed, and the resolver admits that root key for the member's signed records without a community authorization event. Feed discovery, feed-source enforcement, and the desktop workflow are still absent, so a desktop cannot yet safely publish a member profile, listing, proposal, identity record, or transfer into the resolved community view. See [open participation and agreement privacy](open-participation-and-agreement-privacy.md) for the decision that this protocol must not become membership approval.
+Each member runtime owns a separate writable member feed, and a receiving runtime can directly replicate a known member-feed key. A self-certifying identity can sign a declaration linking itself to that feed, and the resolver admits that root key for the member's signed records without a community authorization event. Its feed-aware API also rejects a domain record supplied from a feed the author did not declare. The always-on community peer is simply another peer with durable storage: it has no human member identity, assists discovery and replication, and has no community record core, member-admission role, or special validity authority. Feed discovery and the desktop workflow are still absent, so a desktop cannot yet safely publish a member profile, listing, proposal, identity record, or transfer into the resolved community view. See [open participation and agreement privacy](open-participation-and-agreement-privacy.md) for the decision that this protocol must not become membership approval.
 
 At the current resolver boundary, an accepted proposal is admitted only when the accepting member authored its signed envelope. A settlement transfer is admitted only when either participant authored its signed envelope **and** the ledger validates the transfer's separate attestations from both participants. These are verified in-memory record rules, not proof that a desktop has a production network path to submit a record. The current node roster endpoint is also a diagnostic/development visibility aid, not evidence of a complete discovery, routing, or availability protocol.
 
@@ -80,6 +90,8 @@ A node may be hosted on a small VPS, a home server, a Raspberry Pi, or another s
 
 The initial model should favor federated communities. Each community can choose its own discovery scope, community-node operators, local safety defaults, and credit policy through transparent protocol rules, while using shared software and protocols. It must not control whether a person may participate, silently impose a global ban list, or own a member's identity. Inter-community exchange can be added later rather than assumed from the beginning.
 
+An always-on community peer is an infrastructure role, not a supervisory role. Its bootstrap metadata describes only `discovery`, `replication`, and `diagnostics`. It may foster community by staying reachable, relaying known feeds, carrying transparent public announcements in a future protocol, and helping peers meet; those helpful actions do not give it a special vote over member identities, records, balances, or local safety choices.
+
 ## Meshes, distance, and off-world communities
 
 A Peer Hours community identifier describes its social and accounting scope; it is not a physical network route. `peer-hours/earth/US/CA/east-bay` means “the East Bay community's records and policies,” not “every East Bay machine must be directly connected to every other East Bay machine.”
@@ -102,7 +114,7 @@ flowchart LR
     E3 <-->|"independent bridge"| M3
 ```
 
-This is a future topology, not present behavior. The current runtime makes direct encrypted peer connections after discovery and replicates a community record core between connected peers. It does not yet provide general multi-hop routing, automatic bridge selection, or delayed interplanetary transport. Any future bridge must make its replication scope, authority, privacy, and conflict policy explicit; a network path must never silently merge two communities' ledgers.
+This is a future topology, not present behavior. The current runtime makes direct encrypted peer connections after discovery and can replicate a known member feed between connected peers. It does not yet provide general multi-hop routing, automatic bridge selection, feed discovery, or delayed interplanetary transport. Any future bridge must make its replication scope, authority, privacy, and conflict policy explicit; a network path must never silently merge two communities' ledgers.
 
 ## Trust and accounting
 
@@ -129,7 +141,7 @@ apps/
 └── admin/         # Possible community-operations interface (not member admission)
 ```
 
-`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, peer status, and a community-owned record core; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain`, `timebank-settlement`, `timebank-ledger`, `timebank-identity`, and `timebank-records` packages now define agreement, proposal-to-transfer validation, settlement, key lifecycle, and immutable-record resolution rules. The desktop opens the community record core from bootstrap metadata and shows its health, but member-owned application records and their multiwriter write path are not yet wired. The admin application should be added when its first concrete workflows are understood.
+`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the always-on community peer provides persistent storage, bootstrap metadata, and peer status; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The desktop now has a drawer-based application shell, with network diagnostics isolated in its own workspace. The pure `timebank-domain`, `timebank-settlement`, `timebank-ledger`, `timebank-identity`, and `timebank-records` packages now define agreement, proposal-to-transfer validation, settlement, key lifecycle, feed provenance, and immutable-record resolution rules. Member runtimes own member feeds; the community peer deliberately does not because it has no human member identity. Application records, peer announcements, and the member-facing workflow are not yet wired. The admin application should be added when its first concrete workflows are understood.
 
 ## Local development topology
 

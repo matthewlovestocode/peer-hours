@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { MemberFeedAnnouncement } from "@peer-hours/timebank-identity";
 import type { JsonValue } from "@peer-hours/peer-runtime";
-import { decodePublishedListingRecord } from "@peer-hours/timebank-records";
+import {
+  decodeAcceptedExchangeProposalRecord,
+  decodePublishedListingRecord,
+} from "@peer-hours/timebank-records";
 import { MemberIdentityService, type MemberFeedRuntime, type SecureStorageAdapter, type StoredMemberIdentity } from "../src/electron/member-identity.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -104,6 +107,60 @@ test("rejects an invalid renderer-supplied listing kind without appending a reco
   const fixture = service();
   await fixture.identity.createAndAnnounce();
   await assert.rejects(fixture.identity.publishListing({ kind: "other", title: "Garden help", minutes: 90 } as never), /offer or request/i);
+  assert.equal(fixture.feed.records.length, 1);
+});
+
+test("accepts a verified pending proposal only as the other participant and signs a separate record", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const offer = {
+    id: "offer-garden-help", communityId, memberId: "member-provider", kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const request = {
+    id: "request-garden-help", communityId, memberId, kind: "request" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: offer.id, requestId: request.id,
+    providerMemberId: offer.memberId, receiverMemberId: request.memberId,
+    creatorMemberId: offer.memberId, minutes: 60, status: "proposed" as const,
+  };
+
+  await fixture.identity.acceptProposal({ proposal, offer, request });
+
+  assert.equal(fixture.feed.records.length, 2);
+  const record = fixture.feed.records[1] as Parameters<typeof decodeAcceptedExchangeProposalRecord>[0];
+  assert.deepEqual(decodeAcceptedExchangeProposalRecord(record), {
+    ...proposal, acceptedByMemberId: memberId, status: "accepted",
+  });
+});
+
+test("does not append acceptance when the local member created the pending proposal", async () => {
+  const fixture = service();
+  const status = await fixture.identity.createAndAnnounce();
+  const memberId = status.memberId;
+  assert.ok(memberId);
+  const offer = {
+    id: "offer-garden-help", communityId, memberId, kind: "offer" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const request = {
+    id: "request-garden-help", communityId, memberId: "member-recipient", kind: "request" as const,
+    title: "Garden help", minutes: 90, status: "published" as const,
+  };
+  const proposal = {
+    id: "proposal-garden-help", communityId, offerId: offer.id, requestId: request.id,
+    providerMemberId: offer.memberId, receiverMemberId: request.memberId,
+    creatorMemberId: memberId, minutes: 60, status: "proposed" as const,
+  };
+
+  await assert.rejects(
+    fixture.identity.acceptProposal({ proposal, offer, request }),
+    /only the other proposal participant/i,
+  );
   assert.equal(fixture.feed.records.length, 1);
 });
 

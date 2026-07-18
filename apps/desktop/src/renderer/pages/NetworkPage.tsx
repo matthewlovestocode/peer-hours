@@ -1,12 +1,12 @@
 import { useEffect } from "react";
-import { Metric, Panel, StatusDot } from "../components/Primitive.js";
-import { NetworkTree } from "../components/NetworkTree.js";
-import { LocalRuntimeUptime } from "../components/LocalRuntimeUptime.js";
 import { PeerExplorer } from "../components/PeerExplorer.js";
 import { RecordCoreStatus } from "../components/RecordCoreStatus.js";
+import { NetworkHeader } from "../components/network/NetworkHeader.js";
+import { NetworkMetrics } from "../components/network/NetworkMetrics.js";
+import { NetworkTopology } from "../components/network/NetworkTopology.js";
 import { useNetworkStore } from "../stores/network.js";
 
-/** Renders the network diagnostics workspace outside of the desktop landing page. */
+/** Renders the network diagnostics workspace with independently testable status sections. */
 export function NetworkPage() {
   const { status, state, error, lastUpdatedAt, refresh, subscribe } = useNetworkStore();
 
@@ -19,8 +19,27 @@ export function NetworkPage() {
   useEffect(() => subscribe(), [subscribe]);
 
   const connected = state === "connected";
-  const tone = connected ? "good" : state === "connecting" ? "warn" : state === "error" ? "bad" : "neutral";
-  const livePeerCount = status?.peers.filter((peer) => peer.lifecycleState === "connected" || peer.lifecycleState === "connecting").length ?? 0;
+  const livePeerCount = status?.peers.filter(isLivePeer).length ?? 0;
 
-  return <section className="network-page"><header className="workspace-header"><div><p className="eyebrow">Network</p><h1>Connection status</h1><p className="muted">A clear view of your connection to the timebank network.</p></div><div className="connection-pill"><StatusDot tone={tone} /><span>{connected ? "Connected" : state === "connecting" ? "Connecting" : state === "error" ? "Connection issue" : "Not connected"}</span></div></header><Panel className="tree-panel"><div className="panel-heading"><div><span className="kicker">{status?.community?.communityId ?? "Community network"}</span><h2>{status?.community?.displayName ?? "One connected tree"}</h2></div><span className="tree-caption">{livePeerCount} live peers</span></div><NetworkTree status={status} /></Panel><Panel className="status-strip"><div className="status-strip__identity"><span className="kicker">Your peer</span><code className="node-id">{status?.peerId ?? "Waiting for peer"}</code><button onClick={() => void refresh()}>Refresh</button></div>{error ? <p className="error-message">{error}. The embedded peer could not be reached.</p> : <div className="metrics"><Metric label="Local peer" value={connected ? "Online" : "Offline"} detail={lastUpdatedAt ? `Updated ${new Date(lastUpdatedAt).toLocaleTimeString()}` : "No update yet"} /><LocalRuntimeUptime status={status} /><Metric label="Community peers" value={status?.community?.communityNodeUrl ? 1 : 0} detail={status?.community?.communityNodeUrl ?? "No community peer configured"} /><Metric label="Live peers" value={livePeerCount} detail="remote peer connections" /><Metric label="Discovery" value={status ? `${status.discovery.connecting} / ${status.discovery.connected}` : "0 / 0"} detail="connecting / encrypted" /><Metric label="Replicated events" value={status?.memberFeed.length ?? 0} detail="in your member feed" /></div>}</Panel><RecordCoreStatus memberFeed={status?.memberFeed} /><PeerExplorer status={status} /></section>;
+  return (
+    <section className="network-page">
+      <NetworkHeader connected={connected} state={state} />
+      <NetworkTopology status={status} livePeerCount={livePeerCount} />
+      <NetworkMetrics
+        status={status}
+        connected={connected}
+        livePeerCount={livePeerCount}
+        error={error}
+        lastUpdatedAt={lastUpdatedAt}
+        onRefresh={refresh}
+      />
+      <RecordCoreStatus memberFeed={status?.memberFeed} />
+      <PeerExplorer status={status} />
+    </section>
+  );
+}
+
+/** Identifies peers that are presently connected or in the process of connecting. */
+function isLivePeer(peer: { lifecycleState: string }): boolean {
+  return peer.lifecycleState === "connected" || peer.lifecycleState === "connecting";
 }

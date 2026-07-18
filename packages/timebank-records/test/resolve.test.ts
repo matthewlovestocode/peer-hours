@@ -20,6 +20,7 @@ import {
   rootKeyIdForMember,
   toAcceptedExchangeProposalRecord,
   toLedgerTransferRecord,
+  toProposedExchangeProposalRecord,
   type RecordEnvelope,
 } from "../src/index.js";
 
@@ -47,6 +48,12 @@ function proposal(): ExchangeProposal {
     minutes: 90,
     status: "accepted",
   };
+}
+
+/** Creates the creator-signed pending form for the matching accepted proposal fixture. */
+function pendingProposal(): ExchangeProposal {
+  const { acceptedByMemberId: _acceptedByMemberId, ...pending } = proposal();
+  return { ...pending, status: "proposed" };
 }
 
 /** Creates the two signed attestations over immutable transfer terms. */
@@ -194,6 +201,63 @@ test("accepts an accepted proposal signed by its acceptor", () => {
   ];
 
   assert.equal(resolveTimebankRecords(communityId, records).acceptedProposals.length, 1);
+});
+
+test("resolves matching creator-signed pending and acceptor-signed acceptance records", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const pending = pendingProposal();
+  const accepted = proposal();
+  const records: readonly RecordEnvelope[] = [
+    signedRecord(
+      toProposedExchangeProposalRecord(pending, metadata),
+      providerKeys.privateKey,
+      "provider-key",
+    ),
+    signedRecord(
+      toAcceptedExchangeProposalRecord(accepted, { ...metadata, authorId: recipientMemberId }),
+      recipientKeys.privateKey,
+      "recipient-key",
+    ),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+    })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
+    })),
+  ];
+
+  const state = resolveTimebankRecords(communityId, records);
+  assert.deepEqual(state.proposedProposals, [pending]);
+  assert.deepEqual(state.acceptedProposals, [accepted]);
+});
+
+test("rejects an acceptance that changes a creator-signed pending proposal's immutable terms", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const records: readonly RecordEnvelope[] = [
+    signedRecord(
+      toProposedExchangeProposalRecord(pendingProposal(), metadata),
+      providerKeys.privateKey,
+      "provider-key",
+    ),
+    signedRecord(
+      toAcceptedExchangeProposalRecord({ ...proposal(), minutes: 60 }, { ...metadata, authorId: recipientMemberId }),
+      recipientKeys.privateKey,
+      "recipient-key",
+    ),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+    })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
+    })),
+  ];
+
+  assert.throws(
+    () => resolveTimebankRecords(communityId, records),
+    /preserve every immutable term/i,
+  );
 });
 
 test("accepts settlement records submitted by either transfer participant and rejects outsiders", () => {

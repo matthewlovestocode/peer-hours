@@ -12,6 +12,15 @@ flowchart LR
 
 ## Current rule
 
+Before a settlement can exist, an exchange follows two distinct immutable records:
+
+1. The creator publishes a signed `proposed` proposal record.
+2. The other participant publishes a separately signed `accepted` proposal record.
+
+The records use distinct lifecycle-specific envelope IDs derived from the same domain proposal ID, so both can coexist in an append-only feed. When a resolver has both records, it rejects an acceptance that changes any proposed term: community, listings, participants, creator, or minutes. This preserves the creator's exact offer for the other participant to accept.
+
+Acceptance-only histories are still read for migration compatibility. New desktop actions always publish the pending record first, and communities can make pending evidence mandatory once historical data has been migrated.
+
 For a normal settlement, the transfer must:
 
 - reference an accepted proposal through `sourceProposalId`;

@@ -11,6 +11,9 @@ export const TIMEBANK_RECORD_VERSION = 1;
 /** The immutable record kind used to distribute accepted exchange proposals. */
 export const ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND = "peer-hours/accepted-exchange-proposal/v1";
 
+/** The immutable record kind used to distribute a participant-created proposal awaiting acceptance. */
+export const PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND = "peer-hours/proposed-exchange-proposal/v1";
+
 /** The immutable record kind used to distribute member-published offers and requests. */
 export const PUBLISHED_LISTING_RECORD_KIND = "peer-hours/published-listing/v1";
 
@@ -22,6 +25,8 @@ export type PublishedListingRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one immutable accepted exchange proposal. */
 export type AcceptedExchangeProposalRecord = RecordEnvelope<JsonObject>;
+/** A normalized record envelope carrying one proposed exchange awaiting the other participant. */
+export type ProposedExchangeProposalRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one immutable dual-attested ledger transfer. */
 export type LedgerTransferRecord = RecordEnvelope<JsonObject>;
@@ -91,7 +96,7 @@ export function toAcceptedExchangeProposalRecord(
     throw new RecordMappingError("An accepted proposal record must be authored by the member who accepted it.");
   }
   return createRecordEnvelope({
-    id: normalized.id,
+    id: proposalRecordId(normalized.id, "accepted"),
     schema: TIMEBANK_RECORD_SCHEMA,
     version: TIMEBANK_RECORD_VERSION,
     communityId: normalized.communityId,
@@ -102,13 +107,30 @@ export function toAcceptedExchangeProposalRecord(
   });
 }
 
+/** Encodes a proposed exchange only when the proposal creator authors its immutable record. */
+export function toProposedExchangeProposalRecord(proposal: ExchangeProposal, metadata: CreateTimebankRecordMetadata): ProposedExchangeProposalRecord {
+  const normalized = normalizeProposedProposal(proposal);
+  if (metadata.authorId !== normalized.creatorMemberId) throw new RecordMappingError("A proposed exchange record must be authored by its creator.");
+  return createRecordEnvelope({ id: proposalRecordId(normalized.id, "proposed"), schema: TIMEBANK_RECORD_SCHEMA, version: TIMEBANK_RECORD_VERSION, communityId: normalized.communityId, kind: PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND, occurredAt: metadata.occurredAt, authorId: metadata.authorId, payload: normalized as unknown as JsonObject });
+}
+
+/** Decodes a proposed exchange only when its immutable terms still describe a pending proposal. */
+export function decodeProposedExchangeProposalRecord(record: unknown): ExchangeProposal {
+  const normalizedRecord = normalizeRecord(record);
+  assertTimebankEnvelope(normalizedRecord);
+  assertRecordKind(normalizedRecord, PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND, "proposed exchange proposal");
+  const proposal = normalizeProposedProposal(normalizedRecord.payload);
+  assertProposalEnvelopeMatchesPayload(normalizedRecord, proposal, "proposed");
+  return proposal;
+}
+
 /** Decodes one accepted-proposal envelope after checking its kind and community ownership. */
 export function decodeAcceptedExchangeProposalRecord(record: unknown): ExchangeProposal {
   const normalizedRecord = normalizeRecord(record);
   assertTimebankEnvelope(normalizedRecord);
   assertRecordKind(normalizedRecord, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND, "accepted exchange proposal");
   const proposal = normalizeAcceptedProposal(normalizedRecord.payload);
-  assertEnvelopeMatchesPayload(normalizedRecord, proposal.id, proposal.communityId, "accepted exchange proposal");
+  assertProposalEnvelopeMatchesPayload(normalizedRecord, proposal, "accepted");
   return proposal;
 }
 
@@ -144,6 +166,12 @@ export function reduceAcceptedExchangeProposalRecords(
 ): readonly ExchangeProposal[] {
   assertText(communityId, "Community id");
   return reduceRecords(records, communityId, decodeAcceptedExchangeProposalRecord, "accepted exchange proposal");
+}
+
+/** Reduces one community's unordered pending proposal records into unique immutable proposals. */
+export function reduceProposedExchangeProposalRecords(records: readonly unknown[], communityId: string): readonly ExchangeProposal[] {
+  assertText(communityId, "Community id");
+  return reduceRecords(records, communityId, decodeProposedExchangeProposalRecord, "proposed exchange proposal");
 }
 
 /** Reduces one community's unordered transfer records into unique immutable attested transfers. */
@@ -195,6 +223,17 @@ function normalizeAcceptedProposal(value: unknown): ExchangeProposal {
     minutes: proposal.minutes,
     status: "accepted",
   });
+}
+
+/** Normalizes the pending proposal form that may be replicated before another member accepts it. */
+function normalizeProposedProposal(value: unknown): ExchangeProposal {
+  if (!isRecord(value)) throw new RecordMappingError("A proposed exchange proposal payload must be an object.");
+  const proposal = value as Partial<ExchangeProposal>;
+  assertText(proposal.id, "Proposal id"); assertText(proposal.communityId, "Proposal community id"); assertText(proposal.offerId, "Proposal offer id"); assertText(proposal.requestId, "Proposal request id"); assertText(proposal.providerMemberId, "Proposal provider member id"); assertText(proposal.receiverMemberId, "Proposal receiver member id"); assertText(proposal.creatorMemberId, "Proposal creator member id");
+  if (proposal.status !== "proposed" || proposal.acceptedByMemberId !== undefined) throw new RecordMappingError("A proposal record must contain an unaccepted proposal.");
+  assertMinutes(proposal.minutes, "Proposal minutes");
+  if (proposal.providerMemberId === proposal.receiverMemberId || (proposal.creatorMemberId !== proposal.providerMemberId && proposal.creatorMemberId !== proposal.receiverMemberId)) throw new RecordMappingError("A proposed exchange requires a participating creator and distinct members.");
+  return Object.freeze({ id: proposal.id, communityId: proposal.communityId, offerId: proposal.offerId, requestId: proposal.requestId, providerMemberId: proposal.providerMemberId, receiverMemberId: proposal.receiverMemberId, creatorMemberId: proposal.creatorMemberId, minutes: proposal.minutes, status: "proposed" });
 }
 
 /** Normalizes only the immutable published listing shape that is safe to replicate publicly. */
@@ -269,6 +308,28 @@ function assertEnvelopeMatchesPayload(
   if (record.id !== payloadId) throw new RecordMappingError(`A ${label} record id must match its payload id.`);
   if (record.communityId !== payloadCommunityId) {
     throw new RecordMappingError(`A ${label} record community must match its payload community.`);
+  }
+}
+
+/**
+ * Derives a lifecycle-specific transport identity so a pending proposal and its later
+ * acceptance can coexist in the append-only record history without sharing an envelope id.
+ */
+function proposalRecordId(proposalId: string, lifecycle: "proposed" | "accepted"): string {
+  return `${proposalId}/${lifecycle}`;
+}
+
+/** Ensures a lifecycle-specific proposal envelope still names the exact domain proposal and community. */
+function assertProposalEnvelopeMatchesPayload(
+  record: RecordEnvelope,
+  proposal: ExchangeProposal,
+  lifecycle: "proposed" | "accepted",
+): void {
+  if (record.id !== proposalRecordId(proposal.id, lifecycle)) {
+    throw new RecordMappingError(`A ${lifecycle} exchange proposal record id must match its lifecycle-specific payload id.`);
+  }
+  if (record.communityId !== proposal.communityId) {
+    throw new RecordMappingError(`A ${lifecycle} exchange proposal record community must match its payload community.`);
   }
 }
 

@@ -9,6 +9,7 @@ import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   PUBLISHED_LISTING_RECORD_KIND,
+  PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
 } from "./timebank-records.js";
 
 /** A concrete replicated history read from one known member-owned Hypercore feed. */
@@ -22,6 +23,7 @@ export interface FeedResolvedTimebankState {
   readonly communityId: string;
   readonly authorizations: readonly MemberSigningKeyAuthorization[];
   readonly publishedListings: readonly Listing[];
+  readonly proposedProposals: readonly ExchangeProposal[];
   readonly acceptedProposals: readonly ExchangeProposal[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
@@ -78,7 +80,7 @@ function declaredFeedKeysByMember(communityId: string, histories: readonly Membe
 
 /** Limits feed provenance checks to record kinds whose authorship semantics are already explicit. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Rejects malformed feed addresses before a caller can mistake arbitrary text for a Hypercore identity. */

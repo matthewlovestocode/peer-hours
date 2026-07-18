@@ -3,13 +3,17 @@ import test from "node:test";
 import { createRecordEnvelope } from "../src/envelope.js";
 import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   RecordMappingError,
   decodeAcceptedExchangeProposalRecord,
   decodeLedgerTransferRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
+  reduceProposedExchangeProposalRecords,
   toAcceptedExchangeProposalRecord,
+  toProposedExchangeProposalRecord,
+  decodeProposedExchangeProposalRecord,
   toLedgerTransferRecord,
 } from "../src/timebank-records.js";
 
@@ -66,6 +70,47 @@ test("maps and decodes an immutable accepted exchange proposal", () => {
   assert.equal(record.kind, ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND);
   assert.equal(record.communityId, communityId);
   assert.deepEqual(decodeAcceptedExchangeProposalRecord(record), acceptedProposal());
+});
+
+test("maps a pending proposal only when its creator authors the record", () => {
+  const { acceptedByMemberId: _acceptedByMemberId, ...proposal } = { ...acceptedProposal(), status: "proposed" as const };
+  const record = toProposedExchangeProposalRecord(proposal, recordMetadata);
+  assert.equal(record.kind, PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND);
+  assert.deepEqual(decodeProposedExchangeProposalRecord(record), proposal);
+  assert.throws(() => toProposedExchangeProposalRecord(proposal, acceptedProposalMetadata), /authored by its creator/i);
+});
+
+test("rejects pending proposals that contain acceptance data or an invalid creator", () => {
+  const { acceptedByMemberId: _acceptedByMemberId, ...pending } = {
+    ...acceptedProposal(),
+    status: "proposed" as const,
+  };
+
+  assert.throws(
+    () => toProposedExchangeProposalRecord({ ...pending, acceptedByMemberId: "member-recipient" }, recordMetadata),
+    /unaccepted proposal/i,
+  );
+  assert.throws(
+    () => toProposedExchangeProposalRecord({ ...pending, creatorMemberId: "member-observer" }, recordMetadata),
+    /participating creator/i,
+  );
+});
+
+test("reduces pending proposal replays and rejects conflicting or cross-community pending records", () => {
+  const { acceptedByMemberId: _acceptedByMemberId, ...pending } = {
+    ...acceptedProposal(),
+    status: "proposed" as const,
+  };
+  const duplicate = toProposedExchangeProposalRecord(pending, recordMetadata);
+  const conflict = toProposedExchangeProposalRecord({ ...pending, minutes: 30 }, recordMetadata);
+  const crossCommunity = toProposedExchangeProposalRecord(
+    { ...pending, id: "proposal-2", communityId: otherCommunityId },
+    recordMetadata,
+  );
+
+  assert.deepEqual(reduceProposedExchangeProposalRecords([duplicate, duplicate], communityId), [pending]);
+  assert.throws(() => reduceProposedExchangeProposalRecords([duplicate, conflict], communityId), RecordMappingError);
+  assert.throws(() => reduceProposedExchangeProposalRecords([duplicate, crossCommunity], communityId), RecordMappingError);
 });
 
 test("maps and decodes a ledger transfer without losing attestations", () => {

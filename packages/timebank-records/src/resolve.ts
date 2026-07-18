@@ -24,12 +24,15 @@ import {
   ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND,
   LEDGER_TRANSFER_RECORD_KIND,
   PUBLISHED_LISTING_RECORD_KIND,
+  PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
+  decodeProposedExchangeProposalRecord,
   decodeLedgerTransferRecord,
   decodePublishedListingRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
   reducePublishedListingRecords,
+  reduceProposedExchangeProposalRecords,
 } from "./timebank-records.js";
 
 /** The deterministic local timebank view derived from one replicated record history. */
@@ -37,6 +40,7 @@ export interface ResolvedTimebankState {
   readonly communityId: string;
   readonly authorizations: readonly MemberSigningKeyAuthorization[];
   readonly publishedListings: readonly Listing[];
+  readonly proposedProposals: readonly ExchangeProposal[];
   readonly acceptedProposals: readonly ExchangeProposal[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
@@ -82,10 +86,15 @@ export function resolveTimebankRecords(
       communityRecords.filter((record) => record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND),
       communityId,
     );
+    const proposedProposals = reduceProposedExchangeProposalRecords(
+      communityRecords.filter((record) => record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND),
+      communityId,
+    );
     const transfers = reduceLedgerTransferRecords(
       communityRecords.filter((record) => record.kind === LEDGER_TRANSFER_RECORD_KIND),
       communityId,
     );
+    assertAcceptedProposalsPreservePublishedTerms(proposedProposals, acceptedProposals);
     const proposalsById = new Map(acceptedProposals.map((proposal) => [proposal.id, proposal]));
 
     for (const transfer of transfers) {
@@ -107,6 +116,7 @@ export function resolveTimebankRecords(
       communityId,
       authorizations,
       publishedListings,
+      proposedProposals,
       acceptedProposals,
       transfers,
       ledger,
@@ -115,6 +125,33 @@ export function resolveTimebankRecords(
     if (error instanceof RecordResolutionError) throw error;
     const detail = error instanceof Error ? error.message : "Unknown record resolution failure.";
     throw new RecordResolutionError(detail);
+  }
+}
+
+/**
+ * Rejects an acceptance that attempts to reinterpret a pending proposal already present in
+ * replicated history. A future migration may require pending evidence for every acceptance;
+ * accepting historical acceptance-only records remains necessary while communities upgrade.
+ */
+function assertAcceptedProposalsPreservePublishedTerms(
+  proposedProposals: readonly ExchangeProposal[],
+  acceptedProposals: readonly ExchangeProposal[],
+): void {
+  const proposedById = new Map(proposedProposals.map((proposal) => [proposal.id, proposal]));
+  for (const accepted of acceptedProposals) {
+    const proposed = proposedById.get(accepted.id);
+    if (proposed === undefined) continue;
+    if (
+      proposed.communityId !== accepted.communityId ||
+      proposed.offerId !== accepted.offerId ||
+      proposed.requestId !== accepted.requestId ||
+      proposed.providerMemberId !== accepted.providerMemberId ||
+      proposed.receiverMemberId !== accepted.receiverMemberId ||
+      proposed.creatorMemberId !== accepted.creatorMemberId ||
+      proposed.minutes !== accepted.minutes
+    ) {
+      throw new RecordResolutionError("An accepted proposal must preserve every immutable term of its pending proposal.");
+    }
   }
 }
 
@@ -138,6 +175,11 @@ function assertMemberSignedDomainRecords(
 
 /** Ensures a signed record author performed the proposal acceptance or participates in the transfer. */
 function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
+  if (record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND) {
+    const proposal = decodeProposedExchangeProposalRecord(record);
+    if (record.authorId !== proposal.creatorMemberId) throw new RecordResolutionError("A proposed exchange record must be signed by its creator.");
+    return;
+  }
   if (record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND) {
     const proposal = decodeAcceptedExchangeProposalRecord(record);
     if (record.authorId !== proposal.acceptedByMemberId) {
@@ -162,7 +204,7 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
 
 /** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

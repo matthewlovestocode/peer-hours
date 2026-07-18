@@ -1,0 +1,21 @@
+import { StatusDot } from "../Primitive.js";
+
+/** Displays the network workspace title and the current connection conclusion. */
+export function NetworkHeader({ connected, state }: { connected: boolean; state: string }) {
+  const tone = connected ? "good" : state === "connecting" ? "warn" : state === "error" ? "bad" : "neutral";
+  const label = connected ? "Connected" : state === "connecting" ? "Connecting" : state === "error" ? "Connection issue" : "Not connected";
+
+  return (
+    <header className="workspace-header">
+      <div>
+        <p className="eyebrow">Network</p>
+        <h1>Connection status</h1>
+        <p className="muted">A clear view of your connection to the timebank network.</p>
+      </div>
+      <div className="connection-pill">
+        <StatusDot tone={tone} />
+        <span>{label}</span>
+      </div>
+    </header>
+  );
+}

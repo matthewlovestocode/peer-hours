@@ -1,13 +1,15 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
-import { createMemberProfile, createOffer, createRequest, publishListing, type ListingKind } from "@peer-hours/timebank-domain";
+import { acceptExchangeProposal, createMemberProfile, createOffer, createRequest, proposeExchange, publishListing, type ExchangeProposal, type Listing, type ListingKind } from "@peer-hours/timebank-domain";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toPublishedListingRecord } from "@peer-hours/timebank-records";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toAcceptedExchangeProposalRecord, toProposedExchangeProposalRecord, toPublishedListingRecord } from "@peer-hours/timebank-records";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
 /** Defines the encrypted identity material persisted only by the Electron main process. */
 export type StoredMemberIdentity = { privateKeyCiphertext: string; publicKeyPem: string };
 export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
 export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
+export type CreateProposalInput = { offer: Listing; request: Listing; minutes: number };
+export type AcceptProposalInput = { proposal: ExchangeProposal; offer: Listing; request: Listing };
 
 /** Provides OS-backed encryption without exposing Electron to identity domain behavior. */
 export type SecureStorageAdapter = {
@@ -85,6 +87,35 @@ export class MemberIdentityService {
       signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)),
     });
     await this.memberFeed.appendRecord(signed as unknown as JsonValue);
+  }
+
+  /** Creates and root-signs a proposal after main-process resolution supplies verified published listings. */
+  async createProposal(input: CreateProposalInput): Promise<void> {
+    const communityId = this.memberFeed.communityId();
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before creating a proposal.");
+    if (!this.secureStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");
+    const stored = await this.identityStore.read();
+    if (stored === null) throw new Error("Create your self-owned identity before creating a proposal.");
+    this.assertStoredIdentity(stored);
+    const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    const proposal = proposeExchange({
+      id: crypto.randomUUID(), offer: input.offer, request: input.request,
+      provider: createMemberProfile({ id: input.offer.memberId, communityId, displayName: input.offer.memberId }),
+      recipient: createMemberProfile({ id: input.request.memberId, communityId, displayName: input.request.memberId }),
+      creatorMemberId: memberId, minutes: input.minutes,
+    });
+    const record = toProposedExchangeProposalRecord(proposal, { occurredAt: new Date().toISOString(), authorId: memberId });
+    await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
+  }
+
+  /** Accepts a verified proposal only as its other participant and signs a separate acceptance record. */
+  async acceptProposal(input: AcceptProposalInput): Promise<void> {
+    const communityId = this.memberFeed.communityId(); const stored = await this.identityStore.read();
+    if (!communityId || stored === null || !this.secureStorage.isEncryptionAvailable()) throw new Error("A protected identity and community scope are required to accept a proposal.");
+    this.assertStoredIdentity(stored); const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    const accepted = acceptExchangeProposal({ proposal: input.proposal, offer: input.offer, request: input.request, provider: createMemberProfile({ id: input.offer.memberId, communityId, displayName: input.offer.memberId }), recipient: createMemberProfile({ id: input.request.memberId, communityId, displayName: input.request.memberId }), acceptedByMemberId: memberId });
+    const record = toAcceptedExchangeProposalRecord(accepted, { occurredAt: new Date().toISOString(), authorId: memberId });
+    await this.memberFeed.appendRecord(createMemberSignedRecord({ ...record, signingKeyId: rootKeyIdForMember(memberId), signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)) }) as unknown as JsonValue);
   }
 
   /** Generates an Ed25519 root key and persists only its encrypted private PEM. */

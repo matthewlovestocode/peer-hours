@@ -66,12 +66,44 @@ app.whenReady().then(() => {
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
   ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(input));
+  ipcMain.handle("member:create-proposal", async (_event, input: { offerId?: unknown; requestId?: unknown; minutes?: unknown }) => {
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before creating a proposal.");
+    if (typeof input.offerId !== "string" || typeof input.requestId !== "string" || typeof input.minutes !== "number") throw new Error("Proposal details are invalid.");
+    const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
+    const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
+    const resolved = resolveTimebankMemberFeeds(communityId, histories);
+    const offer = resolved.publishedListings.find((listing) => listing.id === input.offerId && listing.kind === "offer");
+    const request = resolved.publishedListings.find((listing) => listing.id === input.requestId && listing.kind === "request");
+    if (!offer || !request) throw new Error("Choose locally accepted published offer and request listings.");
+    await memberIdentity.createProposal({ offer, request, minutes: input.minutes });
+  });
+  ipcMain.handle("member:accept-proposal", async (_event, proposalId: unknown) => {
+    if (typeof proposalId !== "string") throw new Error("Proposal id is invalid.");
+    const communityId = runtime.status().community?.communityId;
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before accepting a proposal.");
+    const keys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds().filter((feed) => feed.communityId === communityId).map((feed) => feed.feedPublicKey)]);
+    const histories = await Promise.all([...keys].map(async (feedPublicKey) => ({ feedPublicKey, records: (feedPublicKey === runtime.memberRecordFeedKey ? await runtime.readMemberRecords() : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never })));
+    const resolved = resolveTimebankMemberFeeds(communityId, histories); const proposal = resolved.proposedProposals.find((item) => item.id === proposalId);
+    const offer = proposal && resolved.publishedListings.find((item) => item.id === proposal.offerId); const request = proposal && resolved.publishedListings.find((item) => item.id === proposal.requestId);
+    if (!proposal || !offer || !request) throw new Error("Choose a locally accepted pending proposal with accepted listings.");
+    await memberIdentity.acceptProposal({ proposal, offer, request });
+  });
   ipcMain.handle("member:resolved", async () => {
     const communityId = runtime.status().community?.communityId;
     if (!communityId) return { state: "unavailable" as const, reason: "No bootstrap discovery community is configured." };
     try {
-      const resolved = resolveTimebankMemberFeeds(communityId, [{ feedPublicKey: runtime.memberRecordFeedKey, records: await runtime.readMemberRecords() as never }]);
-      return { state: "ready" as const, publishedListings: resolved.publishedListings, acceptedProposals: resolved.acceptedProposals, transfers: resolved.transfers };
+      const feedKeys = new Set([runtime.memberRecordFeedKey, ...runtime.knownMemberFeeds()
+        .filter((feed) => feed.communityId === communityId)
+        .map((feed) => feed.feedPublicKey)]);
+      const histories = await Promise.all([...feedKeys].map(async (feedPublicKey) => ({
+        feedPublicKey,
+        records: (feedPublicKey === runtime.memberRecordFeedKey
+          ? await runtime.readMemberRecords()
+          : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never,
+      })));
+      const resolved = resolveTimebankMemberFeeds(communityId, histories);
+      return { state: "ready" as const, publishedListings: resolved.publishedListings, proposedProposals: resolved.proposedProposals, acceptedProposals: resolved.acceptedProposals, transfers: resolved.transfers };
     } catch (error) {
       return { state: "rejected" as const, reason: error instanceof Error ? error.message : "Local records could not be verified." };
     }

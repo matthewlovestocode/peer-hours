@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@peer-hours/timebank-domain": "0.1.0",
     "@peer-hours/peer-runtime": "0.1.0",
     "@peer-hours/timebank-identity": "0.1.0",
     "@peer-hours/timebank-records": "0.1.0",

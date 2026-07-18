@@ -1,3 +1,4 @@
+/** Describes one discovered or connected remote peer for renderer-only presentation. */
 export type PeerStatus = {
   id: string;
   connectedAt: string;
@@ -6,6 +7,7 @@ export type PeerStatus = {
   source?: "hyperswarm" | "simulated";
 };
 
+/** Describes the legacy node diagnostics payload retained for compatible renderer consumers. */
 export type NodeStatus = {
   status: "online";
   nodeId: string;
@@ -15,6 +17,7 @@ export type NodeStatus = {
   peers: PeerStatus[];
 };
 
+/** Describes the local runtime status shape consumed by desktop diagnostics components. */
 export type LocalPeerStatus = {
   state: "starting" | "online" | "error";
   peerId: string;

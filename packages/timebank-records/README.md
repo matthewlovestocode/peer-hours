@@ -39,8 +39,11 @@ Accepted-proposal and transfer records now require an active, community-scoped m
 The resolver also applies the implemented record-authorship rules:
 
 - A published-listing envelope must be authored and signed by its member owner.
+- A proposed-exchange envelope must be authored and signed by its creator. Its lifecycle-specific envelope ID is distinct from the domain proposal ID so the later acceptance can be retained alongside it.
 - An accepted-proposal envelope must be authored and signed by the member recorded as accepting that proposal. A proposal creator cannot publish an acceptance on the other member's behalf.
 - A settlement-transfer envelope may be authored and signed by either its provider or its recipient. Separately, the ledger requires valid attestations from **both** participants over the exact transfer terms before it derives balances. The envelope author is the submitter of the replicated record, not a substitute for the second attestation.
+
+When both lifecycle records are present, the resolver compares their immutable agreement terms and rejects any acceptance that reinterprets the creator's original proposal. Acceptance-only histories remain readable during the protocol migration; new desktop actions publish a pending proposal before acceptance.
 
 An integration test proves the narrow protocol path with two isolated `PeerRuntime` instances and no community peer: a direct Corestore connection carries signed feed declarations, published offer/request records, an accepted proposal, and a dual-attested settlement, which resolve to identical balances on both sides. A second integration test starts with no remote feed key and uses a signed, expiring announcement over a shared discovery-core key to open the remote feed automatically.
 

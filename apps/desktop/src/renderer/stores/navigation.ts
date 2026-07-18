@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+/** Names the top-level desktop workspaces that the application shell may display. */
 export type WorkspaceId = "home" | "records" | "network";
 
 type NavigationState = {

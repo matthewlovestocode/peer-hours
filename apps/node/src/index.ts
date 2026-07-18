@@ -5,7 +5,7 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 const port = Number(process.env.PORT ?? 10000);
 const dataDirectory = process.env.DATA_DIR ?? join(process.cwd(), "data");
 const runtime = new PeerRuntime(dataDirectory, process.env.PEER_HOURS_BOOTSTRAP_KEY);
-const communityId = process.env.COMMUNITY_ID ?? "peer-hours/world/US/CA/east-bay";
+const communityId = process.env.COMMUNITY_ID ?? "peer-hours/earth/US/CA/east-bay";
 const displayName = process.env.COMMUNITY_NAME ?? "East Bay Timebank";
 
 await runtime.start();

@@ -6,6 +6,7 @@ dist/
 dist-electron/
 # Local peer/runtime data
 apps/node/data/
+apps/dev-peers/data/
 build/
 coverage/
 *.tsbuildinfo

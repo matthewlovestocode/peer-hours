@@ -183,31 +183,33 @@ Peer Hours communities use hierarchical identifiers that scale from global netwo
 peer-hours/<scope>/<country>/<region>/<community>
 ```
 
+The canonical terrestrial root is `earth`, rather than `world`. This keeps Earth communities explicit while leaving room for future off-world roots such as `peer-hours/mars/...` without changing the meaning of existing identifiers.
+
 Examples:
 
 ```text
-peer-hours/world
-peer-hours/world/US
-peer-hours/world/US/CA
-peer-hours/world/US/CA/east-bay
-peer-hours/world/US/CA/east-bay/oakland
+peer-hours/earth
+peer-hours/earth/US
+peer-hours/earth/US/CA
+peer-hours/earth/US/CA/east-bay
+peer-hours/earth/US/CA/east-bay/oakland
 ```
 
 Non-geographic communities can use an `online` branch:
 
 ```text
-peer-hours/world/online/software
-peer-hours/world/online/caregivers
-peer-hours/world/online/language-exchange
+peer-hours/earth/online/software
+peer-hours/earth/online/caregivers
+peer-hours/earth/online/language-exchange
 ```
 
 Geographic segments should use stable uppercase codes where applicable, such as `US` and `CA`; human-facing display names remain separate from canonical identifiers. For example:
 
 ```json
 {
-  "communityId": "peer-hours/world/US/CA/east-bay",
+  "communityId": "peer-hours/earth/US/CA/east-bay",
   "displayName": "East Bay Timebank",
-  "parentCommunity": "peer-hours/world/US/CA"
+  "parentCommunity": "peer-hours/earth/US/CA"
 }
 ```
 

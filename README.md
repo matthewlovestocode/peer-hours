@@ -28,6 +28,8 @@ The initial application is `@peer-hours/desktop`, an Electron application whose 
 
 The `@peer-hours/node` application is a headless community node. It keeps persistent Hypercore storage, exposes `/bootstrap`, discovers peers with Hyperswarm, and reports peer status. It does not yet implement the Peer Hours ledger or multi-writer transaction rules.
 
+Community identifiers use an `earth` root so the namespace can grow beyond Earth without renaming the terrestrial network later. For the full hierarchy and discovery model, see [the network architecture](docs/network-architecture.md#community-naming).
+
 ### `packages/`
 
 Packages are for reusable code shared by two or more applications, such as UI components, domain logic, API clients, or configuration. A package intended for npm publication should use the organization scope, for example `@peer-hours/ui`.
@@ -119,6 +121,8 @@ npm --workspace @peer-hours/desktop run package:mac
 The packaged `.dmg` and `.zip` files are written to the desktop workspace’s `dist/` directory. These artifacts are ignored by Git.
 
 ## Replication node
+
+The default local community is `peer-hours/earth/US/CA/east-bay`. Override it with `COMMUNITY_ID` when running a different geographic or online community. Examples include `peer-hours/earth/US/CA/east-bay/oakland` and `peer-hours/earth/online/software`.
 
 Build and start the node locally:
 

@@ -162,6 +162,10 @@ export class PeerRuntime {
 
   /** Returns a serializable snapshot for desktop UIs, node APIs, and diagnostics. */
   status(): LocalPeerStatus {
+    const expiry = Date.now() - 10_000;
+    for (const [id, peer] of this.peers) {
+      if (peer.source === "simulated" && Date.parse(peer.lastSeenAt) < expiry) this.peers.delete(id);
+    }
     return {
       state: this.error ? "error" : this.core ? "online" : "starting",
       peerId: this.core?.key?.toString("hex") ?? "",

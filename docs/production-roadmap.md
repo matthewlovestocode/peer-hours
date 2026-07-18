@@ -8,10 +8,9 @@ The roadmap preserves Peer Hours' non-governing, not-for-profit direction: a rea
 
 ```mermaid
 flowchart LR
-    A["Today: signed local workflow\n+local ledger admission"] --> B["1. Receipt-backed durability labels"]
-    B --> C["2. Resilient community replication"]
-    C --> D["3. Policy and security controls"]
-    D --> E["4. Limited pilot operations"]
+    A["Today: signed workflow\n+receipt-backed durability"] --> B["1. Operational replication drills"]
+    B --> C["2. Policy and security controls"]
+    C --> D["3. Limited pilot operations"]
 ```
 
 ## What exists today
@@ -152,4 +151,4 @@ These are not settled by the current code and should be chosen with tests, proto
 | Privacy and retention model | Determines which records may replicate to which nodes and what recovery/export means. |
 | Community-node operating model | Determines redundancy, cost, administration, backup ownership, and incident response. |
 
-The next engineering milestone is implementation of the adopted receipt-backed durability policy: issue and verify one-node and two-independent-node availability receipts, then test the labels across independently operated replicas. The current product deliberately does not claim global finality from local ledger admission. See [pilot operating policy](pilot-operating-policy.md) for the adopted pilot defaults and remaining choices.
+The next engineering milestone is an operational replication drill: deploy two independently operated receipt nodes, verify failover and receipt labels through real transport, then rehearse backup restore and key-revocation recovery. The current product deliberately does not claim global finality from local ledger admission. See [pilot operating policy](pilot-operating-policy.md) for the adopted pilot defaults and remaining choices.

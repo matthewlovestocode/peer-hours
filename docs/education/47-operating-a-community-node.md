@@ -22,7 +22,7 @@ flowchart LR
 
 **Verified today:** the node exposes health and limited diagnostics while the peer runtime owns local storage and replication behavior.
 
-**Not yet guaranteed:** automatic deployment, backup policy, and a shared operator runbook are not yet implemented protocol commitments.
+**Verified today:** the node has a safe stopped-node backup/verify/restore CLI and a shared operator runbook. Automatic deployment, encrypted external snapshot storage, and scheduled restore drills remain operator responsibilities rather than protocol guarantees.
 
 ## Takeaway
 

@@ -6,7 +6,7 @@ This is a working model for the first Peer Hours exchange workflow. It gives the
 
 All records belong to exactly one `communityId`. One underlying person identity is intended to participate across communities, while profiles, listings, and exchanges remain community-specific. The current model does not yet represent that cross-community root identity. Records use stable identifiers and timestamps; duration is stored as whole minutes, never a floating-point number of hours.
 
-An offer or request may be composed while offline. Settlement is different: it requires both participants' consent and must be replicated before the application presents it as final. A verified ledger transfer is the source for derived balances; it does not itself mutate a stored balance.
+An offer or request may be composed while offline. Settlement is different: it requires both participants' consent before local ledger admission. A verified ledger transfer is the source for derived balances; it does not itself mutate a stored balance. The pilot separately labels one pinned node receipt as durable and two as resilient availability evidence; neither label is irreversible finality.
 
 ```mermaid
 classDiagram
@@ -100,7 +100,7 @@ A settlement transfer is the final, signed account of an exchange that took plac
 - A transfer with missing, invalid, mismatched-key, or mismatched-digest attestations is invalid.
 - **Implemented resolver rule:** the replicated transfer envelope may be authored by either the provider or recipient, but the ledger still requires attestations from both participants. Envelope authorship identifies who submitted that immutable record; it does not replace either participant's settlement consent.
 - **Product decision, not implemented:** agreements default to `private-details`; either participant may choose `community-visible`, but both must accept the same privacy mode. Fully confidential transfers are future protocol work.
-- **Implemented ledger rule, not yet integrated end-to-end:** the default minimum recipient balance is -50 hours (`-3000` minutes). An over-limit ordinary settlement is rejected from the derived ledger; it does not remove a person from the network.
+- **Implemented ledger rule:** the default minimum recipient balance is -50 hours (`-3000` minutes). The feed-aware resolver applies it to replicated settlements; an over-limit ordinary settlement is rejected from the derived ledger and does not remove a person from the network.
 - **Proposed network rule:** a locally signed transfer should remain pending until its configured replication acknowledgement is recorded; it must not be presented as finalized beforehand. No acknowledgement or finalization protocol is implemented yet.
 - Corrections are compensating transfers, never edits to a settled transfer.
 

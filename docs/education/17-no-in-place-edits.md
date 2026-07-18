@@ -7,7 +7,7 @@ When multiple peers can retain a copy of a history, rewriting an old fact makes 
 ```mermaid
 flowchart LR
   P["listing published"] --> W["member wishes to withdraw it"]
-  W --> C["new withdrawal/cancellation record\n(future workflow)"]
+  W --> C["new owner-signed listing\nclosure record"]
   P --> R["resolver"]
   C --> R
   R --> V["current view"]
@@ -24,7 +24,7 @@ accepted proposal:  60 minutes, same listings and participants, accepted by Bob
 
 ## What this does and does not solve
 
-Appending protects the past from silent edits, but it does not make every later claim valid. Peer Hours still checks envelope shape, member signatures, feed provenance, community scope, and workflow-specific rules. The currently implemented listing lifecycle is publication-only; cancellation and editing are not yet implemented, so this lesson describes the general pattern rather than claiming a cancellation feature exists.
+Appending protects the past from silent edits, but it does not make every later claim valid. Peer Hours checks envelope shape, member signatures, feed provenance, community scope, and workflow-specific rules. A listing owner can now publish an immutable closure that removes that listing from new-proposal availability after replication; it does not erase the listing or cancel already proposed or accepted exchanges. Editing and cancellation semantics remain future policy work.
 
 ## Peer Hours connection
 

@@ -55,4 +55,4 @@ Signature verification remains the responsibility of `@peer-hours/timebank-ident
 
 ## Deliberate boundary
 
-This package works with in-memory records. It does not yet prove that the supplied accepted proposal came from replicated community history. The next network integration must replicate proposals, member-key authorization events, and transfers together; a receiving runtime will then resolve the proposal by ID before applying this validation.
+The pure package can also be used in memory, but the feed-aware records resolver now proves the supplied accepted proposal from replicated member-feed history before it locally admits a normal transfer. It resolves root-signed device-key lifecycle records, pending/accepted proposal linkage, acknowledgements, participant attestations, and the transfer together. That is still a local conclusion rather than a network-finality claim.

@@ -29,7 +29,7 @@ An authorization lifecycle can activate and later revoke a signing key. Reducers
 
 **Verified today:** Peer Hours verifies member signatures and community-scoped key authorization before admitting member-originated domain records.
 
-**Not yet guaranteed:** the current course does not claim a complete key-recovery or multi-device rotation product flow.
+**Verified today:** root-signed device-key activation and permanent revocation records support overlapping key rotation through a member's declared feed. A root-key compromise still requires a new self-owned identity and an agreed correction/dispute process; that recovery UX is not yet complete.
 
 ## Takeaway
 

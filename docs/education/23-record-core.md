@@ -43,7 +43,7 @@ An announcement is scoped to a community and expires. It helps a runtime learn w
 
 The current desktop can create its self-owned protected identity, append signed listing/proposal/acceptance/acknowledgement records to its member feed, and resolve records from its own plus discovered feeds. The resolver provenance-checks member-feed declarations so copied blocks from an undeclared or mismatched feed cannot simply become usable timebank history.
 
-The current implementation has no multi-device writer/key-rotation workflow and does not claim replication finality. Those limits matter when interpreting a record-core view.
+The current implementation supports root-signed overlapping device-key rotation and permanent revocation through the declared member feed. It still does not claim replication finality: a valid local view and even a retention receipt are not an irreversible social outcome.
 
 ## Takeaway
 

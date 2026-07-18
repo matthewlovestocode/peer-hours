@@ -35,7 +35,7 @@ The desktop app publishes the member-owned records. The record resolver checks s
 
 **Verified today:** pending proposals, acceptances, acknowledgements, and deterministic settlement terms are represented as separate signed records and resolved locally.
 
-**Not yet guaranteed:** the product does not yet define a community-wide dispute process, replication threshold, or irreversible finality rule.
+**Not yet guaranteed:** the pilot defines one receipt as durable and two as resilient availability evidence, but it does not define an irreversible finality or community-wide dispute outcome.
 
 ## Takeaway
 

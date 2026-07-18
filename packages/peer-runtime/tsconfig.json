@@ -6,6 +6,5 @@
     "composite": true,
     "types": ["node"]
   },
-  "references": [{ "path": "../../packages/peer-runtime" }],
   "include": ["src"]
 }

@@ -1,33 +1,26 @@
 import { createServer } from "node:http";
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import Corestore from "corestore";
-import Hyperswarm from "hyperswarm";
-import { createHealthPayload } from "./health.js";
+import { PeerRuntime } from "@peer-hours/peer-runtime";
 
 const port = Number(process.env.PORT ?? 10000);
 const dataDirectory = process.env.DATA_DIR ?? join(process.cwd(), "data");
+const runtime = new PeerRuntime(dataDirectory, process.env.PEER_HOURS_BOOTSTRAP_KEY);
 
-await mkdir(dataDirectory, { recursive: true });
-
-const store = new Corestore(dataDirectory);
-const core = store.get({ name: "peer-hours-network", valueEncoding: "json" });
-await core.ready();
-
-const swarm = new Hyperswarm();
-void swarm.listen().then(() => console.log("swarm listening"));
-swarm.join(core.discoveryKey, { server: true, client: true });
-
-swarm.on("connection", (connection: { on: Function }) => {
-  store.replicate(connection);
-  console.log("peer connected");
-  connection.on("close", () => console.log("peer disconnected"));
-});
+await runtime.start();
 
 const server = createServer((request, response) => {
+  response.setHeader("access-control-allow-origin", "*");
+  const status = runtime.status();
+
   if (request.url === "/health" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify(createHealthPayload(core)));
+    response.end(JSON.stringify({ status: status.state === "online" ? "ok" : status.state, core: status.replication.coreKey, length: status.replication.length }));
+    return;
+  }
+
+  if (request.url === "/status" && request.method === "GET") {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify(status));
     return;
   }
 
@@ -38,13 +31,13 @@ const server = createServer((request, response) => {
 server.listen(port, "0.0.0.0", () => {
   console.log(`Peer Hours node listening on port ${port}`);
   console.log(`Storage directory: ${dataDirectory}`);
-  console.log(`Core key: ${core.key.toString("hex")}`);
+  console.log(`Peer ID: ${runtime.status().peerId}`);
 });
 
+/** Gracefully closes the node HTTP server and embedded peer runtime. */
 const shutdown = async () => {
   server.close();
-  await swarm.destroy();
-  await store.close();
+  await runtime.stop();
 };
 
 process.once("SIGINT", () => void shutdown());

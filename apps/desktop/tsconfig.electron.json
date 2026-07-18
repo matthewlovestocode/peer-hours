@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "dist-electron",
     "rootDir": "src/electron",
-    "noEmit": false
+    "noEmit": false,
+    "types": ["node"]
   },
   "include": ["src/electron"]
 }

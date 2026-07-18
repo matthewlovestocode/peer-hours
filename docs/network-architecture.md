@@ -14,18 +14,20 @@ Peer Hours exists because this model can benefit from technology that is more re
 
 Peer Hours should be a **federated, local-first timebank network**.
 
-Regular members use applications. They do not need to run servers or maintain permanently online infrastructure.
+Regular members use the desktop application, which includes their local Peer Hours peer runtime. They do not need to run a separate server or maintain permanently online infrastructure.
 
 Separate online nodes are operated by communities, cooperatives, nonprofits, or independent participants. These nodes replicate data, keep the network available, support synchronization, and help connected users discover one another.
 
 ```text
-Member applications
+Desktop application
+  ├── Member-facing UI
+  ├── Embedded local peer runtime
   ├── Local identity and data
   ├── Offers and requests
   ├── Offline composition and browsing
   └── Synchronization when connected
 
-Community and replication nodes
+Independent community and replication nodes
   ├── Replicate listings and signed transactions
   ├── Keep data available while members are offline
   ├── Relay connected members
@@ -86,7 +88,24 @@ apps/
 └── admin/         # Possible community administration interface
 ```
 
-Only `desktop` exists today. The node and admin applications should be added when their first concrete workflows are understood.
+`desktop` and the initial proof-of-concept `node` exist today. The node currently provides persistent Hypercore storage, Hyperswarm discovery/replication, and a health endpoint. The desktop's embedded peer runtime is not implemented yet. The admin application should be added when its first concrete workflows are understood.
+
+## Local development topology
+
+The intended development setup has three peers:
+
+```text
+Desktop app
+  └── embedded local peer runtime
+
+Development node
+  └── separate test fixture running the node application
+
+Network node
+  └── independently deployed community or replication node
+```
+
+The development node exists to make local testing repeatable. The network node represents a real independently deployed peer. The desktop should be able to connect to both through its embedded runtime, while the UI reports their identities, connection state, and replication status.
 
 ## Possible shared packages
 
@@ -106,16 +125,19 @@ Packages should be created when there is a real reuse case or a stable domain bo
 
 ## First useful prototype
 
+The first product milestone is network visibility and confidence. Before implementing offers, requests, or balances, the desktop app and node should make connectivity understandable and testable. A member should be able to see whether they are connected, which nodes and peers are available, whether synchronization is progressing, and what needs attention when it is not.
+
+This should include both a polished member-facing status experience and structured node-level observability. The status model should distinguish local connectivity, node reachability, peer sessions, replication state, and application-level synchronization rather than collapsing them into one boolean.
+
 The first vertical slice should remain narrow and complete:
 
-1. Create a local member identity.
-2. Create an offer or request while offline.
-3. Synchronize it with a node.
-4. Discover another member and agree to an exchange.
-5. Complete and sign the transaction.
-6. Replicate the transaction.
-7. Display both resulting balances.
-8. Exercise one cancellation, disagreement, or recovery case.
+1. Start a local node and establish its identity.
+2. Connect the desktop app to a configured node.
+3. Discover and display connected peers.
+4. Replicate a small test event between two nodes.
+5. Show connection state, last-seen timestamps, sync progress, and errors in the desktop app.
+6. Exercise disconnect, reconnect, delayed peer, and persistence-restart cases.
+7. Only then begin the first offer/request workflow.
 
 This should reveal the real boundaries between the desktop app, node, protocol, identity, listings, and ledger before those boundaries become packages.
 

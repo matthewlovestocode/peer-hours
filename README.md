@@ -9,12 +9,8 @@ peer-hours/
 ├── apps/
 │   ├── desktop/             # Electron + React desktop application
 │   └── node/                # Headless replication node
-│       ├── src/electron/    # Main and preload processes
-│       ├── src/renderer/    # React renderer process
-│       ├── index.html       # Renderer entry document
-│       ├── vite.config.ts   # Renderer build configuration
-│       └── package.json
-├── packages/                # Shared libraries added as they become necessary
+├── packages/
+│   └── peer-runtime/        # Platform-neutral local peer runtime
 ├── package.json             # Root workspace and shared scripts
 ├── package-lock.json        # Locked dependency versions
 ├── tsconfig.json            # Root TypeScript project references
@@ -60,13 +56,39 @@ npm install
 
 The root install configures dependencies for all npm workspaces. The resulting `node_modules/` directory and build output are ignored by Git.
 
-## Desktop application
+## Development
 
-Start the Vite development server and Electron together:
+The desktop application owns an embedded local peer runtime from `@peer-hours/peer-runtime`. It does not require a separately launched node for its local status view. Run an additional node when testing replication with another peer.
+
+To run an additional local node, use terminal 1:
+
+```sh
+npm --workspace @peer-hours/node run build
+npm --workspace @peer-hours/node run start
+```
+
+Confirm that it is available:
+
+```sh
+curl http://localhost:10000/health
+curl http://localhost:10000/status
+```
+
+In terminal 2, start the Vite development server and Electron together:
 
 ```sh
 npm --workspace @peer-hours/desktop run dev
 ```
+
+The desktop app will open in an Electron window and report the identity and status of its embedded peer.
+
+If Electron reports that it did not install correctly, repair its downloaded runtime from the repository root:
+
+```sh
+npm --workspaces=false rebuild electron --foreground-scripts
+```
+
+### Desktop checks and packaging
 
 Run the desktop application’s checks and production build:
 

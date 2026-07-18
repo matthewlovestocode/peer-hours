@@ -1,3 +1,6 @@
 {
-  "files": []
+  "files": [],
+  "references": [
+    { "path": "./packages/peer-runtime" }
+  ]
 }

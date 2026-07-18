@@ -1,6 +1,10 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
+import { PeerRuntime } from "@peer-hours/peer-runtime";
 
+const runtime = new PeerRuntime(join(app.getPath("userData"), "peer-hours"), process.env.PEER_HOURS_BOOTSTRAP_KEY);
+
+/** Creates the desktop window and loads either the Vite development UI or built renderer. */
 const createWindow = () => {
   const window = new BrowserWindow({
     width: 1100,
@@ -22,6 +26,8 @@ const createWindow = () => {
 };
 
 app.whenReady().then(() => {
+  void runtime.start();
+  ipcMain.handle("network:status", () => runtime.status());
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -31,3 +37,5 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+app.on("before-quit", () => void runtime.stop());

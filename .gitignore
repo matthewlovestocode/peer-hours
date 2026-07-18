@@ -4,6 +4,8 @@ node_modules/
 # Build and test output
 dist/
 dist-electron/
+# Local peer/runtime data
+apps/node/data/
 build/
 coverage/
 *.tsbuildinfo

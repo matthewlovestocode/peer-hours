@@ -26,7 +26,7 @@ Each lesson aims for roughly 3–8 minutes. Look for these recurring sections:
 
 1. [What is a timebank?](01-what-is-a-timebank.md)
 2. [What is a Peer Hours community?](02-what-is-a-community.md)
-3. [Desktop app and community node](03-desktop-app-and-community-node.md)
+3. [Desktop app, community peer, and bootstrap service](03-desktop-app-and-community-node.md)
 4. [What is a peer?](04-what-is-a-peer.md)
 5. [Why members do not host servers](05-why-members-do-not-host-servers.md)
 6. [What local-first means](06-what-local-first-means.md)

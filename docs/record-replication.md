@@ -30,4 +30,4 @@ A runtime still needs a shared discovery-core key, obtained from a bootstrap man
 
 The member feed is the source of an author's signed records. A community node being online does not make a record valid, final, or authoritative; validity remains a local conclusion derived from signatures, source-feed provenance, agreement rules, and ledger rules.
 
-The verified tests are protocol vertical slices, not yet desktop features. The desktop UI still needs identity setup, listing composition, proposal/settlement screens, and clear pending/settled states before a member can perform this flow through the application.
+The verified tests are protocol vertical slices, not yet complete desktop features. The desktop can create a self-owned root identity in its main process, encrypt the private key with operating-system-backed storage, append a root-signed declaration to its local feed, and publish an announcement. The desktop UI still needs listing composition, proposal/settlement screens, and clear pending/settled states before a member can perform this flow through the application.

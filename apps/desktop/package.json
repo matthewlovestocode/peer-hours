@@ -12,8 +12,8 @@
     "build:renderer": "vite build",
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('dist-electron', { recursive: true, force: true })\"",
     "package:mac": "npm run build && electron-builder --mac",
-    "test": "node --test",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit"
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
     "@peer-hours/peer-runtime": "0.1.0",
@@ -30,6 +30,7 @@
     "concurrently": "^9.2.0",
     "electron": "^37.2.6",
     "electron-builder": "^26.0.12",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.2",
     "vite": "^7.0.6",
     "wait-on": "^8.0.3"

@@ -10,6 +10,7 @@ import {
   transferPayloadDigest,
 } from "@peer-hours/timebank-identity";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
+import { createSettlementAcknowledgement } from "@peer-hours/timebank-settlement";
 import {
   memberSigningKeyAuthorizationEventToRecord,
   memberFeedDeclarationToRecord,
@@ -21,6 +22,7 @@ import {
   toAcceptedExchangeProposalRecord,
   toLedgerTransferRecord,
   toProposedExchangeProposalRecord,
+  toSettlementAcknowledgementRecord,
   type RecordEnvelope,
 } from "../src/index.js";
 
@@ -230,6 +232,39 @@ test("resolves matching creator-signed pending and acceptor-signed acceptance re
   const state = resolveTimebankRecords(communityId, records);
   assert.deepEqual(state.proposedProposals, [pending]);
   assert.deepEqual(state.acceptedProposals, [accepted]);
+});
+
+test("keeps a one-sided settlement acknowledgement out of final state until the counterparty signs", () => {
+  const providerKeys = generateKeyPairSync("ed25519");
+  const recipientKeys = generateKeyPairSync("ed25519");
+  const accepted = proposal();
+  const baseRecords: readonly RecordEnvelope[] = [
+    signedRecord(toAcceptedExchangeProposalRecord(accepted, { ...metadata, authorId: recipientMemberId }), recipientKeys.privateKey, "recipient-key"),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
+    })),
+    memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
+      eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
+    })),
+  ];
+  const providerAcknowledgement = signedRecord(
+    toSettlementAcknowledgementRecord(createSettlementAcknowledgement(accepted, providerMemberId), { ...metadata, occurredAt: "2026-07-18T13:02:00.000Z" }),
+    providerKeys.privateKey,
+    "provider-key",
+  );
+  const recipientAcknowledgement = signedRecord(
+    toSettlementAcknowledgementRecord(createSettlementAcknowledgement(accepted, recipientMemberId), { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:03:00.000Z" }),
+    recipientKeys.privateKey,
+    "recipient-key",
+  );
+
+  const awaiting = resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement]);
+  assert.equal(awaiting.settlementConfirmations[0]?.status, "awaiting-counterparty");
+  assert.equal(awaiting.ledger.transfers.length, 0);
+
+  const confirmed = resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement, recipientAcknowledgement]);
+  assert.equal(confirmed.settlementConfirmations[0]?.status, "dual-confirmed");
+  assert.equal(confirmed.ledger.transfers.length, 0);
 });
 
 test("rejects an acceptance that changes a creator-signed pending proposal's immutable terms", () => {

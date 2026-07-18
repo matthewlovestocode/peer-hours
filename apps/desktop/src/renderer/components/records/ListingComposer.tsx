@@ -5,18 +5,23 @@ export function ListingComposer({ onComplete }: { onComplete: () => Promise<void
   const [kind, setKind] = useState<"offer" | "request">("offer");
   const [title, setTitle] = useState("");
   const [minutes, setMinutes] = useState("60");
-  const [error, setError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /** Signs and publishes the entered listing before refreshing the parent workspace state. */
   const publish = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSubmitting(true);
+    setError(null);
 
     try {
       await window.peerHours.publishListing({ kind, title, minutes: Number(minutes) });
       setTitle("");
       await onComplete();
-    } catch {
-      setError(true);
+    } catch (reason) {
+      setError(actionErrorMessage(reason, "The listing could not be published."));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -25,21 +30,26 @@ export function ListingComposer({ onComplete }: { onComplete: () => Promise<void
       <h2>Publish an offer or request</h2>
       <label>
         Type
-        <select value={kind} onChange={(event) => setKind(event.target.value as "offer" | "request")}>
+        <select disabled={submitting} value={kind} onChange={(event) => setKind(event.target.value as "offer" | "request")}>
           <option value="offer">Offer</option>
           <option value="request">Request</option>
         </select>
       </label>
       <label>
         Title
-        <input required value={title} onChange={(event) => setTitle(event.target.value)} />
+        <input disabled={submitting} required value={title} onChange={(event) => setTitle(event.target.value)} />
       </label>
       <label>
         Minutes
-        <input required min="1" type="number" value={minutes} onChange={(event) => setMinutes(event.target.value)} />
+        <input disabled={submitting} required min="1" type="number" value={minutes} onChange={(event) => setMinutes(event.target.value)} />
       </label>
-      <button>Sign and publish</button>
-      {error && <p className="error-message">The listing could not be published.</p>}
+      <button disabled={submitting}>{submitting ? "Signing and publishing…" : "Sign and publish"}</button>
+      {error && <p className="error-message" role="alert">{error}</p>}
     </form>
   );
+}
+
+/** Converts an unknown IPC failure into a concise, safe message for the member. */
+function actionErrorMessage(reason: unknown, fallback: string): string {
+  return reason instanceof Error && reason.message ? reason.message : fallback;
 }

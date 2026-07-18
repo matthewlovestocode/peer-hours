@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseCommunityManifest } from "../src/index.js";
+import { parseCommunityManifest, parseCommunityPeerRoster } from "../src/index.js";
 
 const coreKey = "a".repeat(64);
 
@@ -38,9 +38,9 @@ test("requires nonblank community identity, display name, and core key fields", 
   }
 });
 
-test("requires a positive integer protocol version", () => {
-  for (const protocolVersion of [0, -1, 1.5, "1", null]) {
-    assert.throws(() => parseCommunityManifest(manifest({ protocolVersion })), /protocolVersion must be a positive integer/);
+test("requires the one bootstrap protocol version this runtime supports", () => {
+  for (const protocolVersion of [0, -1, 1.5, "1", 2, null]) {
+    assert.throws(() => parseCommunityManifest(manifest({ protocolVersion })), /protocolVersion must be the supported version 1/);
   }
 });
 
@@ -68,4 +68,23 @@ test("accepts an optional community-peer diagnostics URL but rejects other URL s
 test("rejects arrays and null rather than treating them as manifest objects", () => {
   assert.throws(() => parseCommunityManifest(null), /must be a JSON object/);
   assert.throws(() => parseCommunityManifest([]), /must be a JSON object/);
+});
+
+test("accepts only structurally trustworthy community diagnostics peers", () => {
+  assert.deepEqual(parseCommunityPeerRoster({ peers: [{
+    id: "community-peer-a",
+    connectedAt: "2026-07-18T12:00:00.000Z",
+    lastSeenAt: "2026-07-18T12:01:00.000Z",
+    lifecycleState: "connected",
+    source: "hyperswarm",
+  }] }), [{
+    id: "community-peer-a",
+    connectedAt: "2026-07-18T12:00:00.000Z",
+    lastSeenAt: "2026-07-18T12:01:00.000Z",
+    lifecycleState: "connected",
+    source: "hyperswarm",
+  }]);
+  assert.deepEqual(parseCommunityPeerRoster({}), []);
+  assert.throws(() => parseCommunityPeerRoster({ peers: [{ id: "peer", connectedAt: "not-a-time", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "connected" }] }), /valid timestamp/);
+  assert.throws(() => parseCommunityPeerRoster({ peers: [{ id: "peer", connectedAt: "2026-07-18T12:00:00.000Z", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "unknown" }] }), /invalid lifecycle state/);
 });

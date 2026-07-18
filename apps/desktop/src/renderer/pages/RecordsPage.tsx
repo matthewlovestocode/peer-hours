@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { Panel } from "../components/Primitive.js";
 import { ListingComposer } from "../components/records/ListingComposer.js";
+import { PendingProposalList } from "../components/records/PendingProposalList.js";
 import { ProposalComposer } from "../components/records/ProposalComposer.js";
 import { RawRecordList } from "../components/records/RawRecordList.js";
 import { ResolvedState } from "../components/records/ResolvedState.js";
+import type { ResolvedMemberState } from "../components/records/types.js";
 
 type Identity = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
-type Resolved = Awaited<ReturnType<typeof window.peerHours.getResolvedMemberState>>;
 
 /** Presents raw member-feed history separately from the locally accepted state derived from it. */
 export function RecordsPage() {
   const [records, setRecords] = useState<readonly unknown[]>([]);
   const [identity, setIdentity] = useState<Identity | null>(null);
-  const [resolved, setResolved] = useState<Resolved | null>(null);
+  const [resolved, setResolved] = useState<ResolvedMemberState | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   /** Reads the independently stored raw records, identity status, and resolved local state together. */
   const refresh = async () => {
@@ -24,10 +25,11 @@ export function RecordsPage() {
     setRecords(nextRecords);
     setIdentity(nextIdentity);
     setResolved(nextResolved);
+    setState("ready");
   };
 
   useEffect(() => {
-    void refresh().then(() => setState("ready")).catch(() => setState("error"));
+    void refresh().catch(() => setState("error"));
   }, []);
 
   /** Creates and announces a local identity before exposing member-owned record actions. */
@@ -36,7 +38,6 @@ export function RecordsPage() {
       setState("loading");
       await window.peerHours.createAndAnnounceMemberIdentity();
       await refresh();
-      setState("ready");
     } catch {
       setState("error");
     }
@@ -59,6 +60,7 @@ export function RecordsPage() {
             <p className="empty-state">Self-owned identity ready: <code>{identity.memberId}</code></p>
             <ListingComposer onComplete={refresh} />
             {resolved?.state === "ready" && <ProposalComposer listings={resolved.publishedListings} onComplete={refresh} />}
+            {resolved?.state === "ready" && identity.memberId && <PendingProposalList proposals={resolved.proposedProposals} memberId={identity.memberId} onComplete={refresh} />}
           </>
         )}
         {identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}

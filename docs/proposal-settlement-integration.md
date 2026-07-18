@@ -29,6 +29,20 @@ For a normal settlement, the transfer must:
 - preserve its exact positive whole-minute amount; and
 - not be a compensating reversal.
 
+## Settlement acknowledgement foundation
+
+Before a desktop creates or distributes a dual-attested ledger transfer, either participant may
+publish a signed settlement acknowledgement. An acknowledgement repeats the accepted proposal's
+community, participant roles, proposal ID, and minutes, and its immutable record ID is derived
+from that proposal ID and the acknowledging member. This makes conflicting or impersonated
+acknowledgements rejectable without a central coordinator.
+
+A resolver exposes `awaiting-counterparty` after one valid acknowledgement and
+`dual-confirmed` only after both distinct proposal participants have acknowledged identical
+terms. Acknowledgements do **not** produce ledger postings or change balances. The current
+ledger continues to require the separate dual-attested transfer, so acknowledgement state is a
+safe replicated workflow foundation rather than premature economic finality.
+
 Signature verification remains the responsibility of `@peer-hours/timebank-identity`; balance derivation and duplicate-settlement protection remain the responsibility of `@peer-hours/timebank-ledger`.
 
 ## Deliberate boundary

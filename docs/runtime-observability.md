@@ -11,6 +11,8 @@ The current community-node HTTP API exposes two diagnostic views:
 
 These endpoints are useful for local development and for a basic platform health check. `startedAt` is captured when the current `PeerRuntime` instance is constructed, and `uptimeMs` is derived from that runtime's clock; uptime is clamped at zero if that clock moves backwards. A successful response still describes a point-in-time observation, not proof that the node has been continuously available.
 
+When a runtime obtains bootstrap metadata or a community-node roster over HTTP, it treats those responses as untrusted operational input: it accepts only HTTP(S), bounds JSON responses to 64 KiB, applies a 10-second request timeout, and validates the implemented manifest version and peer-roster fields before updating local status. A failed optional diagnostics refresh clears the remote roster rather than retaining a stale claim about the community node. These checks make the view safer and more predictable; they do not authenticate the endpoint or make bootstrap metadata authoritative.
+
 ## What runtime uptime would mean
 
 The current runtime uptime answers one narrow question:

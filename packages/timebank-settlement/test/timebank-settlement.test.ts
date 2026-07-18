@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { type ExchangeProposal } from "@peer-hours/timebank-domain";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
-import { SettlementRuleError, validateSettlementTransfer } from "../src/index.js";
+import {
+  SettlementAcknowledgementRuleError,
+  SettlementRuleError,
+  createSettlementAcknowledgement,
+  resolveSettlementAcknowledgements,
+  validateSettlementAcknowledgement,
+  validateSettlementTransfer,
+} from "../src/index.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
 const proposal: ExchangeProposal = {
@@ -62,4 +69,36 @@ test("rejects mismatched community, source proposal, participants, minutes, and 
   for (const transfer of mismatches) {
     assert.throws(() => validateSettlementTransfer({ proposal, transfer }), SettlementRuleError);
   }
+});
+
+test("requires both exchange participants before an acknowledgement state becomes dual-confirmed", () => {
+  const providerAcknowledgement = createSettlementAcknowledgement(proposal, proposal.providerMemberId);
+  const recipientAcknowledgement = createSettlementAcknowledgement(proposal, proposal.receiverMemberId);
+
+  const pending = resolveSettlementAcknowledgements(proposal, [providerAcknowledgement]);
+  assert.equal(pending.status, "awaiting-counterparty");
+  assert.equal(pending.acknowledgements.length, 1);
+
+  const confirmed = resolveSettlementAcknowledgements(proposal, [recipientAcknowledgement, providerAcknowledgement]);
+  assert.equal(confirmed.status, "dual-confirmed");
+  assert.deepEqual(confirmed.acknowledgements.map(({ acknowledgedByMemberId }) => acknowledgedByMemberId), [
+    proposal.providerMemberId,
+    proposal.receiverMemberId,
+  ]);
+});
+
+test("rejects outsider, changed-term, or unaccepted-proposal acknowledgements", () => {
+  const acknowledgement = createSettlementAcknowledgement(proposal, proposal.providerMemberId);
+  assert.throws(
+    () => createSettlementAcknowledgement(proposal, "member-outsider"),
+    SettlementAcknowledgementRuleError,
+  );
+  assert.throws(
+    () => validateSettlementAcknowledgement(proposal, { ...acknowledgement, minutes: 30 }),
+    SettlementAcknowledgementRuleError,
+  );
+  assert.throws(
+    () => createSettlementAcknowledgement({ ...proposal, status: "proposed", acceptedByMemberId: undefined }, proposal.providerMemberId),
+    SettlementAcknowledgementRuleError,
+  );
 });

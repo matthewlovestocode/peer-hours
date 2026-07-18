@@ -19,6 +19,10 @@ flowchart LR
 - A transfer has distinct provider and recipient members.
 - Both participants must attest to the transfer, and an injected verifier must accept both attestations before it contributes postings.
 - Every settled transfer references one accepted proposal. A proposal can settle at most once.
+- A replicated settlement acknowledgement is only workflow evidence. It becomes
+  `dual-confirmed` after both proposal participants sign matching acknowledgements, but neither
+  one-sided nor dual-confirmed acknowledgement records create ledger postings; a separately
+  dual-attested transfer remains required.
 - Balances are derived from immutable, equal-and-opposite postings; no mutable balance is authoritative.
 - Replaying the identical transfer is idempotent.
 - A correction is a new, dual-attested reversal that swaps participants and uses the exact original minute amount. It never edits or deletes the original transfer.

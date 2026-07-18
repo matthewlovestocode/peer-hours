@@ -4,7 +4,13 @@ import {
   type MemberSigningKeyAuthorization,
 } from "@peer-hours/timebank-identity";
 import { applyTransfers, type Ledger, type Transfer } from "@peer-hours/timebank-ledger";
-import { validateSettlementTransfer } from "@peer-hours/timebank-settlement";
+import {
+  resolveSettlementAcknowledgements,
+  validateSettlementAcknowledgement,
+  validateSettlementTransfer,
+  type SettlementAcknowledgement,
+  type SettlementConfirmationState,
+} from "@peer-hours/timebank-settlement";
 import { reduceRecordEnvelopes, type RecordEnvelope } from "./envelope.js";
 import {
   IDENTITY_KEY_ACTIVATION_RECORD_KIND,
@@ -25,14 +31,17 @@ import {
   LEDGER_TRANSFER_RECORD_KIND,
   PUBLISHED_LISTING_RECORD_KIND,
   PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND,
+  SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
   decodeAcceptedExchangeProposalRecord,
   decodeProposedExchangeProposalRecord,
   decodeLedgerTransferRecord,
   decodePublishedListingRecord,
+  decodeSettlementAcknowledgementRecord,
   reduceAcceptedExchangeProposalRecords,
   reduceLedgerTransferRecords,
   reducePublishedListingRecords,
   reduceProposedExchangeProposalRecords,
+  reduceSettlementAcknowledgementRecords,
 } from "./timebank-records.js";
 
 /** The deterministic local timebank view derived from one replicated record history. */
@@ -42,6 +51,10 @@ export interface ResolvedTimebankState {
   readonly publishedListings: readonly Listing[];
   readonly proposedProposals: readonly ExchangeProposal[];
   readonly acceptedProposals: readonly ExchangeProposal[];
+  /** Participant acknowledgements admitted from immutable replicated records. */
+  readonly settlementAcknowledgements: readonly SettlementAcknowledgement[];
+  /** Per-proposal acknowledgement state; this does not create ledger postings. */
+  readonly settlementConfirmations: readonly SettlementConfirmationState[];
   readonly transfers: readonly Transfer[];
   readonly ledger: Ledger;
 }
@@ -90,12 +103,30 @@ export function resolveTimebankRecords(
       communityRecords.filter((record) => record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND),
       communityId,
     );
+    const settlementAcknowledgements = reduceSettlementAcknowledgementRecords(
+      communityRecords.filter((record) => record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND),
+      communityId,
+    );
     const transfers = reduceLedgerTransferRecords(
       communityRecords.filter((record) => record.kind === LEDGER_TRANSFER_RECORD_KIND),
       communityId,
     );
     assertAcceptedProposalsPreservePublishedTerms(proposedProposals, acceptedProposals);
     const proposalsById = new Map(acceptedProposals.map((proposal) => [proposal.id, proposal]));
+    const acknowledgementsByProposalId = new Map<string, SettlementAcknowledgement[]>();
+    for (const acknowledgement of settlementAcknowledgements) {
+      const proposal = proposalsById.get(acknowledgement.sourceProposalId);
+      if (proposal === undefined) {
+        throw new RecordResolutionError("A settlement acknowledgement must resolve its accepted proposal from replicated records.");
+      }
+      validateSettlementAcknowledgement(proposal, acknowledgement);
+      const acknowledgements = acknowledgementsByProposalId.get(proposal.id) ?? [];
+      acknowledgements.push(acknowledgement);
+      acknowledgementsByProposalId.set(proposal.id, acknowledgements);
+    }
+    const settlementConfirmations = Object.freeze(acceptedProposals.map((proposal) =>
+      resolveSettlementAcknowledgements(proposal, acknowledgementsByProposalId.get(proposal.id) ?? []),
+    ));
 
     for (const transfer of transfers) {
       if (transfer.reversesTransferId !== undefined) continue;
@@ -118,6 +149,8 @@ export function resolveTimebankRecords(
       publishedListings,
       proposedProposals,
       acceptedProposals,
+      settlementAcknowledgements,
+      settlementConfirmations,
       transfers,
       ledger,
     });
@@ -196,6 +229,14 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
     return;
   }
 
+  if (record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND) {
+    const acknowledgement = decodeSettlementAcknowledgementRecord(record);
+    if (record.authorId !== acknowledgement.acknowledgedByMemberId) {
+      throw new RecordResolutionError("A settlement acknowledgement record must be signed by its acknowledging participant.");
+    }
+    return;
+  }
+
   const transfer = decodeLedgerTransferRecord(record);
   if (record.authorId !== transfer.providerMemberId && record.authorId !== transfer.recipientMemberId) {
     throw new RecordResolutionError("A ledger transfer record must be submitted by one of its participants.");
@@ -204,7 +245,7 @@ function assertRecordAuthorParticipates(record: MemberSignedRecord): void {
 
 /** Limits signature admission to record kinds whose authorship has a defined member meaning today. */
 function isMemberAuthoredDomainRecord(record: RecordEnvelope): boolean {
-  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
+  return record.kind === PUBLISHED_LISTING_RECORD_KIND || record.kind === PROPOSED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === ACCEPTED_EXCHANGE_PROPOSAL_RECORD_KIND || record.kind === SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND || record.kind === LEDGER_TRANSFER_RECORD_KIND;
 }
 
 /** Narrows envelopes that carry member signing-key lifecycle actions. */

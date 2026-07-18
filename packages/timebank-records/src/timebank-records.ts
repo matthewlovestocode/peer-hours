@@ -1,5 +1,9 @@
 import { type ExchangeProposal, type Listing } from "@peer-hours/timebank-domain";
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
+import {
+  settlementAcknowledgementId,
+  type SettlementAcknowledgement,
+} from "@peer-hours/timebank-settlement";
 import { createRecordEnvelope, type JsonObject, type RecordEnvelope } from "./envelope.js";
 
 /** The envelope schema shared by immutable Peer Hours timebank records. */
@@ -20,6 +24,9 @@ export const PUBLISHED_LISTING_RECORD_KIND = "peer-hours/published-listing/v1";
 /** The immutable record kind used to distribute attested ledger transfers. */
 export const LEDGER_TRANSFER_RECORD_KIND = "peer-hours/ledger-transfer/v1";
 
+/** The immutable record kind used to distribute one participant's settlement acknowledgement. */
+export const SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND = "peer-hours/settlement-acknowledgement/v1";
+
 /** A normalized record envelope carrying one published member-owned listing. */
 export type PublishedListingRecord = RecordEnvelope<JsonObject>;
 
@@ -30,6 +37,9 @@ export type ProposedExchangeProposalRecord = RecordEnvelope<JsonObject>;
 
 /** A normalized record envelope carrying one immutable dual-attested ledger transfer. */
 export type LedgerTransferRecord = RecordEnvelope<JsonObject>;
+
+/** A normalized record envelope carrying one participant-owned settlement acknowledgement. */
+export type SettlementAcknowledgementRecord = RecordEnvelope<JsonObject>;
 
 /** Immutable transport metadata supplied when an application creates a timebank record. */
 export interface CreateTimebankRecordMetadata {
@@ -159,6 +169,42 @@ export function decodeLedgerTransferRecord(record: unknown): Transfer {
   return transfer;
 }
 
+/** Encodes one participant-owned acknowledgement of an accepted exchange's exact terms. */
+export function toSettlementAcknowledgementRecord(
+  acknowledgement: SettlementAcknowledgement,
+  metadata: CreateTimebankRecordMetadata,
+): SettlementAcknowledgementRecord {
+  const normalized = normalizeSettlementAcknowledgement(acknowledgement);
+  if (metadata.authorId !== normalized.acknowledgedByMemberId) {
+    throw new RecordMappingError("A settlement acknowledgement record must be authored by its acknowledging participant.");
+  }
+  return createRecordEnvelope({
+    id: normalized.id,
+    schema: TIMEBANK_RECORD_SCHEMA,
+    version: TIMEBANK_RECORD_VERSION,
+    communityId: normalized.communityId,
+    kind: SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND,
+    occurredAt: metadata.occurredAt,
+    authorId: metadata.authorId,
+    payload: normalized as unknown as JsonObject,
+  });
+}
+
+/** Decodes a structurally valid settlement acknowledgement; proposal linkage is resolved separately. */
+export function decodeSettlementAcknowledgementRecord(record: unknown): SettlementAcknowledgement {
+  const normalizedRecord = normalizeRecord(record);
+  assertTimebankEnvelope(normalizedRecord);
+  assertRecordKind(normalizedRecord, SETTLEMENT_ACKNOWLEDGEMENT_RECORD_KIND, "settlement acknowledgement");
+  const acknowledgement = normalizeSettlementAcknowledgement(normalizedRecord.payload);
+  assertEnvelopeMatchesPayload(
+    normalizedRecord,
+    acknowledgement.id,
+    acknowledgement.communityId,
+    "settlement acknowledgement",
+  );
+  return acknowledgement;
+}
+
 /** Reduces one community's unordered proposal records into unique immutable accepted proposals. */
 export function reduceAcceptedExchangeProposalRecords(
   records: readonly unknown[],
@@ -181,6 +227,15 @@ export function reduceLedgerTransferRecords(
 ): readonly Transfer[] {
   assertText(communityId, "Community id");
   return reduceRecords(records, communityId, decodeLedgerTransferRecord, "ledger transfer");
+}
+
+/** Reduces one community's immutable settlement acknowledgements by their participant-specific identity. */
+export function reduceSettlementAcknowledgementRecords(
+  records: readonly unknown[],
+  communityId: string,
+): readonly SettlementAcknowledgement[] {
+  assertText(communityId, "Community id");
+  return reduceRecords(records, communityId, decodeSettlementAcknowledgementRecord, "settlement acknowledgement");
 }
 
 /** Normalizes and validates the immutable accepted-proposal form permitted in replicated records. */
@@ -273,6 +328,45 @@ function normalizeTransfer(value: unknown): Transfer {
     const detail = error instanceof Error ? error.message : "Invalid transfer.";
     throw new RecordMappingError(`Invalid ledger transfer payload: ${detail}`);
   }
+}
+
+/** Normalizes acknowledgement shape before proposal-specific rules run during resolution. */
+function normalizeSettlementAcknowledgement(value: unknown): SettlementAcknowledgement {
+  if (!isRecord(value)) throw new RecordMappingError("A settlement acknowledgement payload must be an object.");
+  const acknowledgement = value as Partial<SettlementAcknowledgement>;
+  assertText(acknowledgement.id, "Settlement acknowledgement id");
+  assertText(acknowledgement.communityId, "Settlement acknowledgement community id");
+  assertText(acknowledgement.sourceProposalId, "Settlement acknowledgement source proposal id");
+  assertText(acknowledgement.providerMemberId, "Settlement acknowledgement provider member id");
+  assertText(acknowledgement.recipientMemberId, "Settlement acknowledgement recipient member id");
+  assertText(acknowledgement.acknowledgedByMemberId, "Settlement acknowledgement member id");
+  assertMinutes(acknowledgement.minutes, "Settlement acknowledgement minutes");
+  if (acknowledgement.providerMemberId === acknowledgement.recipientMemberId) {
+    throw new RecordMappingError("A settlement acknowledgement requires distinct provider and recipient members.");
+  }
+  if (
+    acknowledgement.acknowledgedByMemberId !== acknowledgement.providerMemberId &&
+    acknowledgement.acknowledgedByMemberId !== acknowledgement.recipientMemberId
+  ) {
+    throw new RecordMappingError("Only an exchange participant may acknowledge a settlement.");
+  }
+  if (
+    acknowledgement.id !== settlementAcknowledgementId(
+      acknowledgement.sourceProposalId,
+      acknowledgement.acknowledgedByMemberId,
+    )
+  ) {
+    throw new RecordMappingError("A settlement acknowledgement record id must name its proposal and acknowledging participant.");
+  }
+  return Object.freeze({
+    id: acknowledgement.id,
+    communityId: acknowledgement.communityId,
+    sourceProposalId: acknowledgement.sourceProposalId,
+    providerMemberId: acknowledgement.providerMemberId,
+    recipientMemberId: acknowledgement.recipientMemberId,
+    minutes: acknowledgement.minutes,
+    acknowledgedByMemberId: acknowledgement.acknowledgedByMemberId,
+  });
 }
 
 /** Re-validates unknown replicated input through the generic immutable envelope boundary. */

@@ -58,13 +58,16 @@ export type DiscoveredMemberFeed = {
 
 type JsonRecord = Record<string, unknown>;
 
+const MAX_HTTP_JSON_RESPONSE_BYTES = 64 * 1024;
+const HTTP_JSON_REQUEST_TIMEOUT_MS = 10_000;
+
 /** Parses untrusted bootstrap JSON into the complete community metadata the runtime can safely use. */
 export function parseCommunityManifest(payload: unknown): CommunityManifest {
   if (!isJsonRecord(payload)) throw new Error("Bootstrap metadata must be a JSON object.");
 
   const communityId = requiredNonblankString(payload, "communityId");
   const displayName = requiredNonblankString(payload, "displayName");
-  const protocolVersion = positiveProtocolVersion(payload.protocolVersion);
+  const protocolVersion = supportedProtocolVersion(payload.protocolVersion);
   const role = bootstrapRole(payload.role);
   const capabilities = bootstrapCapabilities(payload.capabilities);
   const coreKey = validCoreKey(requiredNonblankString(payload, "coreKey"), "coreKey");
@@ -88,12 +91,12 @@ function requiredNonblankString(payload: JsonRecord, field: string): string {
   return value;
 }
 
-/** Validates the positive integer protocol version understood by this runtime. */
-function positiveProtocolVersion(value: unknown): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
-    throw new Error("Bootstrap metadata field protocolVersion must be a positive integer.");
+/** Accepts only the bootstrap manifest version this runtime has implemented. */
+function supportedProtocolVersion(value: unknown): number {
+  if (value !== 1) {
+    throw new Error("Bootstrap metadata field protocolVersion must be the supported version 1.");
   }
-  return value;
+  return 1;
 }
 
 /** Validates the fixed-length hexadecimal public key used to open a Hypercore. */
@@ -148,6 +151,44 @@ function optionalCommunityNodeUrl(value: unknown): string | null {
   }
 }
 
+/** Parses an optional untrusted diagnostics roster before it can affect local status. */
+export function parseCommunityPeerRoster(payload: unknown): PeerStatus[] {
+  if (!isJsonRecord(payload)) throw new Error("Community diagnostics must be a JSON object.");
+  if (payload.peers === undefined) return [];
+  if (!Array.isArray(payload.peers)) throw new Error("Community diagnostics field peers must be an array.");
+  return payload.peers.map((value, index) => parseCommunityPeer(value, index));
+}
+
+/** Validates one public community-peer diagnostics entry. */
+function parseCommunityPeer(value: unknown, index: number): PeerStatus {
+  if (!isJsonRecord(value)) throw new Error(`Community diagnostics peer ${index} must be an object.`);
+  const id = value.id;
+  if (typeof id !== "string" || id.trim().length === 0) {
+    throw new Error(`Community diagnostics peer ${index} must have a nonblank id.`);
+  }
+  const connectedAt = canonicalTimestamp(value.connectedAt, `peers[${index}].connectedAt`);
+  const lastSeenAt = canonicalTimestamp(value.lastSeenAt, `peers[${index}].lastSeenAt`);
+  const lifecycleState = value.lifecycleState;
+  if (lifecycleState !== "discovered" && lifecycleState !== "connecting" && lifecycleState !== "connected" && lifecycleState !== "stale" && lifecycleState !== "offline") {
+    throw new Error(`Community diagnostics peer ${index} has an invalid lifecycle state.`);
+  }
+  const source = value.source;
+  if (source !== undefined && source !== "hyperswarm" && source !== "simulated") {
+    throw new Error(`Community diagnostics peer ${index} has an invalid source.`);
+  }
+  return source === undefined
+    ? { id, connectedAt, lastSeenAt, lifecycleState }
+    : { id, connectedAt, lastSeenAt, lifecycleState, source };
+}
+
+/** Requires an ISO timestamp that Date can unambiguously interpret before displaying it. */
+function canonicalTimestamp(value: unknown, field: string): string {
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+    throw new Error(`Community diagnostics field ${field} must be a valid timestamp.`);
+  }
+  return value;
+}
+
 export type PeerStatusListener = (status: LocalPeerStatus) => void;
 
 type PeerConnection = { on: Function; remotePublicKey?: Buffer };
@@ -188,6 +229,8 @@ export class PeerRuntime {
   private readonly statusListeners = new Set<PeerStatusListener>();
   private readonly staleAfterMs = 10_000;
   private readonly offlineRetentionMs = 30_000;
+  private started = false;
+  private stopped = false;
 
   /** Creates a peer runtime using an app-owned data directory, optional bootstrap core, and optional local member feed. */
   constructor(
@@ -199,7 +242,7 @@ export class PeerRuntime {
     memberFeedEnabled = true,
   ) {
     this.dataDirectory = dataDirectory;
-    this.bootstrapKey = bootstrapKey ? Buffer.from(bootstrapKey, "hex") : null;
+    this.bootstrapKey = bootstrapKey ? Buffer.from(validCoreKey(bootstrapKey, "bootstrapKey"), "hex") : null;
     this.bootstrapUrl = bootstrapUrl ?? null;
     this.now = now;
     this.startedAtMs = this.now();
@@ -222,6 +265,9 @@ export class PeerRuntime {
 
   /** Starts local storage and peer discovery, then accepts replicated connections. */
   async start(): Promise<void> {
+    if (this.started) throw new Error("The peer runtime has already been started.");
+    if (this.stopped) throw new Error("A stopped peer runtime cannot be restarted; create a new runtime instance.");
+    this.started = true;
     try {
       await mkdir(this.dataDirectory, { recursive: true });
       this.store = new Corestore(this.dataDirectory);
@@ -253,6 +299,7 @@ export class PeerRuntime {
       }
     } catch (cause) {
       this.error = cause instanceof Error ? cause.message : "Unable to start local peer";
+      await this.stop();
       throw cause;
     }
   }
@@ -438,30 +485,54 @@ export class PeerRuntime {
     const communityNodeUrl = this.community?.communityNodeUrl;
     if (!communityNodeUrl) return;
     try {
-      const payload = await this.requestJson<{ peers?: PeerStatus[] }>(`${communityNodeUrl}/status`);
-      this.communityPeers = (payload.peers ?? []).map((peer) => ({ ...peer, lifecycleState: peer.lifecycleState ?? "connected", source: peer.source ?? "hyperswarm" }));
+      const payload = await this.requestJson<unknown>(new URL("status", communityNodeUrl).toString());
+      this.communityPeers = parseCommunityPeerRoster(payload);
       this.notifyStatusChange();
     } catch {
       this.communityPeers = [];
     }
   }
 
-  /** Fetches and parses bootstrap JSON using Node's HTTP client in any host process. */
+  /** Fetches a bounded JSON response with a timeout so an unavailable endpoint cannot hang the runtime. */
   private requestJson<T>(url: string): Promise<T> {
     return new Promise((resolve, reject) => {
-      const request = new URL(url).protocol === "https:" ? httpsGet : httpGet;
-      request(url, (response) => {
+      let settled = false;
+      const settle = (callback: () => void): void => {
+        if (settled) return;
+        settled = true;
+        callback();
+      };
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") throw new Error("unsupported protocol");
+      } catch {
+        reject(new Error("Configured HTTP endpoint must be a valid HTTP(S) URL"));
+        return;
+      }
+      const request = parsedUrl.protocol === "https:" ? httpsGet : httpGet;
+      const outgoing = request(parsedUrl, (response) => {
         let body = "";
+        let bodySize = 0;
         response.setEncoding("utf8");
-        response.on("data", (chunk) => { body += chunk; });
-        response.on("end", () => {
-          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
-            reject(new Error(`Bootstrap returned ${response.statusCode ?? "unknown status"}`));
+        response.on("data", (chunk: string) => {
+          bodySize += Buffer.byteLength(chunk);
+          if (bodySize > MAX_HTTP_JSON_RESPONSE_BYTES) {
+            outgoing.destroy(new Error("HTTP endpoint returned an oversized JSON response"));
             return;
           }
-          try { resolve(JSON.parse(body) as T); } catch { reject(new Error("Bootstrap returned invalid JSON")); }
+          body += chunk;
         });
-      }).on("error", reject);
+        response.on("end", () => {
+          if ((response.statusCode ?? 500) < 200 || (response.statusCode ?? 500) >= 300) {
+            settle(() => reject(new Error(`HTTP endpoint returned ${response.statusCode ?? "unknown status"}`)));
+            return;
+          }
+          try { settle(() => resolve(JSON.parse(body) as T)); } catch { settle(() => reject(new Error("HTTP endpoint returned invalid JSON"))); }
+        });
+      });
+      outgoing.setTimeout(HTTP_JSON_REQUEST_TIMEOUT_MS, () => outgoing.destroy(new Error("HTTP endpoint request timed out")));
+      outgoing.on("error", (cause) => settle(() => reject(cause)));
     });
   }
 
@@ -504,6 +575,8 @@ export class PeerRuntime {
 
   /** Stops discovery and closes local storage during application shutdown. */
   async stop(): Promise<void> {
+    if (this.stopped) return;
+    this.stopped = true;
     if (this.statusTimer) clearInterval(this.statusTimer);
     this.memberFeedAnnouncementExtension?.destroy();
     if (this.swarm) await this.swarm.destroy();

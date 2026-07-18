@@ -63,6 +63,30 @@ A node may be hosted on a small VPS, a home server, a Raspberry Pi, or another s
 
 The initial model should favor federated communities. Each community can control its own membership, moderation, policies, and credit rules while using shared software and protocols. Inter-community exchange can be added later rather than assumed from the beginning.
 
+## Meshes, distance, and off-world communities
+
+A Peer Hours community identifier describes its social and accounting scope; it is not a physical network route. `peer-hours/earth/US/CA/east-bay` means “the East Bay community's records and policies,” not “every East Bay machine must be directly connected to every other East Bay machine.”
+
+A resilient federation should look like a web of overlapping replication paths rather than a single bidirectional beam between distant places. Always-on community, archive, and relay nodes can maintain several connections and copy the same signed record history. If one bridge disappears, another path can later synchronize the history. The signed record and its community scope stay the same regardless of which path carried it.
+
+```mermaid
+flowchart LR
+    subgraph Earth["Earth"]
+        E1["East Bay community node"] --- E2["Earth archive node"]
+        E2 --- E3["Earth relay node"]
+        E1 --- E3
+    end
+    subgraph Mars["Mars"]
+        M1["Mars community node"] --- M2["Mars archive node"]
+        M2 --- M3["Mars relay node"]
+        M1 --- M3
+    end
+    E2 <-->|"federation bridge"| M2
+    E3 <-->|"independent bridge"| M3
+```
+
+This is a future topology, not present behavior. The current runtime makes direct encrypted peer connections after discovery and replicates a community record core between connected peers. It does not yet provide general multi-hop routing, automatic bridge selection, or delayed interplanetary transport. Any future bridge must make its replication scope, authority, privacy, and conflict policy explicit; a network path must never silently merge two communities' ledgers.
+
 ## Trust and accounting
 
 Users should own their identities and sign the activity they create. Nodes provide availability, replication, discovery, and community coordination; they should not silently mutate a member's history or balance.

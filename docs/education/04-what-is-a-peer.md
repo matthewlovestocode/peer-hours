@@ -15,6 +15,30 @@ flowchart LR
 
 “Peer” describes network participation. It does not mean that every peer has equal permissions or must stay online forever.
 
+## A mesh is a web, not a beam
+
+It is tempting to imagine two distant communities as one direct, bidirectional line: Earth on one end and Mars on the other. A resilient peer network is closer to a spider's web. Nearby and always-on peers create overlapping connections. Records can be copied across several connections, so no single link needs to carry the whole community.
+
+```mermaid
+flowchart LR
+  subgraph Earth["Earth community network"]
+    E1["East Bay node"] --- E2["Earth archive node"]
+    E2 --- E3["Earth relay node"]
+    E1 --- E3
+  end
+  subgraph Mars["Mars community network"]
+    M1["Mars local node"] --- M2["Mars archive node"]
+    M2 --- M3["Mars relay node"]
+    M1 --- M3
+  end
+  E2 <-->|"occasional federation link"| M2
+  E3 <-->|"another available path"| M3
+```
+
+If one Earth-to-Mars path is unavailable, a second bridge may later carry the same replicated records. Members usually connect to a nearby or trusted community node; they do not need to know every path inside the web. A record being copied across multiple paths is still the same record, so its identity and signatures—not the route it took—tell us what it is.
+
+**Important boundary:** this diagram is a proposed federation topology, not a claim about the current runtime. Today Peer Hours establishes direct peer sessions after discovery and replicates the community record core between connected runtimes. It does not yet implement general multi-hop routing, automatic bridge selection, or an interplanetary transport layer. Those capabilities need explicit protocol and policy design.
+
 ## A small example
 
 The Network workspace might report:

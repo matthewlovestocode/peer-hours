@@ -16,6 +16,12 @@ flowchart TB
 
 The identifier is hierarchical. Each additional segment narrows the scope. Online communities can use an `online` branch instead, such as `peer-hours/earth/online/language-exchange`.
 
+## A location name is not a network route
+
+`earth`, `US`, and `east-bay` describe a community's social scope. They do **not** mean a computer in Oakland needs a special direct connection to every other computer in that named place. A community identifier tells the software which records and discovery rules belong together; the network can use any available connected peers to share those records.
+
+This matters for future off-world communities. A name such as `peer-hours/mars/olympus-mons` can keep its own membership and ledger rules without requiring every Mars computer to hold one permanent, impossible “laser link” to Earth. Location gives people a meaningful boundary; connections form separately as a network.
+
 ## A small example
 
 Two records can look similar but belong to different communities:

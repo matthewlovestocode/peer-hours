@@ -5,17 +5,38 @@ import type { BootstrapManifest } from "./manifest.js";
 export function createBootstrapServer(manifest: BootstrapManifest): Server {
   return createServer((request, response) => {
     response.setHeader("access-control-allow-origin", "*");
-    if (request.url === "/health" && request.method === "GET") {
-      response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-      response.end(JSON.stringify({ status: "ok" }));
+    response.setHeader("cache-control", "no-store");
+    response.setHeader("x-content-type-options", "nosniff");
+    response.setHeader("referrer-policy", "no-referrer");
+    const pathname = request.url === undefined ? null : safelyParsePathname(request.url);
+    if (pathname === null) {
+      sendJson(response, 400, { error: "invalid request target" });
       return;
     }
-    if (request.url === "/bootstrap" && request.method === "GET") {
-      response.writeHead(200, { "content-type": "application/json", "cache-control": "public, max-age=60" });
-      response.end(JSON.stringify(manifest));
+    if (pathname === "/health" && request.method === "GET") {
+      sendJson(response, 200, { status: "ok" });
       return;
     }
-    response.writeHead(404, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: "not found" }));
+    if (pathname === "/bootstrap" && request.method === "GET") {
+      response.setHeader("cache-control", "public, max-age=60");
+      sendJson(response, 200, manifest);
+      return;
+    }
+    sendJson(response, 404, { error: "not found" });
   });
+}
+
+/** Parses only the pathname so query parameters cannot change the read-only route surface. */
+function safelyParsePathname(requestTarget: string): string | null {
+  try {
+    return new URL(requestTarget, "http://bootstrap.invalid").pathname;
+  } catch {
+    return null;
+  }
+}
+
+/** Emits a consistently typed JSON response without reflecting untrusted request content. */
+function sendJson(response: import("node:http").ServerResponse, status: number, payload: unknown): void {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(payload));
 }

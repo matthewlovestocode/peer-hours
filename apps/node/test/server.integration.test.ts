@@ -27,11 +27,29 @@ test("community node returns unavailable health until its runtime has opened sto
     assert.equal(response.status, 503);
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(await response.json(), { status: "starting", core: "", length: 0 });
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
 
     await runtime.start();
     const ready = await fetch(`${node.baseUrl}/health`);
     assert.equal(ready.status, 200);
     assert.equal((await ready.json() as { status: string }).status, "ok");
+  } finally {
+    await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("community node treats a query string as metadata rather than a separate route", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-route-"));
+  const runtime = new PeerRuntime(directory, undefined, undefined, Date.now, false);
+  const node = await startTestNode(runtime);
+
+  try {
+    const response = await fetch(`${node.baseUrl}/health?probe=1`);
+    assert.equal(response.status, 503);
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json; charset=utf-8/);
   } finally {
     await node.close();
     await runtime.stop();

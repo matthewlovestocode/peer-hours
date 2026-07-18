@@ -37,6 +37,11 @@ test("serves only minimal, configured discovery metadata", async () => {
     assert.equal((await fetch(`${bootstrap.baseUrl}/status`)).status, 404);
     assert.equal((await fetch(`${bootstrap.baseUrl}/records`)).status, 404);
     assert.equal((await fetch(`${bootstrap.baseUrl}/bootstrap`, { method: "POST" })).status, 404);
+    const queried = await fetch(`${bootstrap.baseUrl}/bootstrap?cache-bust=1`);
+    assert.equal(queried.status, 200);
+    assert.equal(queried.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(queried.headers.get("referrer-policy"), "no-referrer");
+    assert.match(queried.headers.get("content-type") ?? "", /^application\/json; charset=utf-8/);
   } finally {
     await bootstrap.close();
   }

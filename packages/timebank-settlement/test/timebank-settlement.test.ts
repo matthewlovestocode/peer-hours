@@ -9,6 +9,7 @@ import {
   createSettlementAcknowledgement,
   resolveSettlementAcknowledgements,
   settlementTransferId,
+  validateDualConfirmedSettlementTransfer,
   validateSettlementAcknowledgement,
   validateSettlementTransfer,
 } from "../src/index.js";
@@ -30,7 +31,7 @@ const proposal: ExchangeProposal = {
 /** Creates a structurally valid transfer tied to the accepted fixture proposal. */
 function settlementTransfer(overrides: Partial<Transfer> = {}): Transfer {
   const terms = {
-    id: "transfer-garden-help",
+    id: settlementTransferId(proposal.id),
     communityId,
     sourceProposalId: proposal.id,
     providerMemberId: proposal.providerMemberId,
@@ -120,6 +121,26 @@ test("composes the one deterministic settlement transfer only after dual confirm
   assert.equal(transfer.sourceProposalId, proposal.id);
   assert.equal(transfer.reversesTransferId, undefined);
   assert.deepEqual(transfer.attestations, settlementTransfer().attestations);
+});
+
+test("admits only a deterministic transfer backed by both participant acknowledgements", () => {
+  const acknowledgements = [
+    createSettlementAcknowledgement(proposal, proposal.providerMemberId),
+    createSettlementAcknowledgement(proposal, proposal.receiverMemberId),
+  ];
+
+  assert.deepEqual(
+    validateDualConfirmedSettlementTransfer({ proposal, acknowledgements, transfer: settlementTransfer() }),
+    settlementTransfer(),
+  );
+  assert.throws(
+    () => validateDualConfirmedSettlementTransfer({
+      proposal,
+      acknowledgements,
+      transfer: settlementTransfer({ id: "non-deterministic-settlement" }),
+    }),
+    SettlementRuleError,
+  );
 });
 
 test("refuses transfer composition until the counterparty also acknowledges", () => {

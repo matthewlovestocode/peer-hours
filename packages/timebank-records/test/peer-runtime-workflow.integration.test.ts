@@ -22,12 +22,18 @@ import {
 import { createTransfer, type Transfer } from "@peer-hours/timebank-ledger";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
 import {
+  createDualConfirmedSettlementTransfer,
+  createSettlementAcknowledgement,
+} from "@peer-hours/timebank-settlement";
+import {
   canonicalMemberSignedRecordPayload,
   createMemberSignedRecord,
   memberFeedDeclarationToRecord,
   resolveTimebankMemberFeeds,
   rootKeyIdForMember,
   toAcceptedExchangeProposalRecord,
+  toProposedExchangeProposalRecord,
+  toSettlementAcknowledgementRecord,
   toLedgerTransferRecord,
   toPublishedListingRecord,
   type RecordEnvelope,
@@ -78,11 +84,12 @@ function feedDeclaration(memberId: string, rootPublicKeyPem: string, privateKey:
 /** Builds the exact two-party attested settlement for an accepted proposal. */
 function settlementTransfer(
   proposal: ReturnType<typeof acceptExchangeProposal>,
+  acknowledgements: readonly ReturnType<typeof createSettlementAcknowledgement>[],
   providerPrivateKey: PrivateKey,
   recipientPrivateKey: PrivateKey,
 ): Transfer {
   const unsigned = createTransfer({
-    id: "settlement-garden-help",
+    id: `${proposal.id}/settlement`,
     communityId,
     sourceProposalId: proposal.id,
     providerMemberId: proposal.providerMemberId,
@@ -94,8 +101,9 @@ function settlementTransfer(
     ],
   });
   const payloadDigest = transferPayloadDigest(unsigned);
-  return createTransfer({
-    ...unsigned,
+  return createDualConfirmedSettlementTransfer({
+    proposal,
+    acknowledgements,
     attestations: [
       {
         memberId: proposal.providerMemberId,
@@ -158,12 +166,19 @@ test("two member desktops complete and independently resolve a signed exchange w
     const accepted = acceptExchangeProposal({
       proposal: proposed, offer, request, provider: aliceProfile, recipient: bobProfile, acceptedByMemberId: bobProfile.id,
     });
+    const acknowledgements = [
+      createSettlementAcknowledgement(accepted, aliceProfile.id),
+      createSettlementAcknowledgement(accepted, bobProfile.id),
+    ] as const;
 
     await alice.appendMemberRecord(memberFeedDeclarationToRecord(feedDeclaration(
       aliceProfile.id, aliceIdentity.rootPublicKeyPem, aliceKeys.privateKey, alice.memberRecordFeedKey, "2026-07-18T16:00:00.000Z",
     )));
     await alice.appendMemberRecord(signedRecord(
       toPublishedListingRecord(offer, { occurredAt: "2026-07-18T16:01:00.000Z", authorId: aliceProfile.id }), aliceKeys.privateKey, aliceProfile.id,
+    ));
+    await alice.appendMemberRecord(signedRecord(
+      toProposedExchangeProposalRecord(proposed, { occurredAt: "2026-07-18T16:01:30.000Z", authorId: aliceProfile.id }), aliceKeys.privateKey, aliceProfile.id,
     ));
 
     await bob.appendMemberRecord(memberFeedDeclarationToRecord(feedDeclaration(
@@ -175,15 +190,37 @@ test("two member desktops complete and independently resolve a signed exchange w
     await bob.appendMemberRecord(signedRecord(
       toAcceptedExchangeProposalRecord(accepted, { occurredAt: "2026-07-18T16:02:00.000Z", authorId: bobProfile.id }), bobKeys.privateKey, bobProfile.id,
     ));
+    await alice.appendMemberRecord(signedRecord(
+      toSettlementAcknowledgementRecord(acknowledgements[0], { occurredAt: "2026-07-18T16:02:30.000Z", authorId: aliceProfile.id }), aliceKeys.privateKey, aliceProfile.id,
+    ));
+    await bob.appendMemberRecord(signedRecord(
+      toSettlementAcknowledgementRecord(acknowledgements[1], { occurredAt: "2026-07-18T16:02:30.000Z", authorId: bobProfile.id }), bobKeys.privateKey, bobProfile.id,
+    ));
 
-    const transfer = settlementTransfer(accepted, aliceKeys.privateKey, bobKeys.privateKey);
+    const [alicePreTransferHistory, bobPreTransferHistory] = await Promise.all([
+      waitForRemoteRecords(alice, bob.memberRecordFeedKey, 4),
+      waitForRemoteRecords(bob, alice.memberRecordFeedKey, 4),
+    ]);
+    const alicePreTransferState = resolveTimebankMemberFeeds(communityId, [
+      { feedPublicKey: alice.memberRecordFeedKey, records: await alice.readMemberRecords() },
+      { feedPublicKey: bob.memberRecordFeedKey, records: alicePreTransferHistory as readonly RecordEnvelope[] },
+    ]);
+    const bobPreTransferState = resolveTimebankMemberFeeds(communityId, [
+      { feedPublicKey: alice.memberRecordFeedKey, records: bobPreTransferHistory as readonly RecordEnvelope[] },
+      { feedPublicKey: bob.memberRecordFeedKey, records: await bob.readMemberRecords() },
+    ]);
+    assert.equal(alicePreTransferState.settlementConfirmations[0]?.status, "dual-confirmed");
+    assert.equal(alicePreTransferState.ledger.transfers.length, 0);
+    assert.deepEqual(bobPreTransferState.ledger, alicePreTransferState.ledger);
+
+    const transfer = settlementTransfer(accepted, acknowledgements, aliceKeys.privateKey, bobKeys.privateKey);
     await alice.appendMemberRecord(signedRecord(
       toLedgerTransferRecord(transfer, { occurredAt: "2026-07-18T16:03:00.000Z", authorId: aliceProfile.id }), aliceKeys.privateKey, aliceProfile.id,
     ));
 
     const [aliceHistory, bobHistory] = await Promise.all([
-      waitForRemoteRecords(alice, bob.memberRecordFeedKey, 3),
-      waitForRemoteRecords(bob, alice.memberRecordFeedKey, 3),
+      waitForRemoteRecords(alice, bob.memberRecordFeedKey, 4),
+      waitForRemoteRecords(bob, alice.memberRecordFeedKey, 5),
     ]);
     const aliceState = resolveTimebankMemberFeeds(communityId, [
       { feedPublicKey: alice.memberRecordFeedKey, records: await alice.readMemberRecords() },
@@ -199,6 +236,8 @@ test("two member desktops complete and independently resolve a signed exchange w
     assert.deepEqual(aliceState.publishedListings.map(({ id }) => id), [offer.id, request.id]);
     assert.deepEqual(bobState.publishedListings.map(({ id }) => id), [offer.id, request.id]);
     assert.equal(aliceState.acceptedProposals[0]?.id, accepted.id);
+    assert.equal(aliceState.proposedProposals[0]?.id, proposed.id);
+    assert.equal(aliceState.settlementConfirmations[0]?.status, "dual-confirmed");
     assert.equal(bobState.transfers[0]?.id, transfer.id);
     assert.deepEqual(aliceState.ledger.balances, {
       [aliceProfile.id]: 90,

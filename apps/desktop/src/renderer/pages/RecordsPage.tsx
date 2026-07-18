@@ -1,48 +1,60 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel } from "../components/Primitive.js";
 import { ListingComposer } from "../components/records/ListingComposer.js";
 import { PendingProposalList } from "../components/records/PendingProposalList.js";
 import { ProposalComposer } from "../components/records/ProposalComposer.js";
 import { RawRecordList } from "../components/records/RawRecordList.js";
 import { ResolvedState } from "../components/records/ResolvedState.js";
+import { RecordsWorkspaceStatus, type RecordsWorkspacePhase } from "../components/records/RecordsWorkspaceStatus.js";
 import { SettlementAcknowledgementList } from "../components/records/SettlementAcknowledgementList.js";
-import type { ResolvedMemberState } from "../components/records/types.js";
-
-type Identity = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
+import { readRecordsWorkspace, recordsWorkspaceErrorMessage, type RecordsWorkspaceSnapshot } from "../components/records/recordsWorkspace.js";
 
 /** Presents raw member-feed history separately from the locally accepted state derived from it. */
 export function RecordsPage() {
-  const [records, setRecords] = useState<readonly unknown[]>([]);
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [resolved, setResolved] = useState<ResolvedMemberState | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  /** Reads the independently stored raw records, identity status, and resolved local state together. */
-  const refresh = async () => {
-    const [nextRecords, nextIdentity, nextResolved] = await Promise.all([
-      window.peerHours.getMemberRecords(),
-      window.peerHours.getMemberIdentityStatus(),
-      window.peerHours.getResolvedMemberState(),
-    ]);
-    setRecords(nextRecords);
-    setIdentity(nextIdentity);
-    setResolved(nextResolved);
-    setState("ready");
-  };
+  const [snapshot, setSnapshot] = useState<RecordsWorkspaceSnapshot | null>(null);
+  const [phase, setPhase] = useState<RecordsWorkspacePhase>("loading");
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [creatingIdentity, setCreatingIdentity] = useState(false);
+  const requestVersion = useRef(0);
 
-  useEffect(() => {
-    void refresh().catch(() => setState("error"));
+  /** Refreshes every member-facing view from one consistent local snapshot and retains usable state if it fails. */
+  const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
+    setPhase((current) => current === "loading" ? "loading" : "refreshing");
+    setRefreshError(null);
+    try {
+      const nextSnapshot = await readRecordsWorkspace(window.peerHours);
+      if (version !== requestVersion.current) return;
+      setSnapshot(nextSnapshot);
+      setPhase("ready");
+    } catch (reason) {
+      if (version !== requestVersion.current) return;
+      setRefreshError(recordsWorkspaceErrorMessage(reason));
+      setPhase("error");
+    }
   }, []);
 
-  /** Creates and announces a local identity before exposing member-owned record actions. */
+  useEffect(() => {
+    void refresh();
+    return () => { requestVersion.current += 1; };
+  }, [refresh]);
+
+  /** Creates and announces a local identity, then refreshes every dependent records view. */
   const createIdentity = async () => {
     try {
-      setState("loading");
+      setCreatingIdentity(true);
       await window.peerHours.createAndAnnounceMemberIdentity();
       await refresh();
-    } catch {
-      setState("error");
+    } catch (reason) {
+      setRefreshError(recordsWorkspaceErrorMessage(reason));
+      setPhase("error");
+    } finally {
+      setCreatingIdentity(false);
     }
   };
+
+  const identity = snapshot?.identity;
+  const resolved = snapshot?.resolved ?? null;
 
   return (
     <section className="records-page">
@@ -54,8 +66,9 @@ export function RecordsPage() {
         </div>
       </header>
       <Panel>
-        <ResolvedState state={resolved} />
-        {identity?.state === "not-created" && <button onClick={() => void createIdentity()}>Create identity and announce this feed</button>}
+        <RecordsWorkspaceStatus phase={phase} hasSnapshot={snapshot !== null} error={refreshError} onRefresh={() => void refresh()} />
+        {snapshot && <ResolvedState state={resolved} />}
+        {identity?.state === "not-created" && <button disabled={creatingIdentity} onClick={() => void createIdentity()}>{creatingIdentity ? "Creating identity…" : "Create identity and announce this feed"}</button>}
         {identity?.state === "ready" && (
           <>
             <p className="empty-state">Self-owned identity ready: <code>{identity.memberId}</code></p>
@@ -66,9 +79,7 @@ export function RecordsPage() {
           </>
         )}
         {identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}
-        {state === "loading" && <p className="empty-state">Opening your local member feed…</p>}
-        {state === "error" && <p className="error-message">Your local member records could not be read.</p>}
-        {state === "ready" && <RawRecordList records={records} />}
+        {snapshot && <RawRecordList records={snapshot.records} />}
       </Panel>
     </section>
   );

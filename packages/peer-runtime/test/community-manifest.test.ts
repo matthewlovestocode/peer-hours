@@ -85,6 +85,13 @@ test("accepts only structurally trustworthy community diagnostics peers", () => 
     source: "hyperswarm",
   }]);
   assert.deepEqual(parseCommunityPeerRoster({}), []);
-  assert.throws(() => parseCommunityPeerRoster({ peers: [{ id: "peer", connectedAt: "not-a-time", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "connected" }] }), /valid timestamp/);
+  assert.throws(() => parseCommunityPeerRoster({ peers: [{ id: "peer", connectedAt: "not-a-time", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "connected" }] }), /canonical ISO timestamp/);
   assert.throws(() => parseCommunityPeerRoster({ peers: [{ id: "peer", connectedAt: "2026-07-18T12:00:00.000Z", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "unknown" }] }), /invalid lifecycle state/);
+});
+
+test("rejects ambiguous or noncanonical community diagnostics identities and timestamps", () => {
+  const peer = { id: "community-peer-a", connectedAt: "2026-07-18T12:00:00.000Z", lastSeenAt: "2026-07-18T12:01:00.000Z", lifecycleState: "connected" };
+  assert.throws(() => parseCommunityPeerRoster({ peers: [peer, peer] }), /duplicate peer ids/);
+  assert.throws(() => parseCommunityPeerRoster({ peers: [{ ...peer, id: "x".repeat(257) }] }), /no longer than 256/);
+  assert.throws(() => parseCommunityPeerRoster({ peers: [{ ...peer, connectedAt: "2026-07-18T12:00:00Z" }] }), /canonical ISO timestamp/);
 });

@@ -7,7 +7,7 @@ import { applyTransfers, type Ledger, type Transfer } from "@peer-hours/timebank
 import {
   resolveSettlementAcknowledgements,
   validateSettlementAcknowledgement,
-  validateSettlementTransfer,
+  validateDualConfirmedSettlementTransfer,
   type SettlementAcknowledgement,
   type SettlementConfirmationState,
 } from "@peer-hours/timebank-settlement";
@@ -134,7 +134,11 @@ export function resolveTimebankRecords(
       if (proposal === undefined) {
         throw new RecordResolutionError("A settlement transfer must resolve its accepted proposal from replicated records.");
       }
-      validateSettlementTransfer({ proposal, transfer });
+      validateDualConfirmedSettlementTransfer({
+        proposal,
+        acknowledgements: acknowledgementsByProposalId.get(proposal.id) ?? [],
+        transfer,
+      });
     }
 
     const ledger = applyTransfers({

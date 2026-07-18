@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { PeerRuntime } from "@peer-hours/peer-runtime";
 import { createHealthPayload } from "./health.js";
 
@@ -57,42 +57,58 @@ export function createNodeServer(
   return createServer((request, response) => {
     response.setHeader("cache-control", "no-store");
     response.setHeader("x-content-type-options", "nosniff");
+    response.setHeader("referrer-policy", "no-referrer");
+    const pathname = request.url === undefined ? null : safelyParsePathname(request.url);
+    if (pathname === null) {
+      sendJson(response, 400, { error: "invalid request target" });
+      return;
+    }
     const status = runtime.status();
 
-    if (request.url === "/health" && request.method === "GET") {
+    if (pathname === "/health" && request.method === "GET") {
       const health = createHealthPayload({
         state: status.state === "online" ? "ok" : status.state,
         core: status.replication.coreKey,
         length: status.replication.length,
       });
-      response.writeHead(health.status === "ok" ? 200 : 503, { "content-type": "application/json" });
-      response.end(JSON.stringify(health));
+      sendJson(response, health.status === "ok" ? 200 : 503, health);
       return;
     }
 
-    if (request.url === "/status" && request.method === "GET") {
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify(status));
+    if (pathname === "/status" && request.method === "GET") {
+      sendJson(response, 200, status);
       return;
     }
 
-    if (request.url === "/dev/peers" && request.method === "POST" && options.enableDevelopmentPeerRegistration) {
+    if (pathname === "/dev/peers" && request.method === "POST" && options.enableDevelopmentPeerRegistration) {
       void readDevelopmentPeerPayload(request)
         .then((payload) => {
           if (payload.action === "register") runtime.registerSimulatedPeer(payload.id);
           else runtime.unregisterSimulatedPeer(payload.id);
-          response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
-          response.end(JSON.stringify({ ok: true }));
+          sendJson(response, 200, { ok: true });
         })
         .catch((error: unknown) => {
           const statusCode = error instanceof RangeError ? 413 : 400;
-          response.writeHead(statusCode, { "content-type": "application/json", "cache-control": "no-store" });
-          response.end(JSON.stringify({ error: error instanceof Error ? error.message : "invalid request" }));
+          sendJson(response, statusCode, { error: error instanceof Error ? error.message : "invalid request" });
         });
       return;
     }
 
-    response.writeHead(404, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: "not found" }));
+    sendJson(response, 404, { error: "not found" });
   });
+}
+
+/** Parses only the pathname so query parameters cannot alter the operational HTTP surface. */
+function safelyParsePathname(requestTarget: string): string | null {
+  try {
+    return new URL(requestTarget, "http://community-node.invalid").pathname;
+  } catch {
+    return null;
+  }
+}
+
+/** Emits a consistently typed JSON response without reflecting untrusted request content. */
+function sendJson(response: ServerResponse, status: number, payload: unknown): void {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(payload));
 }

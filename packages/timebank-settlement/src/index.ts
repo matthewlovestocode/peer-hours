@@ -34,6 +34,12 @@ export interface CreateDualConfirmedSettlementTransferInput {
   readonly attestations: readonly TransferAttestation[];
 }
 
+/** Input used to admit a composed normal transfer from replicated completion evidence. */
+export interface ValidateDualConfirmedSettlementTransferInput extends ValidateSettlementTransferInput {
+  /** The participant acknowledgements replicated for the transfer's source proposal. */
+  readonly acknowledgements: readonly SettlementAcknowledgement[];
+}
+
 /**
  * Validates that a non-reversal transfer is the exact settlement for one accepted proposal.
  *
@@ -83,11 +89,6 @@ export function validateSettlementTransfer(input: ValidateSettlementTransferInpu
 export function createDualConfirmedSettlementTransfer(
   input: CreateDualConfirmedSettlementTransferInput,
 ): Transfer {
-  const confirmation = resolveSettlementAcknowledgements(input.proposal, input.acknowledgements);
-  if (confirmation.status !== "dual-confirmed") {
-    throw new SettlementRuleError("Both exchange participants must acknowledge completion before composing a settlement transfer.");
-  }
-
   const transfer = createTransfer({
     id: settlementTransferId(input.proposal.id),
     communityId: input.proposal.communityId,
@@ -97,7 +98,34 @@ export function createDualConfirmedSettlementTransfer(
     minutes: input.proposal.minutes,
     attestations: input.attestations,
   });
-  return validateSettlementTransfer({ proposal: input.proposal, transfer });
+  return validateDualConfirmedSettlementTransfer({
+    proposal: input.proposal,
+    acknowledgements: input.acknowledgements,
+    transfer,
+  });
+}
+
+/**
+ * Verifies that a normal settlement transfer was deterministically composed from an accepted
+ * proposal after both participants acknowledged completion.
+ *
+ * This validates protocol evidence only. It does not verify transfer signatures, establish a
+ * ledger policy outcome, or claim that the records have replicated durably to any particular
+ * set of peers.
+ */
+export function validateDualConfirmedSettlementTransfer(
+  input: ValidateDualConfirmedSettlementTransferInput,
+): Transfer {
+  const confirmation = resolveSettlementAcknowledgements(input.proposal, input.acknowledgements);
+  if (confirmation.status !== "dual-confirmed") {
+    throw new SettlementRuleError("Both exchange participants must acknowledge completion before composing a settlement transfer.");
+  }
+
+  const transfer = validateSettlementTransfer(input);
+  if (transfer.id !== settlementTransferId(input.proposal.id)) {
+    throw new SettlementRuleError("A settlement transfer must use its proposal's deterministic transfer id.");
+  }
+  return transfer;
 }
 
 /**

@@ -32,4 +32,13 @@ export type SettlementConfirmation = {
 };
 
 /** The verified member-feed state exposed through the narrow Electron bridge. */
-export type ResolvedMemberState = Awaited<ReturnType<typeof window.peerHours.getResolvedMemberState>>;
+export type ResolvedMemberState =
+  | { state: "unavailable" | "rejected"; reason: string }
+  | {
+    state: "ready";
+    publishedListings: readonly ResolvedListing[];
+    proposedProposals: readonly PendingProposal[];
+    acceptedProposals: readonly AcceptedProposal[];
+    settlementConfirmations: readonly SettlementConfirmation[];
+    transfers: readonly unknown[];
+  };

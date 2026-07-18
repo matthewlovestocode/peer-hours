@@ -65,7 +65,7 @@ function signedTransfer(
   overrides: Partial<Transfer> = {},
 ): Transfer {
   const unsigned = createTransfer({
-    id: "transfer-garden-help",
+    id: `${proposal().id}/settlement`,
     communityId,
     sourceProposalId: proposal().id,
     providerMemberId,
@@ -104,6 +104,16 @@ test("resolves unordered replicated key, proposal, and transfer records into det
   const providerKeys = generateKeyPairSync("ed25519");
   const recipientKeys = generateKeyPairSync("ed25519");
   const transfer = signedTransfer(providerKeys.privateKey, recipientKeys.privateKey);
+  const providerAcknowledgement = signedRecord(
+    toSettlementAcknowledgementRecord(createSettlementAcknowledgement(proposal(), providerMemberId), { ...metadata, authorId: providerMemberId, occurredAt: "2026-07-18T13:01:10.000Z" }),
+    providerKeys.privateKey,
+    "provider-key",
+  );
+  const recipientAcknowledgement = signedRecord(
+    toSettlementAcknowledgementRecord(createSettlementAcknowledgement(proposal(), recipientMemberId), { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:01:20.000Z" }),
+    recipientKeys.privateKey,
+    "recipient-key",
+  );
   const records: readonly RecordEnvelope[] = [
     signedRecord(toLedgerTransferRecord(transfer, { ...metadata, occurredAt: "2026-07-18T13:02:00.000Z" }), providerKeys.privateKey, "provider-key"),
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
@@ -113,9 +123,11 @@ test("resolves unordered replicated key, proposal, and transfer records into det
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
       eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
     })),
+    providerAcknowledgement,
+    recipientAcknowledgement,
   ];
 
-  const state = resolveTimebankRecords(communityId, [records[0], records[3], records[1], records[2], records[0]]);
+  const state = resolveTimebankRecords(communityId, [records[0], records[3], records[1], records[5], records[2], records[4], records[0]]);
   assert.deepEqual(state.ledger.balances, { [providerMemberId]: 90, [recipientMemberId]: -90 });
   assert.equal(state.acceptedProposals.length, 1);
   assert.equal(state.authorizations.filter(({ active }) => active).length, 2);
@@ -263,6 +275,11 @@ test("keeps a one-sided settlement acknowledgement out of final state until the 
     providerKeys.privateKey,
     "provider-key",
   );
+  const prematureTransfer = signedRecord(
+    toLedgerTransferRecord(signedTransfer(providerKeys.privateKey, recipientKeys.privateKey), { ...metadata, authorId: providerMemberId, occurredAt: "2026-07-18T13:02:30.000Z" }),
+    providerKeys.privateKey,
+    "provider-key",
+  );
   const recipientAcknowledgement = signedRecord(
     toSettlementAcknowledgementRecord(createSettlementAcknowledgement(accepted, recipientMemberId), { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:03:00.000Z" }),
     recipientKeys.privateKey,
@@ -272,6 +289,10 @@ test("keeps a one-sided settlement acknowledgement out of final state until the 
   const awaiting = resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement]);
   assert.equal(awaiting.settlementConfirmations[0]?.status, "awaiting-counterparty");
   assert.equal(awaiting.ledger.transfers.length, 0);
+  assert.throws(
+    () => resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement, prematureTransfer]),
+    /both exchange participants must acknowledge/i,
+  );
 
   const confirmed = resolveTimebankRecords(communityId, [...baseRecords, providerAcknowledgement, recipientAcknowledgement]);
   assert.equal(confirmed.settlementConfirmations[0]?.status, "dual-confirmed");
@@ -306,17 +327,19 @@ test("rejects an acceptance that changes a creator-signed pending proposal's imm
   );
 });
 
-test("accepts settlement records submitted by either transfer participant and rejects outsiders", () => {
+test("admits a dual-confirmed deterministic settlement record from either participant and rejects outsiders", () => {
   const providerKeys = generateKeyPairSync("ed25519");
   const recipientKeys = generateKeyPairSync("ed25519");
   const outsiderMemberId = "member-outsider";
   const outsiderKeys = generateKeyPairSync("ed25519");
-  const transfer = signedTransfer(providerKeys.privateKey, recipientKeys.privateKey);
+  const transfer = signedTransfer(providerKeys.privateKey, recipientKeys.privateKey, { id: "proposal-garden-help/settlement" });
   const records: readonly RecordEnvelope[] = [
     signedRecord(toAcceptedExchangeProposalRecord(proposal(), { ...metadata, authorId: recipientMemberId }), recipientKeys.privateKey, "recipient-key"),
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
       eventId: "provider-key-activation", communityId, memberId: providerMemberId, keyId: "provider-key", action: "activate", occurredAt: "2026-07-18T13:00:00.000Z", publicKeyPem: publicKeyPem(providerKeys.publicKey),
     })),
+    signedRecord(toSettlementAcknowledgementRecord(createSettlementAcknowledgement(proposal(), providerMemberId), { ...metadata, authorId: providerMemberId, occurredAt: "2026-07-18T13:01:00.000Z" }), providerKeys.privateKey, "provider-key"),
+    signedRecord(toSettlementAcknowledgementRecord(createSettlementAcknowledgement(proposal(), recipientMemberId), { ...metadata, authorId: recipientMemberId, occurredAt: "2026-07-18T13:01:01.000Z" }), recipientKeys.privateKey, "recipient-key"),
     memberSigningKeyAuthorizationEventToRecord(createMemberSigningKeyAuthorizationEvent({
       eventId: "recipient-key-activation", communityId, memberId: recipientMemberId, keyId: "recipient-key", action: "activate", occurredAt: "2026-07-18T13:00:01.000Z", publicKeyPem: publicKeyPem(recipientKeys.publicKey),
     })),

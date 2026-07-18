@@ -148,6 +148,8 @@ Network node
 
 The development community node exists to make local testing repeatable. The deployed community node represents always-available infrastructure operated for a timebank community. The desktop should be able to connect to community nodes through its embedded peer runtime, while the UI reports community-node identities, peer connection state, and replication status.
 
+The local `dev-peers` application also makes an explicit `register`/`unregister` request to the node's `/dev/peers` route so the UI can exercise a labeled simulated roster. That roster is not a transport graph: a `source: "simulated"` entry is neither proof of a Hyperswarm session nor proof of replicated records. The route is disabled by default and becomes available only when both the node and simulator explicitly use `ENABLE_DEV_PEER_REGISTRATION=true`. It is still unauthenticated local development infrastructure and must remain disabled for a publicly reachable community node.
+
 ## Possible shared packages
 
 These are concrete and potential boundaries. The current packages cover the initial agreement, authorization, settlement-linkage, and balance rules:
@@ -219,6 +221,8 @@ sequenceDiagram
 ```
 
 The bootstrap endpoint is a rendezvous mechanism, not the authority for all Peer Hours data. The public key may be shared; private signing material must remain on the node. The Render node's identity should be stored on persistent storage so restarts do not change the default network identity unexpectedly.
+
+Today, the runtime checks that bootstrap returns a successful HTTP response and structurally validates a complete manifest: nonblank community ID and display name, a positive integer protocol version, fixed-length hexadecimal core keys, and HTTP(S) bootstrap URLs. It does **not** yet authenticate the endpoint or verify a signed manifest. A production bootstrap design needs an explicit trust policy such as pinned keys, signed manifests, or another verifiable community-distribution mechanism.
 
 ## Community naming
 

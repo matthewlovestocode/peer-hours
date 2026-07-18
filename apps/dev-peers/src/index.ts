@@ -8,20 +8,35 @@ const peers = Array.from({ length: peerCount }, (_, index) => new PeerRuntime(jo
 const peerIds: string[] = [];
 let heartbeatTimer: NodeJS.Timeout | null = null;
 
+/** Ensures simulated roster registration is explicitly enabled for this development-only process. */
+function requireDevelopmentPeerRegistration(): void {
+  if (process.env.ENABLE_DEV_PEER_REGISTRATION !== "true") {
+    throw new Error("Development peer registration is disabled. Set ENABLE_DEV_PEER_REGISTRATION=true for both the community node and this simulator.");
+  }
+}
+
+/** Raises a useful error when the community node rejects simulated-peer registration. */
+async function ensureRegistrationSucceeded(response: Response): Promise<void> {
+  if (response.ok) return;
+  const detail = await response.text();
+  throw new Error(`Development peer registration failed (${response.status}): ${detail}`);
+}
+
 /** Registers a simulated peer with the local community-node development endpoint. */
 const register = async (id: string) => {
   const url = bootstrapUrl.replace(/\/bootstrap$/, "/dev/peers");
-  await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, action: "register" }) });
+  await ensureRegistrationSucceeded(await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, action: "register" }) }));
 };
 
 /** Removes a simulated peer from the local community-node development endpoint. */
 const unregister = async (id: string) => {
   const url = bootstrapUrl.replace(/\/bootstrap$/, "/dev/peers");
-  await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, action: "unregister" }) });
+  await ensureRegistrationSucceeded(await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, action: "unregister" }) }));
 };
 
 /** Starts the configured number of independent development peers. */
 const start = async () => {
+  requireDevelopmentPeerRegistration();
   await Promise.all(peers.map((peer) => peer.start()));
   peerIds.push(...peers.map((peer) => peer.status().peerId));
   await Promise.all(peers.map((_, index) => register(peerIds[index])));

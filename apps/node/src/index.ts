@@ -10,7 +10,9 @@ const displayName = process.env.COMMUNITY_NAME ?? "East Bay Timebank";
 
 await runtime.start();
 
-const server = createNodeServer(runtime, { communityId, displayName });
+const server = createNodeServer(runtime, { communityId, displayName }, {
+  enableDevelopmentPeerRegistration: process.env.ENABLE_DEV_PEER_REGISTRATION === "true",
+});
 
 server.listen(port, "0.0.0.0", () => {
   console.log(`Peer Hours node listening on port ${port}`);

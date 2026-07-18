@@ -28,7 +28,7 @@ The package is deliberately separate from the timebank-domain and ledger package
 - Optionally obtains a community manifest from a configured bootstrap URL or uses a supplied bootstrap-core key, then joins that core's discovery key.
 - Tracks direct Hyperswarm connections and derives `connecting`, `connected`, `stale`, and `offline` lifecycle states from peer freshness.
 - Polls a configured community node's `/status` endpoint to include its reported peer roster in the status view.
-- Supports explicitly registered simulated peers for development-only topology and UI testing.
+- Supports explicitly registered simulated peers for development-only topology and UI testing. A simulated status entry is not proof of a direct transport connection or replication.
 - Provides `HypercoreRecordStore`, a generic append/read wrapper for immutable JSON records in a named Hypercore.
 - Emits status changes through `onStatusChange()` and provides snapshots through `status()`.
 
@@ -36,10 +36,10 @@ The package is deliberately separate from the timebank-domain and ledger package
 
 - It does not define, persist, or validate timebank members, listings, exchange proposals, transfers, balances, or signatures.
 - It does not interpret or validate timebank-domain, identity, or ledger records. It can replicate their immutable JSON envelopes through a shared record core, while `@peer-hours/timebank-records` owns their meaning and resolution.
-- It does not authenticate a bootstrap endpoint, validate that a fetched community manifest is trustworthy, or authorize community membership.
+- It does not authenticate a bootstrap endpoint, establish that a fetched community manifest is trustworthy, or authorize community membership. The current loader checks a successful HTTP response and validates a complete manifest: a JSON object with nonblank community ID/display name, a positive integer protocol version, 64-character hexadecimal core keys, and HTTP(S) bootstrap URLs. It normalizes accepted keys and URLs. It does not yet pin a key, verify a signature, or establish that the endpoint is an authorized community operator.
 - It does not guarantee that a peer shown from a community node's status endpoint is a direct local connection.
 - It is not an HTTP server; applications such as `apps/node` decide which endpoints to expose.
-- Simulated peers are status fixtures only; they are not real Hyperswarm connections or replication participants.
+- Simulated-peer registration is a status fixture only; it is not a real Hyperswarm connection or replication participant. A simulator process may run its own runtime, but registering its ID with a node does not prove that runtime is connected or synchronized.
 
 ## Public API and concepts
 
@@ -85,6 +85,8 @@ Its constructor accepts an application-owned data directory, an optional bootstr
 ### Community manifest
 
 `CommunityManifest` is the bootstrap metadata currently read from an endpoint. It includes a community ID, display name, protocol version, public network core key, optional `recordCoreKey`, and bootstrap-node URLs. The runtime uses `coreKey` to open and join the associated discovery core and opens `recordCoreKey` as a reader when present.
+
+This is structural validation, not trust establishment. Callers should surface bootstrap errors and avoid presenting fetched metadata as authenticated community authority until the protocol adds a signed or pinned manifest policy.
 
 ## Dependencies
 

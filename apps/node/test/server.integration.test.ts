@@ -8,8 +8,8 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 import { createNodeServer } from "../src/server.js";
 
 /** Starts an ephemeral community API and returns its local URL and cleanup function. */
-async function startTestNode(runtime: PeerRuntime): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const server = createNodeServer(runtime, { communityId: "peer-hours/earth/test", displayName: "Test Community" });
+async function startTestNode(runtime: PeerRuntime, enableDevelopmentPeerRegistration = false): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  const server = createNodeServer(runtime, { communityId: "peer-hours/earth/test", displayName: "Test Community" }, { enableDevelopmentPeerRegistration });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
@@ -20,7 +20,7 @@ async function startTestNode(runtime: PeerRuntime): Promise<{ baseUrl: string; c
 test("community node exposes simulator registration in its live roster", async () => {
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-integration-"));
   const runtime = new PeerRuntime(directory);
-  const node = await startTestNode(runtime);
+  const node = await startTestNode(runtime, true);
 
   try {
     const register = await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "simulated-peer-a", action: "register" }) });
@@ -44,7 +44,7 @@ test("community node restores a stale simulator peer when its heartbeat resumes"
   const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-heartbeat-"));
   let clock = Date.parse("2026-07-18T00:00:00.000Z");
   const runtime = new PeerRuntime(directory, undefined, undefined, () => clock);
-  const node = await startTestNode(runtime);
+  const node = await startTestNode(runtime, true);
 
   try {
     await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "simulated-peer-a", action: "register" }) });
@@ -59,6 +59,45 @@ test("community node restores a stale simulator peer when its heartbeat resumes"
     const resumed = await fetch(`${node.baseUrl}/status`).then((response) => response.json()) as { peers: Array<{ connectedAt: string; lifecycleState: string }> };
     assert.equal(resumed.peers[0].lifecycleState, "connected");
     assert.equal(resumed.peers[0].connectedAt, initial.peers[0].connectedAt);
+  } finally {
+    await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("community node keeps development peer registration disabled by default", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-disabled-development-route-"));
+  const runtime = new PeerRuntime(directory);
+  const node = await startTestNode(runtime);
+
+  try {
+    const response = await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "simulated-peer-a", action: "register" }) });
+    assert.equal(response.status, 404);
+  } finally {
+    await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("community node rejects malformed and oversized development peer registration payloads", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-development-payload-"));
+  const runtime = new PeerRuntime(directory);
+  const node = await startTestNode(runtime, true);
+
+  try {
+    const malformed = await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: "{" });
+    assert.equal(malformed.status, 400);
+
+    const unsupportedAction = await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "simulated-peer-a", action: "remove-all" }) });
+    assert.equal(unsupportedAction.status, 400);
+
+    const oversized = await fetch(`${node.baseUrl}/dev/peers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "x".repeat(4_096), action: "register" }) });
+    assert.equal(oversized.status, 413);
+
+    const status = await fetch(`${node.baseUrl}/status`).then((response) => response.json()) as { peers: unknown[] };
+    assert.deepEqual(status.peers, []);
   } finally {
     await node.close();
     await runtime.stop();

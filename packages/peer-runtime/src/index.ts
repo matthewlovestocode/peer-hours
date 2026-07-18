@@ -39,6 +39,80 @@ export type CommunityManifest = {
   bootstrapNodes: string[];
 };
 
+type JsonRecord = Record<string, unknown>;
+
+/** Parses untrusted bootstrap JSON into the complete community metadata the runtime can safely use. */
+export function parseCommunityManifest(payload: unknown): CommunityManifest {
+  if (!isJsonRecord(payload)) throw new Error("Bootstrap metadata must be a JSON object.");
+
+  const communityId = requiredNonblankString(payload, "communityId");
+  const displayName = requiredNonblankString(payload, "displayName");
+  const protocolVersion = positiveProtocolVersion(payload.protocolVersion);
+  const coreKey = validCoreKey(requiredNonblankString(payload, "coreKey"), "coreKey");
+  const recordCoreKey = optionalCoreKey(payload.recordCoreKey, "recordCoreKey");
+  const bootstrapNodes = validBootstrapNodes(payload.bootstrapNodes);
+
+  return recordCoreKey === undefined
+    ? { communityId, displayName, protocolVersion, coreKey, bootstrapNodes }
+    : { communityId, displayName, protocolVersion, coreKey, recordCoreKey, bootstrapNodes };
+}
+
+/** Narrows an untrusted JSON value to a plain object-like record. */
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Reads a required string field and rejects blank identifiers or labels. */
+function requiredNonblankString(payload: JsonRecord, field: string): string {
+  const value = payload[field];
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error(`Bootstrap metadata field ${field} must be a nonblank string.`);
+  }
+  return value;
+}
+
+/** Validates the positive integer protocol version understood by this runtime. */
+function positiveProtocolVersion(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error("Bootstrap metadata field protocolVersion must be a positive integer.");
+  }
+  return value;
+}
+
+/** Validates the fixed-length hexadecimal public key used to open a Hypercore. */
+function validCoreKey(value: string, field: string): string {
+  if (!/^[a-f0-9]{64}$/i.test(value)) {
+    throw new Error(`Bootstrap metadata field ${field} must be a 64-character hexadecimal Hypercore key.`);
+  }
+  return value.toLowerCase();
+}
+
+/** Validates an optional record-core key when the community publishes one. */
+function optionalCoreKey(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new Error(`Bootstrap metadata field ${field} must be a 64-character hexadecimal Hypercore key when provided.`);
+  }
+  return validCoreKey(value, field);
+}
+
+/** Validates bootstrap node locations without accepting non-web URL schemes. */
+function validBootstrapNodes(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("Bootstrap metadata field bootstrapNodes must be an array of HTTP(S) URLs.");
+  return value.map((node, index) => {
+    if (typeof node !== "string") {
+      throw new Error(`Bootstrap metadata bootstrapNodes[${index}] must be an HTTP(S) URL string.`);
+    }
+    try {
+      const url = new URL(node);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported protocol");
+      return url.toString();
+    } catch {
+      throw new Error(`Bootstrap metadata bootstrapNodes[${index}] must be a valid HTTP(S) URL.`);
+    }
+  });
+}
+
 export type PeerStatusListener = (status: LocalPeerStatus) => void;
 
 type PeerConnection = { on: Function; remotePublicKey?: Buffer };
@@ -211,12 +285,11 @@ export class PeerRuntime {
     this.bootstrapState = "fetching";
     try {
       console.log(`fetching bootstrap metadata from ${this.bootstrapUrl}`);
-      const payload = await this.requestJson<CommunityManifest>(this.bootstrapUrl);
-      if (!payload.coreKey) throw new Error("Bootstrap response did not include a core key");
-      this.community = payload;
+      const payload = await this.requestJson<unknown>(this.bootstrapUrl);
+      this.community = parseCommunityManifest(payload);
       this.bootstrapState = "fetched";
       console.log("bootstrap metadata received");
-      return Buffer.from(payload.coreKey, "hex");
+      return Buffer.from(this.community.coreKey, "hex");
     } catch (cause) {
       this.bootstrapState = "error";
       this.error = cause instanceof Error ? cause.message : "Unable to reach bootstrap node";

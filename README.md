@@ -146,14 +146,30 @@ Peer lifecycle status is reported as `discovered`, `connecting`, `connected`, `s
 
 The node API also reports Hyperswarm discovery counters in `status.discovery`: `connecting` counts in-progress handshakes and `connected` counts active encrypted connections. Hyperswarm does not provide a stable peer identity until the connection event, so identity-level `discovered` records will be added when a higher-level discovery registry exists.
 
-To start real simulated peers for the network tree, use a third terminal:
+### Development-only simulated peer roster
+
+To exercise the desktop network tree with an intentionally simulated roster, start or restart the **local** community node with the opt-in flag:
+
+```sh
+ENABLE_DEV_PEER_REGISTRATION=true npm --workspace @peer-hours/node run start
+```
+
+Then use a third terminal for the simulator:
 
 ```sh
 npm --workspace @peer-hours/dev-peers run build
-PEER_COUNT=5 npm --workspace @peer-hours/dev-peers run start
+ENABLE_DEV_PEER_REGISTRATION=true PEER_COUNT=5 npm --workspace @peer-hours/dev-peers run start
 ```
 
-Each simulated peer has its own identity and storage directory and bootstraps through the same community-node endpoint as the desktop.
+Each simulator process has its own identity and storage directory and bootstraps through the same community-node endpoint as the desktop. For the **roster** shown by the local community node, it also repeatedly sends this explicit development registration action:
+
+```json
+{ "id": "simulator-peer-id", "action": "register" }
+```
+
+That action reaches `POST /dev/peers`; sending `{ "action": "unregister" }` removes the entry. The entry is deliberately labelled `source: "simulated"`. It is a UI/topology fixture, not evidence of a live Hyperswarm connection, successful record replication, or a reachable member.
+
+**Production safety boundary:** `ENABLE_DEV_PEER_REGISTRATION` is disabled unless its value is exactly `true`; without it, `POST /dev/peers` returns `404`. The simulator also refuses to start registration unless its own environment has the same explicit flag. When enabled, the route remains intentionally unauthenticated because it is local development tooling. Never set this flag for a deployed or publicly reachable community node, and never treat `/dev/peers` as a production API.
 
 To use a remote bootstrap node, set `PEER_HOURS_BOOTSTRAP_URL` before starting the desktop. To bypass HTTP bootstrap for a local test, set `PEER_HOURS_BOOTSTRAP_KEY` directly.
 
@@ -198,6 +214,8 @@ DATA_DIR=/var/data npm --workspace @peer-hours/node run start
 ```
 
 The health check is available at `http://127.0.0.1:10000/health`. For Render, use `npm --workspace @peer-hours/node run build` as the build command and `npm --workspace @peer-hours/node run start` as the start command. Render supplies the `PORT` environment variable.
+
+`POST /dev/peers` is disabled by default. It is available only when the node starts with `ENABLE_DEV_PEER_REGISTRATION=true`, and the local simulator requires the same flag before it attempts registration. The route accepts an ID plus the explicit `register` or `unregister` action and changes only the status roster. It remains unauthenticated development tooling and must not be enabled for a deployed or publicly reachable community node.
 
 ## Root commands
 

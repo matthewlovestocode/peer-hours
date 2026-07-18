@@ -114,7 +114,7 @@ Before a pilot, define and implement the minimum policy surface:
 - listing/profile/transaction privacy, retention, export, and deletion expectations; and
 - protocol and policy versioning, so a client can explain why it accepts or rejects a record.
 
-Security work should include a threat model, dependency/update process, secret handling review, encrypted local-data and backup decisions, input and envelope limits, rate limits for public node endpoints, audit logging that avoids private content, release signing, and a desktop auto-update plan. The exact privacy design must follow community needs and legal advice; it should not be guessed from transport choices alone.
+Security work should include a threat model, dependency/update process, secret handling review, encrypted local-data and backup decisions, input and envelope limits, rate limits for public node endpoints, audit logging that avoids private content, release signing, and a desktop auto-update plan. The development-only `/dev/peers` simulated-roster route is disabled by default and requires `ENABLE_DEV_PEER_REGISTRATION=true` in both the node and simulator, but it remains unauthenticated when enabled and must stay disabled for public deployments. Bootstrap metadata also needs a trust policy: current parsing rejects unsuccessful HTTP responses and structurally validates required identity/version fields, fixed-length core keys, and HTTP(S) bootstrap URLs, but it does not authenticate a node or validate a signed manifest. The exact privacy design must follow community needs and legal advice; it should not be guessed from transport choices alone.
 
 ### Acceptance criteria
 

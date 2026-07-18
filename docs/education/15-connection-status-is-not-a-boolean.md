@@ -42,6 +42,17 @@ B: runtime online, bootstrap failed,
 
 Both can show yesterday's local data. State A is ready to synchronize when a peer appears. State B needs bootstrap configuration or a retry before it even knows which community core to open.
 
+## A simulated dot is not a connection
+
+During development, Peer Hours can register a simulated peer in the community node's status roster with an explicit `action: "register"` request. This lets a developer test a full peer list without waiting for many laptops to be online.
+
+```text
+source: "simulated"  -> test roster entry; do not infer replication
+source: "hyperswarm" -> observed transport connection; replication still needs its own status
+```
+
+The simulator is useful, but it must stay visibly different from a real connection. Registration only works when both the local node and simulator explicitly set `ENABLE_DEV_PEER_REGISTRATION=true`; otherwise the node returns `404` and the simulator refuses to register. The route remains unauthenticated when enabled, so it is only safe for local development—not a way for a member or deployed node to announce itself in production.
+
 ## Peer Hours connection
 
 The desktop Network workspace is intentionally a diagnostics view: it exposes community-node, peer, and record-core state separately. This avoids the misleading claim that a member is “fully connected” when only one narrow condition is true.

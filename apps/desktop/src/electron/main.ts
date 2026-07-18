@@ -2,7 +2,11 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
 
-const runtime = new PeerRuntime(join(app.getPath("userData"), "peer-hours"), process.env.PEER_HOURS_BOOTSTRAP_KEY);
+const runtime = new PeerRuntime(
+  join(app.getPath("userData"), "peer-hours"),
+  process.env.PEER_HOURS_BOOTSTRAP_KEY,
+  process.env.PEER_HOURS_BOOTSTRAP_URL ?? "http://127.0.0.1:10000/bootstrap",
+);
 
 /** Creates the desktop window and loads either the Vite development UI or built renderer. */
 const createWindow = () => {
@@ -12,7 +16,7 @@ const createWindow = () => {
     minWidth: 720,
     minHeight: 480,
     webPreferences: {
-      preload: join(import.meta.dirname, "preload.js"),
+      preload: join(import.meta.dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
     },

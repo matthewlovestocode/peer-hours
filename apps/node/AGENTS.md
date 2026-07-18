@@ -4,7 +4,7 @@
 
 This is a headless, continuously running Peer Hours node. It is infrastructure for persistence, discovery, and replication—not the member-facing application and not the complete timebank ledger.
 
-This node is independently deployable infrastructure. It is distinct from the local peer runtime embedded in the desktop app. It should also be usable as a local development fixture and as a remote community/network node.
+This is the independently deployable community node. It is distinct from the peer runtime embedded in the desktop app. It should be usable as a local development fixture and as a remote community node.
 
 ## First infrastructure milestone: observability
 

@@ -5,6 +5,8 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 const port = Number(process.env.PORT ?? 10000);
 const dataDirectory = process.env.DATA_DIR ?? join(process.cwd(), "data");
 const runtime = new PeerRuntime(dataDirectory, process.env.PEER_HOURS_BOOTSTRAP_KEY);
+const communityId = process.env.COMMUNITY_ID ?? "peer-hours/world/US/CA/east-bay";
+const displayName = process.env.COMMUNITY_NAME ?? "East Bay Timebank";
 
 await runtime.start();
 
@@ -21,6 +23,31 @@ const server = createServer((request, response) => {
   if (request.url === "/status" && request.method === "GET") {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify(status));
+    return;
+  }
+
+  if (request.url === "/bootstrap" && request.method === "GET") {
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({ communityId, displayName, protocolVersion: 1, coreKey: status.replication.coreKey, bootstrapNodes: [] }));
+    return;
+  }
+
+  if (request.url === "/dev/peers" && request.method === "POST") {
+    let body = "";
+    request.on("data", (chunk) => { body += chunk; });
+    request.on("end", () => {
+      try {
+        const payload = JSON.parse(body) as { id?: string; action?: "register" | "unregister" };
+        if (!payload.id || !payload.action) throw new Error("id and action are required");
+        if (payload.action === "register") runtime.registerSimulatedPeer(payload.id);
+        else runtime.unregisterSimulatedPeer(payload.id);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ok: true }));
+      } catch (error) {
+        response.writeHead(400, { "content-type": "application/json" });
+        response.end(JSON.stringify({ error: error instanceof Error ? error.message : "invalid request" }));
+      }
+    });
     return;
   }
 

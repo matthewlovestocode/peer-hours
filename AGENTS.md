@@ -11,6 +11,8 @@ Peer Hours is a federated, local-first timebank system. Desktop applications ser
 - `packages/` — Shared libraries created only when there is a concrete reuse case.
 - `docs/` — Living product, architecture, and implementation notes.
 
+Use precise network terminology: a **community node** is independently deployed, always-available infrastructure operated for a timebank community. A **peer** is any participating runtime, including the desktop application's embedded runtime. Avoid using “peer node” when “community node” or “peer” is intended.
+
 ## General development rules
 
 - Read the relevant `AGENTS.md` files before changing code.

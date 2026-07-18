@@ -1,6 +1,6 @@
 # Peer Hours
 
-Peer Hours is an npm workspaces monorepo for desktop applications, network nodes, and shared packages. The repository currently contains a minimal Electron + React desktop application and a proof-of-concept replication node.
+Peer Hours is an npm workspaces monorepo for desktop applications, community nodes, development peers, and shared packages. The repository contains an Electron + React desktop application, a headless community node, a development peer simulator, and a shared peer runtime.
 
 ## Repository structure
 
@@ -8,7 +8,8 @@ Peer Hours is an npm workspaces monorepo for desktop applications, network nodes
 peer-hours/
 ├── apps/
 │   ├── desktop/             # Electron + React desktop application
-│   └── node/                # Headless replication node
+│   ├── node/                # Headless community node
+│   └── dev-peers/           # Real local peers for UI/network development
 ├── packages/
 │   └── peer-runtime/        # Platform-neutral local peer runtime
 ├── package.json             # Root workspace and shared scripts
@@ -25,7 +26,7 @@ Applications are deployable products. Each application has its own `package.json
 
 The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite.
 
-The `@peer-hours/node` application is a small headless proof of concept. It keeps a persistent Hypercore, discovers peers with Hyperswarm, replicates the core, and exposes a health endpoint. It does not yet implement the Peer Hours ledger or multi-writer transaction rules.
+The `@peer-hours/node` application is a headless community node. It keeps persistent Hypercore storage, exposes `/bootstrap`, discovers peers with Hyperswarm, and reports peer status. It does not yet implement the Peer Hours ledger or multi-writer transaction rules.
 
 ### `packages/`
 
@@ -70,8 +71,9 @@ npm --workspace @peer-hours/node run start
 Confirm that it is available:
 
 ```sh
-curl http://localhost:10000/health
-curl http://localhost:10000/status
+curl http://127.0.0.1:10000/health
+curl http://127.0.0.1:10000/status
+curl http://127.0.0.1:10000/bootstrap
 ```
 
 In terminal 2, start the Vite development server and Electron together:
@@ -80,7 +82,18 @@ In terminal 2, start the Vite development server and Electron together:
 npm --workspace @peer-hours/desktop run dev
 ```
 
-The desktop app will open in an Electron window and report the identity and status of its embedded peer.
+The desktop defaults to `http://127.0.0.1:10000/bootstrap`, fetches the community manifest and public core key, and joins its discovery topic. The desktop app owns an embedded peer runtime and reports its own identity, community metadata, peer roster, and replication status.
+
+To start real simulated peers for the network tree, use a third terminal:
+
+```sh
+npm --workspace @peer-hours/dev-peers run build
+PEER_COUNT=5 npm --workspace @peer-hours/dev-peers run start
+```
+
+Each simulated peer has its own identity and storage directory and bootstraps through the same community-node endpoint as the desktop.
+
+To use a remote bootstrap node, set `PEER_HOURS_BOOTSTRAP_URL` before starting the desktop. To bypass HTTP bootstrap for a local test, set `PEER_HOURS_BOOTSTRAP_KEY` directly.
 
 If Electron reports that it did not install correctly, repair its downloaded runtime from the repository root:
 
@@ -120,7 +133,7 @@ By default, node data is stored in `apps/node/data/`. Set `DATA_DIR` to use anot
 DATA_DIR=/var/data npm --workspace @peer-hours/node run start
 ```
 
-The health check is available at `http://localhost:10000/health`. For Render, use `npm --workspace @peer-hours/node run build` as the build command and `npm --workspace @peer-hours/node run start` as the start command. Render supplies the `PORT` environment variable.
+The health check is available at `http://127.0.0.1:10000/health`. For Render, use `npm --workspace @peer-hours/node run build` as the build command and `npm --workspace @peer-hours/node run start` as the start command. Render supplies the `PORT` environment variable.
 
 ## Root commands
 

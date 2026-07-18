@@ -27,7 +27,7 @@ Desktop application
   ├── Offline composition and browsing
   └── Synchronization when connected
 
-Independent community and replication nodes
+Community nodes
   ├── Replicate listings and signed transactions
   ├── Keep data available while members are offline
   ├── Relay connected members
@@ -88,7 +88,7 @@ apps/
 └── admin/         # Possible community administration interface
 ```
 
-`desktop` and the initial proof-of-concept `node` exist today. The node currently provides persistent Hypercore storage, Hyperswarm discovery/replication, and a health endpoint. The desktop's embedded peer runtime is not implemented yet. The admin application should be added when its first concrete workflows are understood.
+`desktop`, the headless `node`, the `dev-peers` simulator, and the shared `peer-runtime` package now exist. The desktop embeds a local peer runtime; the community node provides persistent storage, bootstrap metadata, and peer status; and `dev-peers` provides real independent runtimes plus development-only roster registration for UI work. The admin application should be added when its first concrete workflows are understood.
 
 ## Local development topology
 
@@ -105,7 +105,7 @@ Network node
   └── independently deployed community or replication node
 ```
 
-The development node exists to make local testing repeatable. The network node represents a real independently deployed peer. The desktop should be able to connect to both through its embedded runtime, while the UI reports their identities, connection state, and replication status.
+The development community node exists to make local testing repeatable. The deployed community node represents always-available infrastructure operated for a timebank community. The desktop should be able to connect to community nodes through its embedded peer runtime, while the UI reports community-node identities, peer connection state, and replication status.
 
 ## Possible shared packages
 
@@ -132,12 +132,13 @@ This should include both a polished member-facing status experience and structur
 The first vertical slice should remain narrow and complete:
 
 1. Start a local node and establish its identity.
-2. Connect the desktop app to a configured node.
-3. Discover and display connected peers.
-4. Replicate a small test event between two nodes.
-5. Show connection state, last-seen timestamps, sync progress, and errors in the desktop app.
-6. Exercise disconnect, reconnect, delayed peer, and persistence-restart cases.
-7. Only then begin the first offer/request workflow.
+2. Fetch community bootstrap metadata from a configured community node.
+3. Start simulated peers and display them in the desktop network tree.
+4. Discover and display actual live peer connections where transport permits.
+5. Replicate a small test event between peers.
+6. Show connection state, last-seen timestamps, sync progress, simulated-peer source, and errors in the desktop app.
+7. Exercise disconnect, reconnect, delayed peer, and persistence-restart cases.
+8. Only then begin the first offer/request workflow.
 
 This should reveal the real boundaries between the desktop app, node, protocol, identity, listings, and ledger before those boundaries become packages.
 
@@ -155,3 +156,59 @@ This should reveal the real boundaries between the desktop app, node, protocol, 
 - How are disputes, fraud, harmful behavior, and invalid transactions handled?
 
 These questions should be answered through small experiments and community conversations rather than settled prematurely in the repository structure.
+
+## Default network bootstrap
+
+The initial desktop experience should use a default Render-hosted bootstrap node. The desktop connects to a small public bootstrap endpoint over HTTPS, reads the node's public network/core key, and then joins the corresponding Holepunch discovery topic.
+
+```mermaid
+sequenceDiagram
+    participant D as Desktop peer
+    participant R as Render bootstrap node
+    participant P as P2P network
+
+    D->>R: GET /bootstrap
+    R-->>D: public core key and protocol metadata
+    D->>P: join discovery topic
+    P-->>D: replicated peers and data
+```
+
+The bootstrap endpoint is a rendezvous mechanism, not the authority for all Peer Hours data. The public key may be shared; private signing material must remain on the node. The Render node's identity should be stored on persistent storage so restarts do not change the default network identity unexpectedly.
+
+## Community naming
+
+Peer Hours communities use hierarchical identifiers that scale from global networks to local timebanks:
+
+```text
+peer-hours/<scope>/<country>/<region>/<community>
+```
+
+Examples:
+
+```text
+peer-hours/world
+peer-hours/world/US
+peer-hours/world/US/CA
+peer-hours/world/US/CA/east-bay
+peer-hours/world/US/CA/east-bay/oakland
+```
+
+Non-geographic communities can use an `online` branch:
+
+```text
+peer-hours/world/online/software
+peer-hours/world/online/caregivers
+peer-hours/world/online/language-exchange
+```
+
+Geographic segments should use stable uppercase codes where applicable, such as `US` and `CA`; human-facing display names remain separate from canonical identifiers. For example:
+
+```json
+{
+  "communityId": "peer-hours/world/US/CA/east-bay",
+  "displayName": "East Bay Timebank",
+  "parentCommunity": "peer-hours/world/US/CA"
+}
+```
+
+The hierarchy organizes discovery and federation but does not imply a shared ledger. Each community may have its own discovery topic, community nodes, membership rules, listings, ledger, and moderation policies. Parent communities may later provide directories or federation between child communities without controlling their local accounting.

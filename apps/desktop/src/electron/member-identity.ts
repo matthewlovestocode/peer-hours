@@ -1,11 +1,13 @@
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import { createMemberProfile, createOffer, createRequest, publishListing, type ListingKind } from "@peer-hours/timebank-domain";
 import { canonicalMemberFeedAnnouncementPayload, canonicalMemberFeedDeclarationPayload, createMemberFeedAnnouncement, createMemberFeedDeclaration, createSelfOwnedMemberIdentity, type MemberFeedAnnouncement, type MemberFeedDeclaration } from "@peer-hours/timebank-identity";
-import { MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord } from "@peer-hours/timebank-records";
+import { canonicalMemberSignedRecordPayload, createMemberSignedRecord, MEMBER_FEED_DECLARATION_RECORD_KIND, memberFeedDeclarationFromRecord, memberFeedDeclarationToRecord, rootKeyIdForMember, toPublishedListingRecord } from "@peer-hours/timebank-records";
 import type { JsonValue } from "@peer-hours/peer-runtime";
 
 /** Defines the encrypted identity material persisted only by the Electron main process. */
 export type StoredMemberIdentity = { privateKeyCiphertext: string; publicKeyPem: string };
 export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null };
+export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
 
 /** Provides OS-backed encryption without exposing Electron to identity domain behavior. */
 export type SecureStorageAdapter = {
@@ -60,6 +62,28 @@ export class MemberIdentityService {
     if (existingDeclaration === null) await this.memberFeed.appendRecord(memberFeedDeclarationToRecord(declaration) as unknown as JsonValue);
     this.memberFeed.publishAnnouncement(this.createAnnouncement(stored, declaration));
     return this.status();
+  }
+
+  /** Publishes one root-signed offer or request from this member's independently owned feed. */
+  async publishListing(input: PublishListingInput): Promise<void> {
+    const communityId = this.memberFeed.communityId();
+    if (!communityId) throw new Error("Connect to a bootstrap discovery scope before publishing a listing.");
+    if (!this.secureStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");
+    const stored = await this.identityStore.read();
+    if (stored === null) throw new Error("Create your self-owned identity before publishing a listing.");
+    this.assertStoredIdentity(stored);
+    const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
+    const owner = createMemberProfile({ id: memberId, communityId, displayName: memberId });
+    const draft = (input.kind === "offer" ? createOffer : createRequest)({
+      id: crypto.randomUUID(), communityId, memberId, title: input.title, minutes: input.minutes,
+    });
+    const record = toPublishedListingRecord(publishListing({ listing: draft, owner }), { occurredAt: new Date().toISOString(), authorId: memberId });
+    const signed = createMemberSignedRecord({
+      ...record,
+      signingKeyId: rootKeyIdForMember(memberId),
+      signature: this.sign(stored, canonicalMemberSignedRecordPayload(record)),
+    });
+    await this.memberFeed.appendRecord(signed as unknown as JsonValue);
   }
 
   /** Generates an Ed25519 root key and persists only its encrypted private PEM. */

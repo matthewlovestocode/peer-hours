@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { MemberFeedAnnouncement } from "@peer-hours/timebank-identity";
 import type { JsonValue } from "@peer-hours/peer-runtime";
+import { decodePublishedListingRecord } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type MemberFeedRuntime, type SecureStorageAdapter, type StoredMemberIdentity } from "../src/electron/member-identity.js";
 
 const communityId = "peer-hours/earth/US/CA/east-bay";
@@ -83,6 +84,20 @@ test("retry reuses the declaration and sends a fresh announcement", async () => 
   assert.equal(fixture.feed.announcements.length, 2);
   assert.notEqual(fixture.feed.announcements[1], firstAnnouncement);
   assert.deepEqual(fixture.feed.announcements[1].declaration, firstAnnouncement.declaration);
+});
+
+test("publishes a locally signed immutable offer without exposing root key material", async () => {
+  const fixture = service();
+  await fixture.identity.createAndAnnounce();
+
+  await fixture.identity.publishListing({ kind: "offer", title: "Garden help", minutes: 90 });
+
+  assert.equal(fixture.feed.records.length, 2);
+  const record = fixture.feed.records[1] as Parameters<typeof decodePublishedListingRecord>[0];
+  assert.deepEqual(decodePublishedListingRecord(record), {
+    id: (record as { id: string }).id, communityId, memberId: (record as { authorId: string }).authorId,
+    kind: "offer", title: "Garden help", minutes: 90, status: "published",
+  });
 });
 
 test("restart loads the same member identity from protected persisted material", async () => {

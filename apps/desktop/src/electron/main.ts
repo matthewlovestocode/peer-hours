@@ -64,6 +64,7 @@ app.whenReady().then(() => {
   ipcMain.handle("member:records", () => runtime.readMemberRecords());
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
+  ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(input));
   runtime.onStatusChange((status) => {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send("network:status-changed", status);
   });

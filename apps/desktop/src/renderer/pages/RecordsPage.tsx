@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Panel } from "../components/Primitive.js";
 
 /** Presents locally owned immutable member-feed records without granting the renderer write access. */
@@ -11,7 +11,20 @@ export function RecordsPage() {
     void Promise.all([loadMemberRecords(), window.peerHours.getMemberIdentityStatus()]).then(([next, nextIdentity]) => { setRecords(next); setIdentity(nextIdentity); setState("ready"); }).catch(() => setState("error"));
   }, []);
 
-  return <section className="records-page"><header className="workspace-header"><div><p className="eyebrow">My records</p><h1>Your local history</h1><p className="muted">Immutable records stored in your member feed. This view is read-only and does not claim a balance or settlement state.</p></div></header><Panel>{identity?.state === "not-created" && <button onClick={() => void createIdentity(setIdentity, setRecords, setState)}>Create identity and announce this feed</button>}{identity?.state === "ready" && <p className="empty-state">Self-owned identity ready: <code>{identity.memberId}</code></p>}{identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}{state === "loading" && <p className="empty-state">Opening your local member feed…</p>}{state === "error" && <p className="error-message">Your local member records could not be read.</p>}{state === "ready" && (records.length === 0 ? <p className="empty-state">No records have been added to this member feed yet.</p> : <ol className="record-list">{records.map((record, index) => <li key={index}><span className="kicker">Record {index + 1}</span><pre>{formatRecord(record)}</pre></li>)}</ol>)}</Panel></section>;
+  return <section className="records-page"><header className="workspace-header"><div><p className="eyebrow">My records</p><h1>Your local history</h1><p className="muted">Immutable records stored in your member feed. This view is read-only and does not claim a balance or settlement state.</p></div></header><Panel>{identity?.state === "not-created" && <button onClick={() => void createIdentity(setIdentity, setRecords, setState)}>Create identity and announce this feed</button>}{identity?.state === "ready" && <><p className="empty-state">Self-owned identity ready: <code>{identity.memberId}</code></p><ListingComposer onPublished={async () => { setRecords(await loadMemberRecords()); }} /></>}{identity?.state === "unavailable" && <p className="error-message">Secure operating-system key storage is unavailable.</p>}{state === "loading" && <p className="empty-state">Opening your local member feed…</p>}{state === "error" && <p className="error-message">Your local member records could not be read.</p>}{state === "ready" && (records.length === 0 ? <p className="empty-state">No records have been added to this member feed yet.</p> : <ol className="record-list">{records.map((record, index) => <li key={index}><span className="kicker">Record {index + 1}</span><pre>{formatRecord(record)}</pre></li>)}</ol>)}</Panel></section>;
+}
+
+/** Collects a local draft and explicitly asks the main process to sign and publish it. */
+function ListingComposer({ onPublished }: { onPublished: () => Promise<void> }) {
+  const [kind, setKind] = useState<"offer" | "request">("offer");
+  const [title, setTitle] = useState("");
+  const [minutes, setMinutes] = useState("60");
+  const [state, setState] = useState<"idle" | "publishing" | "published" | "error">("idle");
+  const publish = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try { setState("publishing"); await window.peerHours.publishListing({ kind, title, minutes: Number(minutes) }); await onPublished(); setTitle(""); setState("published"); } catch { setState("error"); }
+  };
+  return <form className="listing-composer" onSubmit={(event) => void publish(event)}><h2>Publish an offer or request</h2><p className="muted">This signs a new immutable record with your local root identity. It may replicate when compatible peers are available.</p><label>Type<select value={kind} onChange={(event) => setKind(event.target.value as "offer" | "request")}><option value="offer">Offer</option><option value="request">Request</option></select></label><label>Title<input required maxLength={120} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Garden help" /></label><label>Minutes<input required min="1" step="1" type="number" value={minutes} onChange={(event) => setMinutes(event.target.value)} /></label><button disabled={state === "publishing"} type="submit">{state === "publishing" ? "Publishing…" : "Sign and publish"}</button>{state === "published" && <p className="empty-state">Published to your local member feed.</p>}{state === "error" && <p className="error-message">The listing could not be published. Check your identity and draft details.</p>}</form>;
 }
 
 /** Creates and announces a self-owned identity only after the member explicitly chooses the action. */

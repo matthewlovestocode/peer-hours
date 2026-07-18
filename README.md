@@ -1,6 +1,48 @@
 # Peer Hours
 
-Peer Hours is an npm workspaces monorepo for desktop applications, community nodes, development peers, and shared packages. The repository contains an Electron + React desktop application, a headless community node, a development peer simulator, and a shared peer runtime.
+Peer Hours is a local-first, federated timebank for communities that want to exchange help in hours rather than conventional money.
+
+Members can offer what they know, request what they need, and settle a completed exchange as equal and opposite time-credit entries. The project is inspired by the community-centered timebank model used by [BACE](https://timebank.sfbace.org/), while pursuing software that is more resilient, portable, and adaptable to present-day communities.
+
+It is not a centralized banking service. A member uses a desktop application with its own local peer runtime; independently operated **community nodes** keep community data available, help peers discover one another, and replicate signed activity. Members do not need to operate a server to participate.
+
+```mermaid
+flowchart LR
+    M1["Member desktop\nlocal data + embedded peer"]
+    M2["Another member desktop\nlocal data + embedded peer"]
+    N1["Community node\nreplication + discovery"]
+    N2["Independent community node\nreplication + availability"]
+
+    M1 <-->|"sync when online"| N1
+    M2 <-->|"sync when online"| N1
+    N1 <-->|"replicated community data"| N2
+```
+
+## What Peer Hours is building
+
+- A member-facing desktop app for participating in a local or online timebank.
+- Community-operated, always-available nodes for replication, discovery, and network continuity.
+- Offline-friendly offers and requests that can be prepared locally and synchronized later.
+- Explicit, dual-attested time-credit transfers for settlement when participants are online.
+- Reusable, community-scoped protocols and domain libraries that do not assume one central operator.
+
+Community identifiers are hierarchical, beginning at `peer-hours/earth`, so communities can be geographic or online and can grow beyond Earth without renaming the terrestrial network:
+
+```text
+peer-hours/earth/US/CA/east-bay
+peer-hours/earth/US/CA/east-bay/oakland
+peer-hours/earth/online/caregivers
+```
+
+## Current state
+
+This is an early, working foundation—not yet a production timebank. The desktop app, community node, embedded peer runtime, and development-peer simulator currently focus on making network connectivity visible and testable. The shared domain, identity, and ledger packages define and test member eligibility, exchange consent, Ed25519 attestations, and deterministic balance derivation in memory. Replicated application records, community authorization events, dispute handling, and a complete member workflow are still ahead.
+
+For the living technical direction, see [network architecture](docs/network-architecture.md). For the domain and settlement boundaries, see [the timebank domain model](docs/timebank-domain-model.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
+
+## Repository
+
+Peer Hours is maintained as an npm workspaces monorepo for applications and only those shared packages that have a concrete reuse case.
 
 ## Repository structure
 

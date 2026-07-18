@@ -5,8 +5,10 @@ import { createMemberFeedAnnouncement, type MemberFeedAnnouncement } from "@peer
 import Corestore from "corestore";
 import Hyperswarm from "hyperswarm";
 import { HypercoreRecordStore, type JsonValue } from "./record-store.js";
+import { normalizeCommunityReceiptNode, type CommunityReceiptNode } from "./replication-receipt.js";
 
 export * from "./record-store.js";
+export * from "./replication-receipt.js";
 
 /** Lifecycle labels used for transport and diagnostics observations, not identity or authorization. */
 export type PeerLifecycleState = "discovered" | "connecting" | "connected" | "stale" | "offline";
@@ -56,6 +58,8 @@ export type CommunityManifest = {
   coreKey: string;
   bootstrapNodes: readonly string[];
   communityNodeUrl: string | null;
+  /** Pinned node identities which may attest only to retaining locally resolved transfers. */
+  receiptNodes: readonly CommunityReceiptNode[];
 };
 
 /** Capabilities the optional bootstrap service may advertise without gaining authority over the network. */
@@ -92,8 +96,9 @@ export function parseCommunityManifest(payload: unknown): CommunityManifest {
   const coreKey = validCoreKey(requiredNonblankString(payload, "coreKey"), "coreKey");
   const bootstrapNodes = validBootstrapNodes(payload.bootstrapNodes);
   const communityNodeUrl = optionalCommunityNodeUrl(payload.communityNodeUrl);
+  const receiptNodes = validReceiptNodes(payload.receiptNodes);
 
-  return { communityId, displayName, protocolVersion, role, capabilities, coreKey, bootstrapNodes, communityNodeUrl };
+  return { communityId, displayName, protocolVersion, role, capabilities, coreKey, bootstrapNodes, communityNodeUrl, receiptNodes };
 }
 
 /** Narrows an untrusted JSON value to a plain object-like record. */
@@ -155,6 +160,16 @@ function validBootstrapNodes(value: unknown): string[] {
 function optionalCommunityNodeUrl(value: unknown): string | null {
   if (value === undefined || value === null) return null;
   return validOperationalUrl(value, "Bootstrap metadata field communityNodeUrl");
+}
+
+/** Reads optional pinned receipt identities while preserving compatibility with pre-receipt manifests. */
+function validReceiptNodes(value: unknown): readonly CommunityReceiptNode[] {
+  if (value === undefined || value === null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > MAX_BOOTSTRAP_NODES) throw new Error("Bootstrap metadata field receiptNodes must be an array of at most 16 nodes.");
+  const nodes = value.map((node, index) => normalizeCommunityReceiptNode(node, `Bootstrap metadata receiptNodes[${index}]`));
+  if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length) throw new Error("Bootstrap metadata field receiptNodes must not contain duplicate node identities.");
+  if (new Set(nodes.map((node) => node.receiptUrl)).size !== nodes.length) throw new Error("Bootstrap metadata field receiptNodes must not contain duplicate receipt URLs.");
+  return Object.freeze(nodes);
 }
 
 /** Validates bounded public operational URLs without permitting embedded credentials or fragments. */
@@ -662,6 +677,7 @@ export class PeerRuntime {
       ...this.community,
       capabilities: Object.freeze([...this.community.capabilities]),
       bootstrapNodes: Object.freeze([...this.community.bootstrapNodes]),
+      receiptNodes: Object.freeze(this.community.receiptNodes.map((node) => Object.freeze({ ...node }))),
     });
     const snapshot: LocalPeerStatus = {
       state: this.error ? "error" : this.core ? "online" : "starting",

@@ -9,6 +9,8 @@ export type RendererResolvedMemberState = {
   readonly settlementConfirmations: readonly { readonly proposalId: string; readonly status: "awaiting-counterparty" | "dual-confirmed"; readonly acknowledgements: readonly { readonly acknowledgedByMemberId: string }[] }[];
   readonly settlementAttestations: readonly { readonly proposalId: string; readonly attestations: readonly { readonly memberId: string }[] }[];
   readonly settledProposalIds: readonly string[];
+  /** Verified pinned-node receipt counts keyed by the transfer's source proposal. */
+  readonly settlementDurability: readonly { readonly proposalId: string; readonly verifiedPinnedReceiptCount: number }[];
   readonly transferCount: number;
 };
 
@@ -18,7 +20,10 @@ export type RendererResolvedMemberState = {
  * A proposal is `settled` here only when the local ledger accepted its transfer; dual
  * acknowledgement alone remains a separate, non-final state.
  */
-export function presentResolvedMemberState(resolved: ResolvedTimebankState): RendererResolvedMemberState {
+export function presentResolvedMemberState(
+  resolved: ResolvedTimebankState,
+  settlementDurability: RendererResolvedMemberState["settlementDurability"] = [],
+): RendererResolvedMemberState {
   const settledProposalIds = resolved.ledger.transfers
     .map((transfer) => transfer.sourceProposalId)
     .filter((proposalId): proposalId is string => proposalId !== undefined);
@@ -38,6 +43,7 @@ export function presentResolvedMemberState(resolved: ResolvedTimebankState): Ren
       attestations: attestations.map(({ attestation }) => ({ memberId: attestation.memberId })),
     })),
     settledProposalIds,
+    settlementDurability,
     transferCount: resolved.ledger.transfers.length,
   };
 }

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Duplex } from "node:stream";
 import type { PeerRuntime } from "@peer-hours/peer-runtime";
 import { createHealthPayload } from "./health.js";
+import type { ReplicationReceiptIssuer } from "./receipt-issuer.js";
 
 const DEVELOPMENT_PEER_BODY_LIMIT_BYTES = 4 * 1024;
 const HTTP_REQUEST_TIMEOUT_MS = 15_000;
@@ -11,6 +12,8 @@ const HTTP_KEEP_ALIVE_TIMEOUT_MS = 5_000;
 /** Limits the optional development-only simulator registration route. */
 export interface NodeServerOptions {
   enableDevelopmentPeerRegistration?: boolean;
+  /** Optional signer for read-only availability receipts. Absence leaves the route unavailable. */
+  receiptIssuer?: ReplicationReceiptIssuer;
 }
 
 /** Parses a bounded JSON request body without allowing development tooling to exhaust node memory. */
@@ -85,7 +88,25 @@ export function createNodeServer(
 
     if (pathname === "/status" && request.method === "GET") {
       request.resume();
-      sendJson(response, 200, status);
+      sendJson(response, 200, {
+        ...status,
+        receipts: options.receiptIssuer
+          ? { state: "enabled", ...options.receiptIssuer.status(), finality: "not-claimed" }
+          : { state: "disabled", finality: "not-claimed" },
+      });
+      return;
+    }
+
+    const transferId = receiptTransferId(pathname);
+    if (transferId !== null && request.method === "GET") {
+      request.resume();
+      if (!options.receiptIssuer) {
+        sendJson(response, 404, { error: "receipt service not configured" });
+        return;
+      }
+      void options.receiptIssuer.receiptFor(transferId)
+        .then((receipt) => sendJson(response, receipt ? 200 : 404, receipt ?? { error: "transfer is not locally retained and admitted" }))
+        .catch(() => sendJson(response, 503, { error: "receipt lookup unavailable" }));
       return;
     }
 
@@ -109,6 +130,15 @@ export function createNodeServer(
   configureHttpTimeouts(server);
   configureClientErrorResponse(server);
   return server;
+}
+
+/** Extracts one safely decoded transfer id from the fixed, read-only receipt route. */
+function receiptTransferId(pathname: string): string | null {
+  const prefix = "/receipts/";
+  if (!pathname.startsWith(prefix)) return null;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded || encoded.includes("/")) return "";
+  try { return decodeURIComponent(encoded); } catch { return ""; }
 }
 
 /** Bounds idle and slow HTTP connections so diagnostics cannot monopolize a community node. */

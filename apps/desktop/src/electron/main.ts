@@ -5,6 +5,7 @@ import { PeerRuntime } from "@peer-hours/peer-runtime";
 import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
 import { presentResolvedMemberState } from "./resolved-member-state.js";
+import { collectVerifiedSettlementDurability } from "./settlement-durability.js";
 import { parseCreateProposalRequest, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
 
 const dataDirectory = join(app.getPath("userData"), "peer-hours");
@@ -139,7 +140,11 @@ app.whenReady().then(() => {
           : await runtime.readMemberRecordsFromFeed(feedPublicKey)) as never,
       })));
       const resolved = resolveTimebankMemberFeeds(communityId, histories);
-      return presentResolvedMemberState(resolved);
+      const settlementDurability = await collectVerifiedSettlementDurability({
+        community: runtime.status().community,
+        transfers: resolved.ledger.transfers,
+      });
+      return presentResolvedMemberState(resolved, settlementDurability);
     } catch (error) {
       return { state: "rejected" as const, reason: error instanceof Error ? error.message : "Local records could not be verified." };
     }

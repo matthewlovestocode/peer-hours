@@ -1,22 +1,22 @@
 # Production roadmap
 
-Peer Hours has working foundations for local peer storage, direct member-feed replication, always-on community peers, and pure timebank rules. It is **not** ready to operate a real timebank yet. This roadmap describes the smallest safe route from the current foundation to a limited community pilot.
+Peer Hours has working foundations for local peer storage, direct member-feed replication, always-on community nodes, and pure timebank rules. It is **not** ready to operate a real timebank yet. This roadmap describes the smallest safe route from the current foundation to a limited community pilot.
 
 It deliberately separates verified capability from proposed work. A phase is complete only when its acceptance criteria are demonstrated in automated tests and in the running applications; a diagram or package interface alone is not completion.
 
-The roadmap preserves Peer Hours' non-governing, not-for-profit direction: a real deployment must not require a central admission service, mandatory vendor host, transaction fee, or operator with special power over member identities, records, or balances. Community peers may make the network more available, but they remain supportive infrastructure rather than a governing layer. A healthy member-desktop mesh must be able to discover, connect, and replicate without a community peer; community peers improve durability and recovery when that mesh is sparse or offline.
+The roadmap preserves Peer Hours' non-governing, not-for-profit direction: a real deployment must not require a central admission service, mandatory vendor host, transaction fee, or operator with special power over member identities, records, or balances. Community nodes may make the network more available, but they remain supportive infrastructure rather than a governing layer. A healthy member-desktop mesh must be able to discover, connect, and replicate without a community node; community nodes improve durability and recovery when that mesh is sparse or offline.
 
 ```mermaid
 flowchart LR
-    A["Today: signed local workflow\n+local ledger admission"] --> B["1. Durable settlement policy"]
+    A["Today: signed local workflow\n+local ledger admission"] --> B["1. Receipt-backed durability labels"]
     B --> C["2. Resilient community replication"]
-    C --> D["3. Policy and security"]
+    C --> D["3. Policy and security controls"]
     D --> E["4. Limited pilot operations"]
 ```
 
 ## What exists today
 
-The desktop application has an embedded, persistent peer runtime. An always-on community peer has a persistent Corestore, Hyperswarm connectivity, and diagnostic status. It joins the same discovery scope and can retain/replicate known member feeds, but it does not own a canonical community history or decide which member records are valid. A separately deployable, read-only bootstrap service can publish the public discovery metadata needed by a new desktop; it is not part of the peer runtime.
+The desktop application has an embedded, persistent peer runtime. An always-on community node has a persistent Corestore, Hyperswarm connectivity, and diagnostic status. It joins the same discovery scope and can retain/replicate known member feeds, but it does not own a canonical community history or decide which member records are valid. A separately deployable, read-only bootstrap service can publish the public discovery metadata needed by a new desktop; it is not part of the peer runtime.
 
 The shared packages test these pure rules in memory:
 
@@ -26,7 +26,7 @@ The shared packages test these pure rules in memory:
 - immutable time-credit transfers, reversals, idempotency, and derived balances; and
 - immutable record envelopes, Ed25519 member signatures over complete proposal/transfer envelopes, and deterministic resolution of compatible record histories.
 
-These are necessary building blocks, but none makes a record network-authoritative. Each member runtime owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. A two-runtime integration test proves a narrow complete protocol exchange with no community peer: a deliberately direct Corestore connection carries feed declarations, signed published listings, an accepted proposal, participant-owned settlement attestations, and a dual-attested settlement, then both sides independently resolve identical balances. A second test begins with no remote feed key: the runtimes share only a discovery-core key, exchange a signed expiring announcement, and automatically open/replicate the announced feed. The resolver accepts declared root keys for member-signed records without a community authorization event, and its feed-aware API rejects a member-authored domain record supplied from a feed its author did not declare. The desktop can create a protected self-owned identity, publish listings and proposals, accept a counterparty proposal, publish a completion acknowledgement, publish its own settlement attestation, and publish the deterministic transfer once both valid attestations are replicated. Its member-facing screen presents raw history separately from locally resolved listings, proposal stages, attestation stages, and locally admitted balances. The community peer is an availability participant without a human member identity, not a record writer or authority.
+These are necessary building blocks, but none makes a record network-authoritative. Each member runtime owns a separate writable member feed, and a root-signed declaration can bind a self-certifying public identity to a feed key; direct replication of a known member feed is integration-tested. A two-runtime integration test proves a narrow complete protocol exchange with no community node: a deliberately direct Corestore connection carries feed declarations, signed published listings, an accepted proposal, participant-owned settlement attestations, and a dual-attested settlement, then both sides independently resolve identical balances. A second test begins with no remote feed key: the runtimes share only a discovery-core key, exchange a signed expiring announcement, and automatically open/replicate the announced feed. The resolver accepts declared root keys for member-signed records without a community authorization event, and its feed-aware API rejects a member-authored domain record supplied from a feed its author did not declare. The desktop can create a protected self-owned identity, publish listings and proposals, accept a counterparty proposal, publish a completion acknowledgement, publish its own settlement attestation, and publish the deterministic transfer once both valid attestations are replicated. Its member-facing screen presents raw history separately from locally resolved listings, proposal stages, attestation stages, and locally admitted balances. The community node is an availability participant without a human member identity, not a record writer or authority.
 
 ## 1. Self-owned member writes
 
@@ -36,7 +36,7 @@ These are necessary building blocks, but none makes a record network-authoritati
 
 Use a separate append-only feed per member device, or an equivalently explicit multiwriter protocol. Each feed must have a stable public identity. Every record should carry a versioned envelope, author identity, signature, community scope, and causal/reference information needed by the resolver. The protocol must authenticate authorship without turning a community node or administrator into a membership gate. Identity, contact metadata, and user-selected trust signals need distinct records and visibility boundaries.
 
-An always-on community peer may relay and retain member feeds, but it must not silently become a directory authority, an admission gate, or the sole actor that decides member truth.
+An always-on community node may relay and retain member feeds, but it must not silently become a directory authority, an admission gate, or the sole actor that decides member truth.
 
 ```mermaid
 sequenceDiagram
@@ -71,15 +71,15 @@ Build only this vertical slice first:
 2. Another member proposes a fixed number of minutes and a mutually agreed privacy mode.
 3. The non-creator accepts the proposal.
 4. After the work occurs, both members sign the same settlement terms.
-5. The application shows the transfer as pending until a defined replication acknowledgement is met, then as settled.
+5. The application applies the transfer when it is locally admitted, then separately shows waiting, durable, and resilient replication evidence without claiming irreversible settlement.
 6. Both members derive the same resulting balances from the same valid record history.
 
-Offline composition may create local drafts. Publishing, acceptance, and settlement must make their network state visible rather than implying completion while disconnected. The acknowledgement rule is still a product and protocol decision: it could require one durable community node, multiple independent community nodes, or another explicitly documented threshold. It must be chosen and tested before the UI says “settled.”
+Offline composition may create local drafts. Publishing, acceptance, and settlement must make their network state visible rather than implying completion while disconnected. The pilot policy now distinguishes `locally admitted` (the local accounting result), `durably replicated` (one valid configured-community-node receipt), and `resiliently replicated` (two valid receipts from independently operated community nodes). Receipt evidence is availability evidence, never a node vote on validity or a claim of irreversible finality. See [pilot operating policy](pilot-operating-policy.md).
 
 ### Acceptance criteria
 
-- End-to-end tests run two independent desktop-capable runtimes without community-node storage, first through an explicit direct connection and later through automatic peer discovery. Later tests add community peers as optional relay and durability infrastructure.
-- The UI distinguishes draft, queued, published, awaiting the other member, pending replication, settled, and rejected states.
+- End-to-end tests run two independent desktop-capable runtimes without community-node storage, first through an explicit direct connection and later through automatic peer discovery. Later tests add community nodes as optional relay and durability infrastructure.
+- The UI distinguishes draft, queued, published, awaiting the other member, locally admitted, waiting for durable replication, durably replicated, resiliently replicated, and rejected states without calling a receipt threshold irreversible finality.
 - A duplicated proposal or settlement cannot change the derived balance twice.
 - A restart during every stage produces a recoverable, explainable state.
 - The flow does not rely on a mutable server-side balance as the authority.
@@ -88,7 +88,7 @@ Offline composition may create local drafts. Publishing, acceptance, and settlem
 
 **Goal:** a community can remain available and recoverable when one member device or one community node is offline.
 
-The current one-node bootstrap experience is useful for development but is not sufficient operational resilience. Add multiple independently deployed community nodes per community, persistent node identities and storage, explicit replication health, and a documented bootstrap/failover configuration. The system should show the difference between “connected to a node,” “records have replicated,” and “the chosen durability acknowledgement has been met.” The current runtime already reports an instance start time and uptime; production operations still need restart information and independent reachability evidence, without labeling a long-running runtime as healthy when replication is failing.
+The current one-node bootstrap experience is useful for development but is not sufficient operational resilience. The pilot baseline is multiple independently deployed community nodes per community, persistent node identities and storage, explicit replication health, signed durability receipts, and a documented bootstrap/failover configuration. The system should show the difference between “connected to a node,” “records have replicated,” and “the chosen durability acknowledgement has been met.” The current runtime already reports an instance start time and uptime; production operations still need restart information and independent reachability evidence, without labeling a long-running runtime as healthy when replication is failing.
 
 The proposed multi-node model is replication, not a hidden central database: each node retains the same signed histories and can be replaced from a verified backup or a healthy peer. Federation across separate communities remains future work and must never merge their ledgers merely because their nodes can connect.
 
@@ -96,7 +96,7 @@ The proposed multi-node model is replication, not a hidden central database: eac
 
 - A member configured with two community nodes recovers from either node being unavailable.
 - A new node can catch up from another node and report record/feed lag without corrupting the resolved view.
-- Backup and restore are rehearsed using a fresh machine or storage directory, including verification of core keys and record history.
+- Backup and restore are rehearsed using a fresh machine or storage directory, including verification of core keys and record history; pilot defaults require encrypted complete daily snapshots, retained restore points, and a quarterly restore drill.
 - Integration tests cover node restart, temporary partitions, reconnect, catch-up, and one unavailable bootstrap endpoint.
 - Peer counts and replication indicators derive from real transport/state data; simulators remain visibly development-only.
 
@@ -147,9 +147,9 @@ These are not settled by the current code and should be chosen with tests, proto
 | --- | --- |
 | Member-feed versus multiwriter-log protocol | Determines authorship, replication mechanics, conflict handling, and recovery. |
 | Self-owned identity/feed model | Determines how members publish and rotate keys without recreating a central admission authority. |
-| Settlement acknowledgement threshold | Determines when an application may honestly call a transfer settled. |
+| Receipt-backed durability threshold | Adopted for the pilot: one pinned community-node receipt is `durably replicated`; two independent pinned receipts are `resiliently replicated`. The remaining work is deployment, end-to-end testing, identity rotation, and accurate UI delivery—not choosing a hidden node quorum. |
 | Concurrent-spend and credit-limit behavior | Determines how negative balances and conflicting offline activity are handled. |
 | Privacy and retention model | Determines which records may replicate to which nodes and what recovery/export means. |
 | Community-node operating model | Determines redundancy, cost, administration, backup ownership, and incident response. |
 
-The next engineering milestone is an explicit durability acknowledgement policy: define when the UI may move from `locally admitted` to a community-visible settled state, then test it across independently operated replicas. The current product deliberately does not claim global finality from local ledger admission.
+The next engineering milestone is implementation of the adopted receipt-backed durability policy: issue and verify one-node and two-independent-node availability receipts, then test the labels across independently operated replicas. The current product deliberately does not claim global finality from local ledger admission. See [pilot operating policy](pilot-operating-policy.md) for the adopted pilot defaults and remaining choices.

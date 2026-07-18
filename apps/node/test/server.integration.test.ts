@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
 import { createNodeServer } from "../src/server.js";
+import type { ReplicationReceiptIssuer } from "../src/receipt-issuer.js";
 
 /** Starts an ephemeral community API and returns its local URL and cleanup function. */
 async function startTestNode(runtime: PeerRuntime, enableDevelopmentPeerRegistration = false): Promise<{ baseUrl: string; close: () => Promise<void> }> {
@@ -151,6 +152,42 @@ test("community node keeps development peer registration disabled by default", a
     assert.equal(response.status, 404);
   } finally {
     await node.close();
+    await runtime.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("community node exposes receipt capability status and serves only read-only retention lookups", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "peer-hours-node-receipt-route-"));
+  const runtime = new PeerRuntime(directory, undefined, undefined, Date.now, false);
+  const issuer = {
+    status: () => ({ nodeId: "a".repeat(64), publicKey: "public-key", claim: "retained-locally" as const }),
+    receiptFor: async (transferId: string) => transferId === "proposal-1" ? {
+      schema: "peer-hours/replication-receipt/v1" as const,
+      version: 1 as const,
+      communityId: "peer-hours/test",
+      transferId,
+      transferDigest: "b".repeat(64),
+      retainedAt: "2026-07-18T12:00:00.000Z",
+      nodeId: "a".repeat(64),
+      publicKey: "public-key",
+      signature: "signature",
+    } : null,
+  } as unknown as ReplicationReceiptIssuer;
+  const server = createNodeServer(runtime, { receiptIssuer: issuer });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Test node did not bind to a TCP port");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    const status = await fetch(`${baseUrl}/status`).then((response) => response.json()) as { receipts: { state: string; claim: string; finality: string } };
+    assert.deepEqual(status.receipts, { state: "enabled", nodeId: "a".repeat(64), publicKey: "public-key", claim: "retained-locally", finality: "not-claimed" });
+    assert.equal((await fetch(`${baseUrl}/receipts/proposal-1`)).status, 200);
+    assert.equal((await fetch(`${baseUrl}/receipts/unknown`)).status, 404);
+    assert.equal((await fetch(`${baseUrl}/receipts/proposal-1`, { method: "POST" })).status, 404);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await runtime.stop();
     await rm(directory, { recursive: true, force: true });
   }

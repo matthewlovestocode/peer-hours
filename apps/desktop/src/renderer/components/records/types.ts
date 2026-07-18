@@ -37,6 +37,12 @@ export type SettlementAttestationState = {
   attestations: readonly { memberId: string }[];
 };
 
+/** A main-process-verified count of distinct pinned community-node retention receipts. */
+export type SettlementDurabilityState = {
+  proposalId: string;
+  verifiedPinnedReceiptCount: number;
+};
+
 /** The verified member-feed state exposed through the narrow Electron bridge. */
 export type ResolvedMemberState =
   | { state: "unavailable" | "rejected"; reason: string }
@@ -50,6 +56,11 @@ export type ResolvedMemberState =
     settlementAttestations: readonly SettlementAttestationState[];
     /** Proposal ids whose matching transfer this device locally admitted to its ledger. */
     settledProposalIds: readonly string[];
+    /**
+     * Verified availability evidence only for locally admitted transfers. Receipt counts never
+     * determine transfer validity, balances, or dispute outcomes.
+     */
+    settlementDurability: readonly SettlementDurabilityState[];
     /** Count of locally admitted transfers; this is not a replication-finality claim. */
     transferCount: number;
   };

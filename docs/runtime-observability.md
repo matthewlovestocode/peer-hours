@@ -11,7 +11,7 @@ The current community-node HTTP API exposes two diagnostic views:
 
 When a runtime is configured with bootstrap endpoints, its status also reports the endpoint that last supplied compatible metadata, the ordered configured or manifest-advertised alternatives, the most recent successful fetch time, consecutive all-endpoint failures, and the last fetch error. The runtime tries the last successful endpoint first, then alternatives, at startup and on a 30-second refresh. A manifest that changes an already selected community ID or discovery-core key is rejected rather than silently moving the local runtime to another scope.
 
-These endpoints are useful for local development and for a basic platform health check. `startedAt` is captured when the current `PeerRuntime` instance is constructed, and `uptimeMs` is derived from that runtime's clock; uptime is clamped at zero if that clock moves backwards. A successful response still describes a point-in-time observation, not proof that the node has been continuously available.
+These endpoints are useful for local development and for a basic platform health check. `startedAt` is captured when the current `PeerRuntime` instance is constructed, and `uptimeMs` is derived from that runtime's clock; uptime is clamped at zero if that clock moves backwards. A successful response still describes a point-in-time observation, not proof that the node has been continuously available. The node also exposes a read-only `GET /receipts/:transferId` route when configured with its durable receipt identity. It issues a signed retention receipt only after locally resolving and retaining the named transfer; that receipt is availability evidence and not a validity or finality decision.
 
 The new bootstrap observations make endpoint failure visible; they do not make bootstrap metadata authenticated, establish community trust, or prove that any node has caught up with every known feed. A community must choose and document its own freshness target, independent backup evidence, and restore objective before interpreting these fields as operational readiness.
 
@@ -61,7 +61,7 @@ A high uptime value is encouraging, but it does **not** demonstrate any of the f
 - A hosting provider has been reachable from the public internet. That needs independent external probes and historical success/failure data.
 - The node is listening for peers or has an active Hyperswarm connection.
 - Every required member feed has replicated all required blocks, is fresh, or agrees with another peer.
-- Bootstrap metadata is trusted. The current bootstrap parser validates structure, not community authority.
+- Bootstrap metadata is trusted. The current bootstrap parser validates structure, including optional receipt-node metadata, not community authority. A client must compare a receipt to a member-installed expected node identity before treating it as durability evidence.
 - A record is authorized, settled, private, backed up, or recoverable.
 - A member's exchange is replicated to another peer, acknowledged by a counterparty, or treated as socially final. The desktop can compose and publish its local workflow records; peer delivery, counterparty action, and the limits of local ledger admission remain separate operational facts.
 

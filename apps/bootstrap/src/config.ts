@@ -15,9 +15,22 @@ export function resolveBootstrapConfiguration(environment: NodeJS.ProcessEnv = p
       displayName: environment.COMMUNITY_NAME ?? "Oakland Timebank",
       coreKey: environment.DISCOVERY_CORE_KEY ?? "",
       bootstrapNodes: parseBootstrapNodes(environment.BOOTSTRAP_NODES),
+      receiptNodes: parseReceiptNodes(environment.COMMUNITY_RECEIPT_NODES),
       ...(environment.COMMUNITY_NODE_URL === undefined ? {} : { communityNodeUrl: environment.COMMUNITY_NODE_URL }),
     }),
   };
+}
+
+/** Parses deployment-owned pinned receipt metadata; this service never creates identities itself. */
+function parseReceiptNodes(value: string | undefined): readonly { nodeId: string; publicKey: string; receiptUrl: string }[] {
+  if (value === undefined || value.length === 0) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) throw new Error("not array");
+    return parsed as { nodeId: string; publicKey: string; receiptUrl: string }[];
+  } catch {
+    throw new TypeError("COMMUNITY_RECEIPT_NODES must be a JSON array of pinned receipt-node metadata.");
+  }
 }
 
 /** Parses comma-separated optional bootstrap URLs while rejecting blank entries that hide configuration errors. */

@@ -1,16 +1,17 @@
 import { useState } from "react";
-import type { AcceptedProposal, SettlementAttestationState, SettlementConfirmation } from "./types.js";
+import type { AcceptedProposal, SettlementAttestationState, SettlementConfirmation, SettlementDurabilityState } from "./types.js";
 import { settlementLifecycleMessage, settlementProgress } from "./settlementPresentation.js";
 
 /**
  * Presents eligible accepted exchanges through acknowledgement, attestation, and local-admission
  * stages without letting the renderer access signing material or claim network finality.
  */
-export function SettlementAcknowledgementList({ proposals, confirmations, settlementAttestations, settledProposalIds, memberId, onComplete }: {
+export function SettlementAcknowledgementList({ proposals, confirmations, settlementAttestations, settledProposalIds, settlementDurability, memberId, onComplete }: {
   proposals: readonly AcceptedProposal[];
   confirmations: readonly SettlementConfirmation[];
   settlementAttestations: readonly SettlementAttestationState[];
   settledProposalIds: readonly string[];
+  settlementDurability: readonly SettlementDurabilityState[];
   memberId: string;
   onComplete: () => Promise<void>;
 }) {
@@ -20,6 +21,7 @@ export function SettlementAcknowledgementList({ proposals, confirmations, settle
   const eligible = proposals.filter((proposal) => proposal.providerMemberId === memberId || proposal.receiverMemberId === memberId);
   const confirmationByProposalId = new Map(confirmations.map((confirmation) => [confirmation.proposalId, confirmation]));
   const attestationsByProposalId = new Map(settlementAttestations.map((state) => [state.proposalId, state]));
+  const durabilityByProposalId = new Map(settlementDurability.map((state) => [state.proposalId, state]));
 
   /** Signs one immutable acknowledgement through Electron and refreshes the verified state. */
   const acknowledge = async (proposalId: string) => {
@@ -64,7 +66,7 @@ export function SettlementAcknowledgementList({ proposals, confirmations, settle
       <ol className="proposal-list">
         {eligible.map((proposal) => {
           const confirmation = confirmationByProposalId.get(proposal.id);
-          const progress = settlementProgress(proposal, confirmation, attestationsByProposalId.get(proposal.id), memberId, settledProposalIds);
+          const progress = settlementProgress(proposal, confirmation, attestationsByProposalId.get(proposal.id), memberId, settledProposalIds, durabilityByProposalId.get(proposal.id));
           const isAcknowledging = acknowledgingId === proposal.id;
           const isAdvancing = advancingId === proposal.id;
           return (

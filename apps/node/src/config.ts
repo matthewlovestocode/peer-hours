@@ -6,6 +6,7 @@ export type NodeConfiguration = {
   dataDirectory: string;
   bootstrapKey: string | undefined;
   enableDevelopmentPeerRegistration: boolean;
+  receiptIdentityPath: string;
 };
 
 /** Resolves and validates process configuration before the runtime opens durable storage. */
@@ -27,7 +28,15 @@ export function resolveNodeConfiguration(
     dataDirectory: resolve(workingDirectory, configuredDirectory ?? "data"),
     bootstrapKey: optionalCoreKey(environment.PEER_HOURS_BOOTSTRAP_KEY),
     enableDevelopmentPeerRegistration: parseBoolean(environment.ENABLE_DEV_PEER_REGISTRATION, "ENABLE_DEV_PEER_REGISTRATION"),
+    receiptIdentityPath: resolveReceiptIdentityPath(environment.RECEIPT_IDENTITY_PATH, resolve(workingDirectory, configuredDirectory ?? "data")),
   };
+}
+
+/** Resolves a durable receipt-identity location without accepting accidental blank configuration. */
+function resolveReceiptIdentityPath(value: string | undefined, dataDirectory: string): string {
+  if (value === undefined) return resolve(dataDirectory, "receipt-identity.pem");
+  if (value.trim().length === 0 || value !== value.trim()) throw new Error("RECEIPT_IDENTITY_PATH must not be blank or have surrounding whitespace.");
+  return resolve(value);
 }
 
 /** Accepts only an explicit TCP port in the range supported by Node's HTTP server. */

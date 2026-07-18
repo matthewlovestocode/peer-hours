@@ -8,6 +8,7 @@ test("resolves a development data directory relative to the supplied working dir
     dataDirectory: "/srv/peer-hours/data",
     bootstrapKey: undefined,
     enableDevelopmentPeerRegistration: false,
+    receiptIdentityPath: "/srv/peer-hours/data/receipt-identity.pem",
   });
 });
 
@@ -17,6 +18,7 @@ test("resolves an explicit data directory and valid port", () => {
     dataDirectory: "/var/lib/peer-hours",
     bootstrapKey: "a".repeat(64),
     enableDevelopmentPeerRegistration: true,
+    receiptIdentityPath: "/var/lib/peer-hours/receipt-identity.pem",
   });
 });
 
@@ -29,4 +31,5 @@ test("rejects blank data directories and invalid TCP ports before startup", () =
   }
   assert.throws(() => resolveNodeConfiguration({ PEER_HOURS_BOOTSTRAP_KEY: "not-a-core-key" }), /PEER_HOURS_BOOTSTRAP_KEY/);
   assert.throws(() => resolveNodeConfiguration({ ENABLE_DEV_PEER_REGISTRATION: "yes" }), /ENABLE_DEV_PEER_REGISTRATION/);
+  assert.throws(() => resolveNodeConfiguration({ RECEIPT_IDENTITY_PATH: " " }), /RECEIPT_IDENTITY_PATH/);
 });

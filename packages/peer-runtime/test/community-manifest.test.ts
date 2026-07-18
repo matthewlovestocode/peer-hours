@@ -29,6 +29,7 @@ test("parses complete bootstrap metadata before the runtime uses it", () => {
     coreKey,
     bootstrapNodes: ["https://node.example.test/bootstrap", "http://127.0.0.1:10001/bootstrap"],
     communityNodeUrl: "https://peer.example.test/",
+    receiptNodes: [],
   });
 });
 

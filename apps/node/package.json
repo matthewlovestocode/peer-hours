@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@peer-hours/peer-runtime": "0.1.0"
+    "@peer-hours/peer-runtime": "0.1.0",
+    "@peer-hours/timebank-records": "0.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 import { resolveBootstrapConfiguration } from "../src/config.js";
 
 const coreKey = "a".repeat(64);
+const publicKey = generateKeyPairSync("ed25519").publicKey.export({ format: "der", type: "spki" }).toString("base64url");
+const receiptNode = { nodeId: createHash("sha256").update(Buffer.from(publicKey, "base64url")).digest("hex"), publicKey, receiptUrl: "https://node.example.test/receipts/" };
 
 test("resolves complete bootstrap deployment configuration before listening", () => {
   assert.deepEqual(resolveBootstrapConfiguration({
@@ -12,6 +15,7 @@ test("resolves complete bootstrap deployment configuration before listening", ()
     DISCOVERY_CORE_KEY: coreKey,
     BOOTSTRAP_NODES: "https://one.example.test/bootstrap, https://two.example.test/bootstrap",
     COMMUNITY_NODE_URL: "https://node.example.test/status",
+    COMMUNITY_RECEIPT_NODES: JSON.stringify([receiptNode]),
   }), {
     port: 10002,
     manifest: {
@@ -23,6 +27,7 @@ test("resolves complete bootstrap deployment configuration before listening", ()
       coreKey,
       bootstrapNodes: ["https://one.example.test/bootstrap", "https://two.example.test/bootstrap"],
       communityNodeUrl: "https://node.example.test/status",
+      receiptNodes: [receiptNode],
     },
   });
 });
@@ -32,4 +37,5 @@ test("rejects invalid ports and ambiguous optional bootstrap-node configuration"
     assert.throws(() => resolveBootstrapConfiguration({ PORT: port, DISCOVERY_CORE_KEY: coreKey }), /PORT/);
   }
   assert.throws(() => resolveBootstrapConfiguration({ DISCOVERY_CORE_KEY: coreKey, BOOTSTRAP_NODES: "https://one.example.test,,https://two.example.test" }), /BOOTSTRAP_NODES/);
+  assert.throws(() => resolveBootstrapConfiguration({ DISCOVERY_CORE_KEY: coreKey, COMMUNITY_RECEIPT_NODES: "{}" }), /COMMUNITY_RECEIPT_NODES/);
 });

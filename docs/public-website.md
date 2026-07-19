@@ -27,7 +27,7 @@ The initial directory page is intentionally a labeled preview, not a fake workin
 
 ## Release boundary
 
-The current download controls are disabled. Before enabling a release, the site needs a repeatable published-release process that includes versioned platform installers, release notes, source revision, checksums or platform-appropriate signature verification, supported operating-system guidance, and a recovery path for a compromised release. A convenient download page must not ask people to trust an unverifiable binary.
+The current download controls are disabled. Before enabling a release, the site needs a repeatable published-release process that includes versioned platform installers, release notes, source revision, checksums, project-controlled signature verification, supported operating-system guidance, and a recovery path for a compromised release. A convenient download page must not ask people to trust an unverifiable binary. See [decentralized distribution and release trust](decentralized-distribution.md) for the mirror and platform-signing boundary.
 
 ## Operations
 

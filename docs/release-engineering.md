@@ -1,9 +1,12 @@
 # Release engineering
 
 Peer Hours has a repeatable source-validation baseline, but it does **not** yet
-publish signed desktop releases or support automatic updates. This guide makes
-that boundary explicit and describes the evidence required before a pilot
-deployment.
+publish independently verifiable desktop releases or support automatic updates.
+This guide makes that boundary explicit and describes the evidence required
+before a pilot deployment. See [decentralized distribution and release
+trust](decentralized-distribution.md) for the project direction: a commercial
+platform certificate can be a convenience layer, never a prerequisite for a
+Peer Hours release to exist.
 
 ## Continuous validation
 
@@ -59,10 +62,10 @@ unreviewed major dependency changes.
 The following are required before calling a public desktop release
 production-ready, and are not supplied by the current repository:
 
-- an owned code-signing identity, notarization process, and documented key
-  custody for each desktop platform;
-- a signed update feed with rollback/revocation behavior and member-visible
-  update information;
+- a project-controlled release manifest, checksum publication, documented
+  release-key custody, and independently discoverable release-key fingerprint;
+- a signed update feed with rollback/revocation behavior, member-visible
+  update information, and no ability to alter member identity or trust choices;
 - platform-specific package verification and install/upgrade testing on every
   supported desktop operating-system version;
 - an external vulnerability-review process for Electron, native dependencies,
@@ -72,4 +75,6 @@ production-ready, and are not supplied by the current repository:
 Until those controls exist, desktop artifacts are reviewed pilot builds, not
 general-public releases. Community nodes remain independently operated
 infrastructure: release automation must never grant a vendor or node operator
-authority over member identity, balances, or record truth.
+authority over member identity, balances, or record truth. Optional Apple,
+Microsoft, package-repository, or third-party signing credentials must be
+treated as platform-installation conveniences, not the root of project trust.

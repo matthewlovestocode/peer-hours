@@ -13,7 +13,7 @@ export type StoredMemberIdentity = { privateKeyCiphertext: string; publicKeyPem:
 /** Public, renderer-safe lifecycle state for a member-owned device key. */
 export type DeviceSigningKeyStatus = { keyId: string; state: "active" | "revoked"; occurredAt: string };
 export type MemberIdentityStatus = { state: "unavailable" | "not-created" | "ready"; memberId: string | null; communityId: string | null; deviceSigningKeys: readonly DeviceSigningKeyStatus[] };
-export type PublishListingInput = { kind: ListingKind; title: string; minutes: number };
+export type PublishListingInput = { kind: ListingKind; title: string; description: string; minutes: number };
 export type CreateProposalInput = { offer: Listing; request: Listing; minutes: number };
 export type AcceptProposalInput = { proposal: ExchangeProposal; offer: Listing; request: Listing };
 /** A verified active listing supplied by the main process for owner-authorized withdrawal. */
@@ -169,7 +169,7 @@ export class MemberIdentityService {
     const memberId = createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId;
     const owner = createMemberProfile({ id: memberId, communityId, displayName: memberId });
     const draft = (input.kind === "offer" ? createOffer : createRequest)({
-      id: crypto.randomUUID(), communityId, memberId, title: input.title, minutes: input.minutes,
+      id: crypto.randomUUID(), communityId, memberId, title: input.title, description: input.description, minutes: input.minutes,
     });
     const record = toPublishedListingRecord(publishListing({ listing: draft, owner }), { occurredAt: new Date().toISOString(), authorId: memberId });
     const signed = createMemberSignedRecord({

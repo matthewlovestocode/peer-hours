@@ -153,11 +153,11 @@ test("two member desktops complete and independently resolve a signed exchange w
     const aliceProfile = createMemberProfile({ id: aliceIdentity.memberId, communityId, displayName: "Alice" });
     const bobProfile = createMemberProfile({ id: bobIdentity.memberId, communityId, displayName: "Bob" });
     const offer = publishListing({
-      listing: createOffer({ id: "offer-garden-help", communityId, memberId: aliceProfile.id, title: "Garden help", minutes: 90 }),
+      listing: createOffer({ id: "offer-garden-help", communityId, memberId: aliceProfile.id, title: "Garden help", description: "Help with planting and weeding.", minutes: 90 }),
       owner: aliceProfile,
     });
     const request = publishListing({
-      listing: createRequest({ id: "request-garden-help", communityId, memberId: bobProfile.id, title: "Garden help", minutes: 90 }),
+      listing: createRequest({ id: "request-garden-help", communityId, memberId: bobProfile.id, title: "Garden help", description: "Help with planting and weeding.", minutes: 90 }),
       owner: bobProfile,
     });
     const proposed = proposeExchange({

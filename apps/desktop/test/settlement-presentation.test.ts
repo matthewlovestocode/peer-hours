@@ -19,5 +19,5 @@ test("settlement presentation keeps acknowledgements, attestations, and local le
   assert.equal(settlementDurabilityLifecycle(-1), "waiting-for-durable-replication");
   assert.equal(settlementDurabilityLifecycle(1.5), "waiting-for-durable-replication");
   assert.equal(settlementDurabilityLifecycle("2"), "waiting-for-durable-replication");
-  assert.match(settlementLifecycleMessage("durably-replicated"), /availability evidence only; it does not decide validity, balances, or disputes/i);
+  assert.match(settlementLifecycleMessage("durably-replicated"), /availability, not validity, balances, or dispute outcomes/i);
 });

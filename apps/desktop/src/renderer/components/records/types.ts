@@ -4,6 +4,7 @@ export type ResolvedListing = {
   memberId: string;
   kind: string;
   title: string;
+  description?: string;
   minutes: number;
 };
 

@@ -8,7 +8,7 @@ export function RecordsTrustNotice({ resolved, rawRecordCount }: { resolved: Res
   return (
     <aside className={`records-trust-notice records-trust-notice--${status.tone}`} aria-labelledby="records-trust-heading" role={status.tone === "blocked" ? "alert" : "status"}>
       <div>
-        <p className="kicker">Local verification</p>
+        <p className="kicker">Activity status</p>
         <h2 id="records-trust-heading">{status.heading}</h2>
       </div>
       <p>{status.detail}</p>

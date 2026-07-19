@@ -89,6 +89,7 @@ function publishedListing() {
     memberId: "member-provider",
     kind: "offer" as const,
     title: "Garden help",
+    description: "Help with planting and weeding.",
     minutes: 60,
     status: "published" as const,
   };

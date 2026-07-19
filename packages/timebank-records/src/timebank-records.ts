@@ -454,6 +454,7 @@ function normalizePublishedListing(value: unknown): Listing {
   assertText(listing.communityId, "Listing community id");
   assertText(listing.memberId, "Listing member id");
   assertText(listing.title, "Listing title");
+  assertText(listing.description, "Listing description");
   assertMinutes(listing.minutes, "Listing minutes");
   if (listing.kind !== "offer" && listing.kind !== "request") {
     throw new RecordMappingError("A published listing must be an offer or request.");
@@ -468,6 +469,7 @@ function normalizePublishedListing(value: unknown): Listing {
     memberId: listing.memberId,
     kind: listing.kind,
     title: listing.title,
+    description: listing.description,
     minutes: listing.minutes,
     status: "published",
   });

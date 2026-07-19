@@ -1,6 +1,8 @@
 import { resolveBootstrapConfiguration } from "./config.js";
+import { loadBootstrapEnvironment } from "./environment.js";
 import { createBootstrapServer } from "./server.js";
 
+loadBootstrapEnvironment();
 const { port, manifest } = resolveBootstrapConfiguration();
 const server = createBootstrapServer(manifest);
 

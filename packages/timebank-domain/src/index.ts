@@ -21,6 +21,8 @@ export interface Listing {
   readonly memberId: MemberId;
   readonly kind: ListingKind;
   readonly title: string;
+  /** Member-written portable rich-text description of the offer or request. */
+  readonly description: string;
   readonly minutes: number;
   readonly status: ListingStatus;
 }
@@ -55,6 +57,7 @@ export interface CreateListingInput {
   readonly communityId: string;
   readonly memberId: MemberId;
   readonly title: string;
+  readonly description: string;
   readonly minutes: number;
 }
 
@@ -197,9 +200,17 @@ function createListing(kind: ListingKind, input: CreateListingInput): Listing {
   assertPresent(input.communityId, "Community id");
   assertPresent(input.memberId, "Member id");
   assertPresent(input.title, "Listing title");
+  assertListingDescription(input.description);
   assertPositiveWholeMinutes(input.minutes);
 
   return { ...input, kind, status: "draft" };
+}
+
+/** Restricts immutable listing descriptions to bounded plain text with simple line formatting. */
+function assertListingDescription(value: string): void {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > 12_000) {
+    throw new DomainRuleError("Listing description must contain 1 to 12000 characters.");
+  }
 }
 
 /** Ensures a profile exactly matches the listing owner and community. */

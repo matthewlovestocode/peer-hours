@@ -165,20 +165,20 @@ test("publishes a locally signed immutable offer without exposing root key mater
   const fixture = service();
   await fixture.identity.createAndAnnounce();
 
-  await fixture.identity.publishListing({ kind: "offer", title: "Garden help", minutes: 90 });
+  await fixture.identity.publishListing({ kind: "offer", title: "Garden help", description: "Help with planting and weeding.", minutes: 90 });
 
   assert.equal(fixture.feed.records.length, 2);
   const record = fixture.feed.records[1] as Parameters<typeof decodePublishedListingRecord>[0];
   assert.deepEqual(decodePublishedListingRecord(record), {
     id: (record as { id: string }).id, communityId, memberId: (record as { authorId: string }).authorId,
-    kind: "offer", title: "Garden help", minutes: 90, status: "published",
+    kind: "offer", title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published",
   });
 });
 
 test("rejects an invalid renderer-supplied listing kind without appending a record", async () => {
   const fixture = service();
   await fixture.identity.createAndAnnounce();
-  await assert.rejects(fixture.identity.publishListing({ kind: "other", title: "Garden help", minutes: 90 } as never), /offer or request/i);
+  await assert.rejects(fixture.identity.publishListing({ kind: "other", title: "Garden help", description: "Help with planting and weeding.", minutes: 90 } as never), /offer or request/i);
   assert.equal(fixture.feed.records.length, 1);
 });
 
@@ -188,7 +188,7 @@ test("root-signs an immutable closure for an active listing owned by this member
   assert.ok(status.memberId);
   const listing = {
     id: "listing-garden-help", communityId, memberId: status.memberId, kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
 
   await fixture.identity.closeListing({ listing });
@@ -204,7 +204,7 @@ test("does not close another member's listing or append a closure record", async
   await fixture.identity.createAndAnnounce();
   const listing = {
     id: "listing-garden-help", communityId, memberId: "another-member", kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
 
   await assert.rejects(fixture.identity.closeListing({ listing }), /owner/i);
@@ -218,11 +218,11 @@ test("accepts a verified pending proposal only as the other participant and sign
   assert.ok(memberId);
   const offer = {
     id: "offer-garden-help", communityId, memberId: "member-provider", kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const request = {
     id: "request-garden-help", communityId, memberId, kind: "request" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const proposal = {
     id: "proposal-garden-help", communityId, offerId: offer.id, requestId: request.id,
@@ -246,11 +246,11 @@ test("does not append acceptance when the local member created the pending propo
   assert.ok(memberId);
   const offer = {
     id: "offer-garden-help", communityId, memberId, kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const request = {
     id: "request-garden-help", communityId, memberId: "member-recipient", kind: "request" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const proposal = {
     id: "proposal-garden-help", communityId, offerId: offer.id, requestId: request.id,

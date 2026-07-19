@@ -26,7 +26,7 @@ export function PendingProposalList({ proposals, memberId, onComplete }: {
   };
 
   if (!proposals.length) {
-    return <p className="empty-state">No locally verified proposals are awaiting acceptance.</p>;
+    return <p className="empty-state">No proposals are waiting for acceptance.</p>;
   }
 
   return (

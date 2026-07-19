@@ -95,7 +95,7 @@ peer-hours/
 
 Applications are deployable products. Each application has its own `package.json`, source tree, build configuration, and scripts. Applications should generally remain private and should not be published to npm.
 
-The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite. Its application shell provides a drawer-based navigation structure; network diagnostics live in the separate Network workspace rather than on the landing page.
+The initial application is `@peer-hours/desktop`, an Electron application whose UI is built with React and Vite. Its member-facing workspaces separate membership setup, a **My activity** dashboard, signed history, and Network diagnostics. The activity dashboard opens dedicated offer and request flows; each drafts a required description and duration, shows a review of the member-visible listing, then publishes only after explicit confirmation. Network diagnostics live separately from member workflows.
 
 The `@peer-hours/node` application is a headless **community node**: an always-on peer with no human member attached. It keeps persistent Hypercore storage, joins discovery topics, relays valid member-feed announcements, and exposes only health, status, and development-only simulator diagnostics. It has no `/bootstrap` endpoint and does not decide member truth.
 

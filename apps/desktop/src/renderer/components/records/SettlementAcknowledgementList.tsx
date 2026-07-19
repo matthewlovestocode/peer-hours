@@ -62,7 +62,7 @@ export function SettlementAcknowledgementList({ proposals, confirmations, settle
         </div>
         <span className="count-badge" aria-label={`${eligible.length} accepted exchanges`}>{eligible.length}</span>
       </div>
-      <p className="muted">Your acknowledgement is a signed statement of completion. It never signs for the other participant or itself establishes a transfer, balance, replication, or network finality.</p>
+      <p className="muted">Your confirmation records that you believe the exchange is complete. It never signs for the other participant or by itself settle a balance or dispute.</p>
       <ol className="proposal-list">
         {eligible.map((proposal) => {
           const confirmation = confirmationByProposalId.get(proposal.id);
@@ -79,8 +79,8 @@ export function SettlementAcknowledgementList({ proposals, confirmations, settle
               <div className="settlement-action">
                 <p className="proposal-card__status">{settlementLifecycleMessage(progress.lifecycle)}</p>
                 {progress.lifecycle === "ready-to-acknowledge" && <button type="button" disabled={acknowledgingId !== null} onClick={() => void acknowledge(proposal.id)}>{isAcknowledging ? "Signing acknowledgement…" : "Acknowledge completion"}</button>}
-                {progress.lifecycle === "ready-to-attest" && <button type="button" disabled={advancingId !== null} onClick={() => void advanceSettlement(proposal.id)}>{isAdvancing ? "Signing attestation…" : "Sign transfer attestation"}</button>}
-                {progress.lifecycle === "ready-to-publish" && <button type="button" disabled={advancingId !== null} onClick={() => void advanceSettlement(proposal.id)}>{isAdvancing ? "Publishing transfer…" : "Publish locally admitted transfer"}</button>}
+                {progress.lifecycle === "ready-to-attest" && <button type="button" disabled={advancingId !== null} onClick={() => void advanceSettlement(proposal.id)}>{isAdvancing ? "Recording your confirmation…" : "Confirm the agreed exchange"}</button>}
+                {progress.lifecycle === "ready-to-publish" && <button type="button" disabled={advancingId !== null} onClick={() => void advanceSettlement(proposal.id)}>{isAdvancing ? "Recording exchange…" : "Record completed exchange"}</button>}
               </div>
             </li>
           );

@@ -45,9 +45,18 @@ The process validates `PORT` before listening and rejects blank entries in `BOOT
 
 ## Development
 
+The service automatically loads `apps/bootstrap/.env` before it reads configuration. Copy the tracked example, then set `DISCOVERY_CORE_KEY` to the `peerId` returned by the local community node's `/status` endpoint:
+
+```sh
+cp apps/bootstrap/.env.example apps/bootstrap/.env
+# Edit apps/bootstrap/.env and set DISCOVERY_CORE_KEY to the local node's peerId.
+```
+
+Explicit environment variables still take precedence, which is useful for CI and deployments. The local `.env` file is ignored by Git; commit only `.env.example` with safe placeholders.
+
 ```sh
 npm --workspace @peer-hours/bootstrap run build
-DISCOVERY_CORE_KEY="<community-peer-core-key>" npm --workspace @peer-hours/bootstrap run start
+npm --workspace @peer-hours/bootstrap run start
 ```
 
 Run checks with:

@@ -54,11 +54,11 @@ export function settlementLifecycleMessage(lifecycle: SettlementLifecycle): stri
   switch (lifecycle) {
     case "ready-to-acknowledge": return "Your completion acknowledgement is needed.";
     case "awaiting-counterparty": return "Your acknowledgement is recorded; waiting for the other participant.";
-    case "ready-to-attest": return "Both participants acknowledged completion. Sign your attestation of the deterministic transfer terms.";
-    case "awaiting-counterparty-attestation": return "Your attestation is recorded; waiting for the other participant’s attestation.";
-    case "ready-to-publish": return "Both participant attestations are present. Publish the deterministic transfer for local ledger admission.";
-    case "waiting-for-durable-replication": return "The transfer is locally admitted to this device’s ledger. Waiting for a verified retention receipt from a pinned community node; retention evidence never decides validity, balances, or disputes.";
-    case "durably-replicated": return "The transfer is locally admitted and one pinned community node has signed that it retains the replicated history. This is availability evidence only; it does not decide validity, balances, or disputes.";
-    case "resiliently-replicated": return "The transfer is locally admitted and two or more pinned community nodes have signed that they retain the replicated history. This is availability evidence only; it does not decide validity, balances, or disputes.";
+    case "ready-to-attest": return "Both participants confirmed completion. Add your signed confirmation of the agreed exchange.";
+    case "awaiting-counterparty-attestation": return "Your confirmation is recorded; waiting for the other participant’s confirmation.";
+    case "ready-to-publish": return "Both confirmations are present. Record the completed exchange on this device.";
+    case "waiting-for-durable-replication": return "This device has recorded the exchange. Waiting for a trusted community node to confirm that it retains the history; that confirmation does not decide validity, balances, or disputes.";
+    case "durably-replicated": return "This device recorded the exchange and one trusted community node confirmed it retains the history. This shows availability, not validity, balances, or dispute outcomes.";
+    case "resiliently-replicated": return "This device recorded the exchange and two or more trusted community nodes confirmed they retain the history. This shows availability, not validity, balances, or dispute outcomes.";
   }
 }

@@ -151,7 +151,7 @@ test("removes only an owner-signed closure's published listing from new-proposal
   }));
   const listing = {
     id: "listing-garden-help", communityId, memberId: providerMemberId, kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const published = signedRecord(toPublishedListingRecord(listing, metadata), providerKeys.privateKey, "provider-key");
   const closure = signedRecord(toClosedListingRecord(listing, { ...metadata, occurredAt: "2026-07-18T13:01:00.000Z" }), providerKeys.privateKey, "provider-key");
@@ -167,7 +167,7 @@ test("rejects an owner-signed listing closure that references no published listi
   }));
   const missingListing = {
     id: "listing-missing", communityId, memberId: providerMemberId, kind: "offer" as const,
-    title: "Garden help", minutes: 90, status: "published" as const,
+    title: "Garden help", description: "Help with planting and weeding.", minutes: 90, status: "published" as const,
   };
   const closure = signedRecord(toClosedListingRecord(missingListing, metadata), providerKeys.privateKey, "provider-key");
 

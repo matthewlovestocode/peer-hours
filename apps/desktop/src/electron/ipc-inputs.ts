@@ -1,5 +1,5 @@
 /** A renderer-originated listing request that has passed main-process boundary validation. */
-export type PublishListingRequest = { readonly kind: "offer" | "request"; readonly title: string; readonly minutes: number };
+export type PublishListingRequest = { readonly kind: "offer" | "request"; readonly title: string; readonly description: string; readonly minutes: number };
 
 /** A renderer-originated proposal request that has passed main-process boundary validation. */
 export type CreateProposalRequest = { readonly offerId: string; readonly requestId: string; readonly minutes: number };
@@ -32,8 +32,17 @@ export function parsePublishListingRequest(value: unknown): PublishListingReques
   return {
     kind: value.kind,
     title: parseTitle(value.title),
+    description: parseDescription(value.description),
     minutes: parseMinutes(value.minutes),
   };
+}
+
+/** Bounds an immutable member-written description before it reaches the signing service. */
+function parseDescription(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Listing description is invalid.");
+  const description = value.trim();
+  if (description.length === 0 || description.length > 12_000) throw new Error("Listing description must contain 1 to 12000 characters.");
+  return description;
 }
 
 /** Validates proposal selection and duration before any community records are opened. */

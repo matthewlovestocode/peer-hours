@@ -30,7 +30,7 @@ flowchart LR
 | Raw records | “What bytes/JSON did this runtime read from opened feeds?” | That every record is valid or authorized |
 | Resolved state | “Which facts did local rules accept from this snapshot?” | That every peer has replicated them or that stronger finality is reached |
 
-The desktop deliberately keeps raw inspection separate and presents loading, retry, and last-valid-snapshot behavior around resolved state. That helps a user distinguish an unavailable/rejected refresh from a verified zero balance.
+The desktop deliberately keeps signed history separate from the **My activity** dashboard, which focuses on offers, requests, and exchanges a member can act on. The history workspace keeps loading, retry, and last-valid-snapshot behavior around resolved state. That helps a user distinguish an unavailable/rejected refresh from a verified zero balance.
 
 ## Peer Hours connection
 

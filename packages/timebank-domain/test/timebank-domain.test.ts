@@ -30,6 +30,7 @@ function draftOffer(overrides: Partial<Listing> = {}): Listing {
     communityId,
     memberId: providerId,
     title: "Garden help",
+    description: "Help with planting and weeding.",
     minutes: 120,
     ...overrides,
   });
@@ -42,6 +43,7 @@ function draftRequest(overrides: Partial<Listing> = {}): Listing {
     communityId,
     memberId: receiverId,
     title: "Garden help",
+    description: "Help with planting and weeding.",
     minutes: 120,
     ...overrides,
   });

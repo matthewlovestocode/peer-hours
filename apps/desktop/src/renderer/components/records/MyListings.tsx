@@ -25,11 +25,11 @@ export function MyListings({ listings, memberId, onComplete }: { listings: reado
     <section className="my-listings" aria-labelledby="my-listings-heading">
       <div className="records-section-heading">
         <div>
-          <p className="kicker">Member-owned</p>
+          <p className="kicker">Your offers and requests</p>
           <h2 id="my-listings-heading">Your active listings</h2>
         </div>
       </div>
-      <p className="muted">Closing a listing publishes an immutable, owner-signed withdrawal. It prevents new proposals after peers receive it; it does not erase history or change existing exchanges.</p>
+      <p className="muted">Close an offer or request when it is no longer available. This prevents new proposals after your community receives the update; it does not change existing exchanges.</p>
       {mine.length === 0 ? (
         <p className="empty-state">You have no active listings.</p>
       ) : (
@@ -39,6 +39,7 @@ export function MyListings({ listings, memberId, onComplete }: { listings: reado
               <div>
                 <strong>{listing.title}</strong>
                 <span>{listing.kind} · {listing.minutes} minutes</span>
+                {listing.description && <span className="listing-description">{listing.description}</span>}
               </div>
               <button type="button" disabled={closingId !== null} onClick={() => void closeListing(listing.id)}>
                 {closingId === listing.id ? "Signing withdrawal…" : "Close listing"}

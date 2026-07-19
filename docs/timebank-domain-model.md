@@ -19,12 +19,16 @@ classDiagram
       offerId
       providerId
       title
+      description
+      durationMinutes
       status
     }
     class Request {
       requestId
       requesterId
       title
+      description
+      durationMinutes
       status
     }
     class ProposedExchange {
@@ -62,20 +66,20 @@ A member profile represents a member's public presence within one community. It 
 
 ### Offer
 
-An offer is a provider's listing of help they are willing to give. It contains `offerId`, `communityId`, `providerId`, `title`, optional description and availability, `status`, and timestamps. Its initial status is `draft`; it may become `published`, `paused`, `withdrawn`, or `fulfilled`.
+An offer is a provider's listing of help they are willing to give. The implemented listing model contains `id`, `communityId`, `memberId`, `title`, a required bounded description, positive whole-minute duration, and `status`. The desktop uses a dedicated offer draft and review flow before publishing.
 
 - The provider profile must match the offer owner in the same community.
 - Only the provider may edit, pause, withdraw, or mark their offer fulfilled.
-- A published offer must have a non-blank title.
+- A published offer must have a non-blank title and description.
 - An offer may inform a proposal but does not reserve a provider or create a credit obligation.
 
 ### Request
 
-A request is a member's listing of help they seek. It contains `requestId`, `communityId`, `requesterId`, `title`, optional description and timing needs, `status`, and timestamps. Its lifecycle matches an offer: `draft`, `published`, `paused`, `withdrawn`, or `fulfilled`.
+A request is a member's listing of help they seek. The implemented listing model contains `id`, `communityId`, `memberId`, `title`, a required bounded description, positive whole-minute duration, and `status`. The desktop uses a dedicated request draft and review flow before publishing.
 
 - The requester profile must match the request owner in the same community.
 - Only the requester may edit, pause, withdraw, or mark their request fulfilled.
-- A published request must have a non-blank title.
+- A published request must have a non-blank title and description.
 - A request may inform a proposal but does not create an obligation to accept help.
 
 ### Proposed exchange

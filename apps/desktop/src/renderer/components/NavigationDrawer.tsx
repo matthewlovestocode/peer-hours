@@ -1,8 +1,5 @@
-import { useState } from "react";
 import type { WorkspaceId } from "../stores/navigation.js";
 import { NavigationButton } from "./navigation/NavigationButton.js";
-import { NavigationGroup } from "./navigation/NavigationGroup.js";
-import { NavigationPlaceholder } from "./navigation/NavigationPlaceholder.js";
 
 type NavigationDrawerProps = {
   activeWorkspace: WorkspaceId;
@@ -13,9 +10,6 @@ type NavigationDrawerProps = {
 
 /** Presents the application's expandable left navigation without coupling it to feature data. */
 export function NavigationDrawer({ activeWorkspace, isOpen, onClose, onNavigate }: NavigationDrawerProps) {
-  const [communityOpen, setCommunityOpen] = useState(true);
-  const [exchangeOpen, setExchangeOpen] = useState(false);
-
   return (
     <>
       <button
@@ -31,19 +25,12 @@ export function NavigationDrawer({ activeWorkspace, isOpen, onClose, onNavigate 
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close navigation">×</button>
         </div>
         <nav aria-label="Primary navigation">
-          <NavigationButton active={activeWorkspace === "home"} label="Home" onClick={() => onNavigate("home")} />
-          <NavigationButton active={activeWorkspace === "records"} label="My records" onClick={() => onNavigate("records")} />
-          <NavigationGroup expanded={communityOpen} label="Community" onToggle={() => setCommunityOpen((open) => !open)}>
-            <NavigationPlaceholder label="Overview" />
-            <NavigationPlaceholder label="People" />
-          </NavigationGroup>
-          <NavigationGroup expanded={exchangeOpen} label="Exchange" onToggle={() => setExchangeOpen((open) => !open)}>
-            <NavigationPlaceholder label="Offers" />
-            <NavigationPlaceholder label="Requests" />
-          </NavigationGroup>
+          <NavigationButton active={activeWorkspace === "home"} label="Welcome" onClick={() => onNavigate("home")} />
+          <NavigationButton active={activeWorkspace === "activity"} label="My activity" onClick={() => onNavigate("activity")} />
+          <NavigationButton active={activeWorkspace === "history"} label="My history" onClick={() => onNavigate("history")} />
           <NavigationButton active={activeWorkspace === "network"} label="Network" onClick={() => onNavigate("network")} />
         </nav>
-        <p className="navigation-drawer__footer">More sections can be added here as the product takes shape.</p>
+        <p className="navigation-drawer__footer">Your activity is kept on this device and shared directly with your community when connections are available.</p>
       </aside>
     </>
   );

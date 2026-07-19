@@ -9,6 +9,7 @@ import { RecordsTrustNotice } from "../components/records/RecordsTrustNotice.js"
 import { RecordsWorkspaceStatus } from "../components/records/RecordsWorkspaceStatus.js";
 import { SettlementAcknowledgementList } from "../components/records/SettlementAcknowledgementList.js";
 import { useRecordsWorkspace } from "../components/records/useRecordsWorkspace.js";
+import { WorkspaceHeader } from "../components/WorkspaceHeader.js";
 
 /** Presents the offers, requests, and exchange actions that a ready member can take. */
 export function ActivityPage({ onOpenWelcome, onCreateOffer, onCreateRequest }: { onOpenWelcome: () => void; onCreateOffer: () => void; onCreateRequest: () => void }) {
@@ -32,11 +33,7 @@ export function ActivityPage({ onOpenWelcome, onCreateOffer, onCreateRequest }: 
 
   return (
     <section className="activity-page">
-      <header className="records-page__header">
-        <p className="eyebrow">My activity</p>
-        <h1>Share and receive help</h1>
-        <p className="muted">Create offers and requests, agree on an exchange, and confirm it together.</p>
-      </header>
+      <WorkspaceHeader eyebrow="My activity" title="Share and receive help" description="Create offers and requests, agree on an exchange, and confirm it together." />
       <Panel>
         <RecordsWorkspaceStatus phase={phase} hasSnapshot={snapshot !== null} error={refreshError} onRefresh={() => void refresh()} />
         {identity && identity.state !== "ready" ? <ActivityAccessNotice onOpenWelcome={onOpenWelcome} /> : <>

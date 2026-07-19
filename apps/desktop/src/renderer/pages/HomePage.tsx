@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { IdentityStatus, type IdentityStatusValue } from "../components/records/IdentityStatus.js";
+import { WorkspaceHeader } from "../components/WorkspaceHeader.js";
 
 /** Welcomes members, keeps membership setup separate from exchange activity, and directs ready members to participate. */
 export function HomePage({ onOpenActivity }: { onOpenActivity: () => void }) {
@@ -22,9 +23,7 @@ export function HomePage({ onOpenActivity }: { onOpenActivity: () => void }) {
 
   return (
     <section className="home-page">
-      <p className="eyebrow">Peer Hours</p>
-      <h1>Share time. Receive help.</h1>
-      <p className="home-page__copy">Peer Hours helps your community recognize the time people give and receive. Set up your membership to share an offer, ask for help, or keep track of an exchange.</p>
+      <WorkspaceHeader eyebrow="Peer Hours" title="Share time. Receive help." description="Peer Hours helps your community recognize the time people give and receive. Set up your membership to share an offer, ask for help, or keep track of an exchange." variant="hero" />
       {identity ? <IdentityStatus identity={identity} creating={creating} onCreate={() => void createMembership()} /> : <p className="empty-state" role="status">Preparing your membership…</p>}
       <div className="home-page__actions">
         {identity?.state === "ready" && <button type="button" onClick={onOpenActivity}>Open my activity</button>}

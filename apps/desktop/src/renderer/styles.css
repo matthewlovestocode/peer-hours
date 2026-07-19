@@ -23,17 +23,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .network-page__header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 0.35rem 0 1rem; }
 .network-page__header h1 { font-size: clamp(1.9rem, 3vw, 2.7rem); line-height: 1.05; letter-spacing: -0.045em; }
 .network-page__header .muted { margin: 0.45rem 0 0; max-width: 42rem; }
+.workspace-page-header { margin-bottom: 1.25rem; padding: 0.35rem 0 0.5rem; }
+.workspace-page-header h1 { font-size: clamp(1.9rem, 3vw, 2.7rem); line-height: 1.05; letter-spacing: -0.045em; }
+.workspace-page-header .eyebrow { margin-bottom: 0.6rem; }
+.workspace-page-header .muted { max-width: 42rem; margin: 0.45rem 0 0; }
+.workspace-page-header--hero h1 { max-width: 10ch; font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 0.95; letter-spacing: -0.06em; }
+.workspace-page-header--hero .muted { max-width: 37rem; font-size: clamp(1.1rem, 2vw, 1.35rem); }
 .home-page { max-width: 43rem; padding: 10vh 0; }
-.home-page h1 { max-width: 10ch; }
-.home-page__copy { max-width: 37rem; color: #aeb5bc; font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.65; }
 .home-page__actions { display: grid; gap: 0.85rem; max-width: 30rem; margin-top: 2rem; }
 .home-page__actions button { justify-self: start; }
 .home-page__actions p { margin: 0; color: #9da5ad; line-height: 1.55; }
 .activity-page, .history-page { max-width: 58rem; }
-.records-page__header { margin-bottom: 1.25rem; padding: 0.35rem 0 0.5rem; }
-.records-page__header h1 { font-size: clamp(1.9rem, 3vw, 2.7rem); line-height: 1.05; letter-spacing: -0.045em; }
-.records-page__header .eyebrow { margin-bottom: 0.6rem; }
-.records-page__header .muted { margin: 0.45rem 0 0; max-width: 42rem; }
 .records-workspace-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #30363b; padding-bottom: 1rem; color: #9da5ad; font-size: 0.86rem; }
 .records-workspace-status--error { align-items: flex-start; border: 1px solid #733343; border-radius: 10px; background: #351b243d; padding: 1rem; color: #fecdd3; }
 .records-workspace-status p { margin: 0.35rem 0 0; color: #fda4af; line-height: 1.5; }

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { RichTextEditor } from "./RichTextEditor.js";
+import { WorkspaceHeader } from "../WorkspaceHeader.js";
 
 type ListingDraftKind = "offer" | "request";
 
@@ -47,9 +48,7 @@ export function ListingDraftForm({ kind, onCancel, onPublished }: ListingDraftFo
   if (reviewing) {
     return (
       <section className="listing-review" aria-labelledby="listing-review-heading">
-        <p className="kicker">Review before publishing</p>
-        <h1 id="listing-review-heading">{label}</h1>
-        <p className="muted">This is how your listing will appear to community members.</p>
+        <WorkspaceHeader eyebrow="Review before publishing" title={label} description="This is how your listing will appear to community members." headingId="listing-review-heading" />
         <article className="listing-review__card">
           <span>{isOffer ? "Offering" : "Requesting"} · {minutes} minutes</span>
           <h2>{title}</h2>
@@ -66,9 +65,7 @@ export function ListingDraftForm({ kind, onCancel, onPublished }: ListingDraftFo
 
   return (
     <form className="listing-draft-form" onSubmit={review}>
-      <p className="eyebrow">{isOffer ? "Create an offer" : "Create a request"}</p>
-      <h1>{label}</h1>
-      <p className="muted">{descriptionPrompt}</p>
+      <WorkspaceHeader eyebrow={isOffer ? "Create an offer" : "Create a request"} title={label} description={descriptionPrompt} />
       <label>Short title<input required maxLength={500} value={title} onChange={(event) => setTitle(event.target.value)} placeholder={titlePlaceholder} /></label>
       <label>Description<RichTextEditor value={description} disabled={false} onChange={setDescription} /></label>
       <label>Time<input required min="1" type="number" value={minutes} onChange={(event) => setMinutes(event.target.value)} /><span>minutes</span></label>

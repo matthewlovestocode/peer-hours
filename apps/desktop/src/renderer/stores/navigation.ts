@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /** Names the top-level desktop workspaces that the application shell may display. */
-export type WorkspaceId = "home" | "activity" | "history" | "network" | "create-offer" | "create-request";
+export type WorkspaceId = "home" | "activity" | "history" | "communities" | "network" | "create-offer" | "create-request";
 
 type NavigationState = {
   activeWorkspace: WorkspaceId;

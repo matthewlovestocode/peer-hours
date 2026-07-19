@@ -74,6 +74,18 @@ export class MemberIdentityService {
     return { state: "ready", memberId, communityId, deviceSigningKeys: await this.deviceSigningKeyStatuses({ communityId, memberId, rootPublicKeyPem: stored.publicKeyPem }) };
   }
 
+  /** Supplies the main-process-only identity material needed to root-sign a new community genesis record. */
+  async communityGenesisSigner(): Promise<{ memberId: string; rootPublicKeyPem: string; sign: (payload: Uint8Array) => string }> {
+    if (!this.secureStorage.isEncryptionAvailable()) throw new Error("Secure operating-system key storage is unavailable on this device.");
+    const stored = await this.identityStore.read() ?? await this.createStoredIdentity();
+    this.assertStoredIdentity(stored);
+    return {
+      memberId: createSelfOwnedMemberIdentity({ rootPublicKeyPem: stored.publicKeyPem }).memberId,
+      rootPublicKeyPem: stored.publicKeyPem,
+      sign: (payload) => this.sign(stored, payload),
+    };
+  }
+
   /** Creates a protected root identity, declares its local feed, and announces it to current peers. */
   async createAndAnnounce(): Promise<MemberIdentityStatus> {
     if (this.identitySetupInProgress !== null) return this.identitySetupInProgress;

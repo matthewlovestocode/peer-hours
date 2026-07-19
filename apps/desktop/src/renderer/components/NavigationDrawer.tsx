@@ -28,6 +28,7 @@ export function NavigationDrawer({ activeWorkspace, isOpen, onClose, onNavigate 
           <NavigationButton active={activeWorkspace === "home"} label="Welcome" onClick={() => onNavigate("home")} />
           <NavigationButton active={activeWorkspace === "activity"} label="My activity" onClick={() => onNavigate("activity")} />
           <NavigationButton active={activeWorkspace === "history"} label="My history" onClick={() => onNavigate("history")} />
+          <NavigationButton active={activeWorkspace === "communities"} label="Communities" onClick={() => onNavigate("communities")} />
           <NavigationButton active={activeWorkspace === "network"} label="Network" onClick={() => onNavigate("network")} />
         </nav>
         <p className="navigation-drawer__footer">Your activity is kept on this device and shared directly with your community when connections are available.</p>

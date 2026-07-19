@@ -1,0 +1,7 @@
+import { SiteFooter } from "../components/SiteFooter";
+import { SiteHeader } from "../components/SiteHeader";
+
+/** Explains the project's open implementation and the limits of transparency alone. */
+export default function OpenSourcePage() {
+  return <main><SiteHeader /><section className="page-hero"><p className="eyebrow">Open source</p><h1>No hidden machinery.</h1><p className="lede">Peer Hours is built in the open so communities can inspect how records, identities, discovery, and replication work rather than taking a vendor’s word for it.</p><a className="button button--primary" href="https://github.com/matthewlovestocode/peer-hours">View the source</a></section><section className="principles principles--two"><article><span>Inspect</span><h2>Nothing important should be a black box</h2><p>The protocol and applications are ordinary source code. The desktop app does not conceal a central account system behind a friendly interface.</p></article><article><span>Adapt</span><h2>Communities can carry the work forward</h2><p>People can run compatible infrastructure, improve the software, and organize independently. No vendor needs to grant permission for a community to exist.</p></article></section><section className="directory-notice"><h2>Open source is not a magic trust button</h2><p>Source availability does not by itself prove a release is safe or a community is trustworthy. Releases need transparent verification, and people still choose whom to work with.</p></section><SiteFooter /></main>;
+}

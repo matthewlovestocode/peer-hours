@@ -75,7 +75,8 @@ peer-hours/
 │   ├── bootstrap/           # Minimal read-only discovery-metadata service
 │   ├── desktop/             # Electron + React desktop application
 │   ├── node/                # Headless always-on community node
-│   └── dev-peers/           # Real local peers for UI/network development
+│   ├── dev-peers/           # Real local peers for UI/network development
+│   └── web/                 # Public Next.js site and opt-in community-directory UI
 ├── packages/
 │   ├── peer-runtime/        # Platform-neutral local peer runtime
 │   ├── timebank-domain/     # Member, listing, and exchange-agreement rules
@@ -110,6 +111,16 @@ Packages are for reusable code shared by two or more applications, such as UI co
 Do not create a shared package speculatively. Add one when there is a concrete reuse case.
 
 `@peer-hours/timebank-domain` is the pure, test-first model for member-owned listings and exchange consent. `@peer-hours/timebank-records` supplies the immutable replicated-record envelope and resolves record history into the existing timebank rules. `@peer-hours/timebank-settlement` validates that a non-reversal transfer exactly matches one accepted proposal. `@peer-hours/timebank-ledger` provides dual-attested, integer-minute transfers and derived balances. `@peer-hours/timebank-identity` provides the current in-memory Ed25519 verifier for community member keys. See [the domain model](docs/timebank-domain-model.md), [proposal settlement integration](docs/proposal-settlement-integration.md), [ledger settlement](docs/ledger-settlement.md), and [identity attestations](docs/identity-attestations.md).
+
+## Public website
+
+`apps/web` is a Next.js App Router application for explaining Peer Hours, publishing desktop download links, and presenting an opt-in community directory. It does not own accounts, make membership decisions, or decide protocol truth. The current directory route is a labeled visual preview; connecting it to a signed public directory feed is the next implementation step.
+
+```sh
+npm --workspace @peer-hours/web run dev
+```
+
+The public routes are `/`, `/how-it-works`, `/download`, `/open-source`, `/community-directory`, and `/community-directory/how-it-works`. Download controls remain disabled until versioned, verifiable desktop releases are published.
 
 ## Prerequisites
 

@@ -20,6 +20,14 @@ This is what lets the network spread organically. A person, cooperative, or new 
 
 Community peers are optional resilience infrastructure, not a prerequisite for protocol operation. When enough member desktops are online on the same discovery scope, they should be able to discover one another, connect directly, and replicate member-owned feeds without a Peer Hours community peer. Community peers make that experience more durable by retaining data, offering additional connection paths, and helping a returning member catch up after other desktops have gone offline.
 
+## Community genesis and invitations
+
+A member can create a community without asking a central directory or deploying a community node. The creating desktop makes a writable genesis Hypercore; its public key is the immutable `communityId`. The first entry is a small `peer-hours/community-genesis/v1` record containing the discovery key, display name, optional human location, creation time, and the creator's self-owned root identity. The creator signs canonical genesis terms with that root key. The Hypercore writer signature proves control of the feed; the root signature binds the social claim to a public member identity without making that member an administrator.
+
+An invitation contains only the genesis feed key and discovery key, encoded as bounded URL-safe JSON. A joining desktop opens the named feed, joins its discovery scope, fetches entry zero, verifies its root signature, and checks that both keys match the invitation before saving the community locally. It does not trust an invitation merely because it is well-formed. The local registry is a member's remembered trust choice, not a global membership list.
+
+The creator should keep a second peer online while it joins with the invitation. That peer's successful genesis fetch is the first replication acknowledgement; no community node is required. The current implementation waits a bounded 20 seconds for a joining peer to obtain the genesis record rather than silently accepting an unreplicated scope. More durable acknowledgement records and multi-device recovery are future protocol work.
+
 ## Core direction
 
 Peer Hours should be a **federated, local-first timebank network**.

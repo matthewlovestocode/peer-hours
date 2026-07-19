@@ -4,6 +4,7 @@ node_modules/
 # Build and test output
 dist/
 dist-electron/
+.next/
 # Local peer/runtime data
 apps/node/data/
 apps/dev-peers/data/

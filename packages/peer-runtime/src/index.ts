@@ -6,9 +6,11 @@ import Corestore from "corestore";
 import Hyperswarm from "hyperswarm";
 import { HypercoreRecordStore, type JsonValue } from "./record-store.js";
 import { normalizeCommunityReceiptNode, type CommunityReceiptNode } from "./replication-receipt.js";
+import { canonicalCommunityGenesisPayload, createCommunityGenesis, createCommunityInvitation, type CommunityGenesis, type CommunityInvitation } from "./community-genesis.js";
 
 export * from "./record-store.js";
 export * from "./replication-receipt.js";
+export * from "./community-genesis.js";
 
 /** Lifecycle labels used for transport and diagnostics observations, not identity or authorization. */
 export type PeerLifecycleState = "discovered" | "connecting" | "connected" | "stale" | "offline";
@@ -264,6 +266,7 @@ export class PeerRuntime {
   private core: any;
   private memberRecordStore: HypercoreRecordStore | null = null;
   private bootstrapCore: any;
+  private communityGenesisCore: any;
   private memberFeedAnnouncementExtension: { broadcast(message: unknown): void; destroy(): void } | null = null;
   private readonly discoveredMemberFeedAnnouncements = new Map<string, MemberFeedAnnouncement>();
   private swarm: any;
@@ -368,6 +371,52 @@ export class PeerRuntime {
       await this.stop();
       throw cause;
     }
+  }
+
+  /** Creates, signs, persists, and selects an independently discoverable community genesis feed. */
+  async createCommunity(input: { displayName: string; location: CommunityGenesis["location"]; creatorMemberId: string; creatorRootPublicKeyPem: string; sign: (payload: Uint8Array) => string }): Promise<{ genesis: CommunityGenesis; invitation: CommunityInvitation }> {
+    if (!this.started || this.store === undefined) throw new Error("Start the local peer before creating a community.");
+    if (!this.networkingEnabled || (this.swarm?.connections?.size ?? 0) === 0) {
+      throw new Error("Connect to at least one peer before creating a community so its genesis can be shared.");
+    }
+    const core = this.store.get({ name: `peer-hours-community-genesis-${crypto.randomUUID()}`, valueEncoding: "json" });
+    await core.ready();
+    const unsigned = { schema: "peer-hours/community-genesis/v1" as const, communityId: core.key.toString("hex"), discoveryKey: core.discoveryKey.toString("hex"), displayName: input.displayName, location: input.location, createdAt: new Date(this.now()).toISOString(), creatorMemberId: input.creatorMemberId, creatorRootPublicKeyPem: input.creatorRootPublicKeyPem };
+    const genesis = createCommunityGenesis({ ...unsigned, signature: input.sign(canonicalCommunityGenesisPayload(unsigned)) });
+    await core.append(genesis);
+    await this.selectGenesisCommunity(core, genesis);
+    return { genesis, invitation: createCommunityInvitation({ schema: "peer-hours/community-invitation/v1", communityId: genesis.communityId, discoveryKey: genesis.discoveryKey }) };
+  }
+
+  /** Opens and verifies a community's immutable first record before selecting its discovery scope. */
+  async joinCommunity(invitation: CommunityInvitation): Promise<CommunityGenesis> {
+    if (!this.started || this.store === undefined) throw new Error("Start the local peer before joining a community.");
+    const normalized = createCommunityInvitation(invitation);
+    const core = this.store.get({ key: Buffer.from(normalized.communityId, "hex"), valueEncoding: "json" });
+    await core.ready();
+    if (this.networkingEnabled) {
+      await this.join(Buffer.from(normalized.discoveryKey, "hex")).flushed();
+    }
+    const available = await core.update({ wait: true, timeout: 20_000 });
+    if (!available) throw new Error("No peer supplied the community genesis record within 20 seconds.");
+    const genesis = createCommunityGenesis(await core.get(0));
+    if (genesis.communityId !== normalized.communityId || genesis.discoveryKey !== normalized.discoveryKey) throw new Error("Community invitation does not match its genesis record.");
+    await this.selectGenesisCommunity(core, genesis);
+    return genesis;
+  }
+
+  /** Selects an already verified genesis scope and moves member discovery to its shared core. */
+  private async selectGenesisCommunity(core: any, genesis: CommunityGenesis): Promise<void> {
+    this.communityGenesisCore = core;
+    this.bootstrapCore = core;
+    this.community = { communityId: genesis.communityId, displayName: genesis.displayName, protocolVersion: 1, role: "bootstrap", capabilities: Object.freeze(["discovery-metadata"]), coreKey: genesis.communityId, bootstrapNodes: Object.freeze([]), communityNodeUrl: null, receiptNodes: Object.freeze([]) };
+    if (this.networkingEnabled) {
+      await this.join(Buffer.from(genesis.discoveryKey, "hex")).flushed();
+    }
+    this.memberFeedAnnouncementExtension?.destroy();
+    this.memberFeedAnnouncementExtension = null;
+    this.registerMemberFeedAnnouncementExtension(core);
+    this.notifyStatusChange();
   }
 
   /** Starts Hyperswarm discovery and direct Corestore replication for a network-enabled runtime. */
@@ -659,8 +708,8 @@ export class PeerRuntime {
   }
 
   /** Joins a discovery topic and attaches replication handling for new connections. */
-  private join(topic: Buffer): void {
-    this.swarm.join(topic, { server: true, client: true });
+  private join(topic: Buffer): { flushed: () => Promise<void> } {
+    return this.swarm.join(topic, { server: true, client: true });
   }
 
   /** Returns a serializable snapshot for desktop UIs, node APIs, and diagnostics. */

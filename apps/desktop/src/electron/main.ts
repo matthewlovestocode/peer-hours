@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { PeerRuntime } from "@peer-hours/peer-runtime";
 import { resolveTimebankMemberFeeds } from "@peer-hours/timebank-records";
 import { MemberIdentityService, type StoredMemberIdentity } from "./member-identity.js";
+import { CommunityRegistry, type SavedCommunity } from "./community-registry.js";
+import { createCommunityInvitation, decodeCommunityInvitation, encodeCommunityInvitation } from "@peer-hours/peer-runtime";
 import { presentResolvedMemberState } from "./resolved-member-state.js";
 import { collectVerifiedSettlementDurability } from "./settlement-durability.js";
 import { parseCreateProposalRequest, parseDeviceSigningKeyId, parseListingId, parsePublishListingRequest, parseRecordId } from "./ipc-inputs.js";
@@ -15,6 +17,7 @@ const runtime = new PeerRuntime(
   process.env.PEER_HOURS_BOOTSTRAP_URL ?? "http://127.0.0.1:10001/bootstrap",
 );
 const memberIdentityPath = join(dataDirectory, "member-root-identity.json");
+const communityRegistryPath = join(dataDirectory, "communities.json");
 const memberIdentity = new MemberIdentityService(
   {
     isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
@@ -40,6 +43,12 @@ const memberIdentity = new MemberIdentityService(
     publishAnnouncement: (announcement) => runtime.publishMemberFeedAnnouncement(announcement),
   },
 );
+const communities = new CommunityRegistry({
+  async read(): Promise<readonly SavedCommunity[]> {
+    try { const value = JSON.parse(await readFile(communityRegistryPath, "utf8")); return Array.isArray(value) ? value as SavedCommunity[] : []; } catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
+  },
+  async write(entries): Promise<void> { await writeFile(communityRegistryPath, JSON.stringify(entries), { encoding: "utf8", mode: 0o600 }); },
+});
 
 /** Creates the desktop window and loads either the Vite development UI or built renderer. */
 const createWindow = () => {
@@ -68,6 +77,21 @@ app.whenReady().then(() => {
   ipcMain.handle("member:records", () => runtime.readMemberRecords());
   ipcMain.handle("member:identity-status", () => memberIdentity.status());
   ipcMain.handle("member:create-and-announce", () => memberIdentity.createAndAnnounce());
+  ipcMain.handle("community:list", () => communities.list());
+  ipcMain.handle("community:create", async (_event, input: { displayName?: unknown; locality?: unknown; region?: unknown; country?: unknown }) => {
+    const identity = await memberIdentity.communityGenesisSigner();
+    if (typeof input?.displayName !== "string" || typeof input?.locality !== "string" || typeof input?.country !== "string" || (input.region !== undefined && typeof input.region !== "string")) throw new Error("Enter a community name, locality, and country.");
+    const result = await runtime.createCommunity({ displayName: input.displayName, location: { locality: input.locality, ...(typeof input.region === "string" && input.region.trim() ? { region: input.region } : {}), country: input.country }, creatorMemberId: identity.memberId, creatorRootPublicKeyPem: identity.rootPublicKeyPem, sign: identity.sign });
+    await communities.remember(result.genesis, result.invitation);
+    return { genesis: result.genesis, invitation: encodeCommunityInvitation(result.invitation) };
+  });
+  ipcMain.handle("community:join", async (_event, encoded: unknown) => {
+    if (typeof encoded !== "string" || encoded.length > 2_048) throw new Error("Paste a valid community invitation.");
+    const invitation = decodeCommunityInvitation(encoded.trim());
+    const genesis = await runtime.joinCommunity(invitation);
+    await communities.remember(genesis, invitation);
+    return genesis;
+  });
   ipcMain.handle("member:activate-device-signing-key", () => memberIdentity.activateDeviceSigningKey());
   ipcMain.handle("member:revoke-device-signing-key", (_event, keyId: unknown) => memberIdentity.revokeDeviceSigningKey(parseDeviceSigningKeyId(keyId)));
   ipcMain.handle("member:publish-listing", (_event, input) => memberIdentity.publishListing(parsePublishListingRequest(input)));
